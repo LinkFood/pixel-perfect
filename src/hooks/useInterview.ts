@@ -28,12 +28,38 @@ export const useInterviewMessages = (projectId: string | undefined) => {
   });
 };
 
+export const useClearInterview = (projectId: string | undefined) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!projectId) throw new Error("No project ID");
+      const { error } = await supabase
+        .from("project_interview")
+        .delete()
+        .eq("project_id", projectId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["interview", projectId] });
+      toast.success("Interview cleared — start fresh!");
+    },
+    onError: () => {
+      toast.error("Failed to clear interview");
+    },
+  });
+};
+
 export const useInterviewChat = (projectId: string | undefined) => {
   const queryClient = useQueryClient();
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
 
-  const sendMessage = useCallback(async (userMessage: string, existingMessages: InterviewMessage[], petName: string, petType: string) => {
+  const sendMessage = useCallback(async (
+    userMessage: string,
+    existingMessages: InterviewMessage[],
+    petName: string,
+    petType: string,
+  ) => {
     if (!projectId) return;
     setIsStreaming(true);
     setStreamingContent("");
@@ -46,9 +72,15 @@ export const useInterviewChat = (projectId: string | undefined) => {
 
     queryClient.invalidateQueries({ queryKey: ["interview", projectId] });
 
-    // Build messages for AI
-    const messages = existingMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
-    messages.push({ role: "user", content: userMessage });
+    // Build messages — only send last 20 to edge function
+    const allMessages = existingMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+    allMessages.push({ role: "user", content: userMessage });
+
+    const messagesToSend = allMessages.length > 20
+      ? [...allMessages.slice(0, 6), ...allMessages.slice(-14)]
+      : allMessages;
+
+    const userMessageCount = allMessages.filter(m => m.role === "user").length;
 
     try {
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/interview-chat`, {
@@ -57,7 +89,12 @@ export const useInterviewChat = (projectId: string | undefined) => {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages, petName, petType }),
+        body: JSON.stringify({
+          messages: messagesToSend,
+          petName,
+          petType,
+          userMessageCount,
+        }),
       });
 
       if (resp.status === 429) { toast.error("Too many requests — please wait a moment"); setIsStreaming(false); return; }
