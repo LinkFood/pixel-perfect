@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import ChatMessage from "@/components/project/ChatMessage";
 import { useProject, useUpdateProjectStatus } from "@/hooks/useProject";
 import { useInterviewMessages, useInterviewChat, useClearInterview, useAutoFillInterview } from "@/hooks/useInterview";
+import { usePhotos } from "@/hooks/usePhotos";
 import Navbar from "@/components/landing/Navbar";
 
 const ProjectInterview = () => {
@@ -15,6 +16,8 @@ const ProjectInterview = () => {
   const navigate = useNavigate();
   const { data: project } = useProject(id);
   const { data: messages = [] } = useInterviewMessages(id);
+  const { data: photos = [] } = usePhotos(id);
+  const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
   const { sendMessage, isStreaming, streamingContent } = useInterviewChat(id);
   const clearInterview = useClearInterview(id);
   const autoFill = useAutoFillInterview(id);
@@ -35,13 +38,13 @@ const ProjectInterview = () => {
   // Auto-start interview
   useEffect(() => {
     if (messages.length === 0 && project && !isStreaming) {
-      sendMessage("Hi! I'd love to start sharing about my pet.", messages, project.pet_name, project.pet_type);
+      sendMessage("Hi! I'd love to start sharing about my pet.", messages, project.pet_name, project.pet_type, photoCaptions);
     }
   }, [messages.length, project]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = () => {
     if (!input.trim() || isStreaming || !project) return;
-    sendMessage(input.trim(), messages, project.pet_name, project.pet_type);
+    sendMessage(input.trim(), messages, project.pet_name, project.pet_type, photoCaptions);
     setInput("");
   };
 

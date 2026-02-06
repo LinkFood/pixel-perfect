@@ -3,12 +3,13 @@ import { type ProjectPhoto } from "@/hooks/usePhotos";
 
 interface PhotoGridProps {
   photos: ProjectPhoto[];
+  captioningIds?: Set<string>;
   onUpdateCaption: (id: string, caption: string) => void;
   onToggleFavorite: (id: string, current: boolean) => void;
   onDelete: (id: string, storagePath: string) => void;
 }
 
-const PhotoGrid = ({ photos, onUpdateCaption, onToggleFavorite, onDelete }: PhotoGridProps) => {
+const PhotoGrid = ({ photos, captioningIds, onUpdateCaption, onToggleFavorite, onDelete }: PhotoGridProps) => {
   if (photos.length === 0) return null;
 
   return (
@@ -17,6 +18,7 @@ const PhotoGrid = ({ photos, onUpdateCaption, onToggleFavorite, onDelete }: Phot
         <PhotoCard
           key={photo.id}
           photo={photo}
+          isCaptioning={captioningIds?.has(photo.id)}
           onUpdateCaption={(caption) => onUpdateCaption(photo.id, caption)}
           onToggleFavorite={() => onToggleFavorite(photo.id, photo.is_favorite)}
           onDelete={() => onDelete(photo.id, photo.storage_path)}
