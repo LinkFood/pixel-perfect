@@ -17,9 +17,11 @@ const Navbar = () => {
           <a href="#how" className="font-body text-sm text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
           <a href="#pricing" className="font-body text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
           <a href="#stories" className="font-body text-sm text-muted-foreground hover:text-foreground transition-colors">Stories</a>
-          <Button variant="hero" size="sm" className="rounded-lg px-5">
-            Start Your Book
-          </Button>
+          <a href="/dashboard">
+            <Button variant="hero" size="sm" className="rounded-lg px-5">
+              Start Your Book
+            </Button>
+          </a>
         </div>
 
         {/* Mobile toggle */}
@@ -34,7 +36,7 @@ const Navbar = () => {
           <a href="#how" className="block font-body text-sm text-muted-foreground" onClick={() => setOpen(false)}>How It Works</a>
           <a href="#pricing" className="block font-body text-sm text-muted-foreground" onClick={() => setOpen(false)}>Pricing</a>
           <a href="#stories" className="block font-body text-sm text-muted-foreground" onClick={() => setOpen(false)}>Stories</a>
-          <Button variant="hero" size="sm" className="w-full rounded-lg">Start Your Book</Button>
+          <a href="/dashboard"><Button variant="hero" size="sm" className="w-full rounded-lg">Start Your Book</Button></a>
         </div>
       )}
     </nav>
