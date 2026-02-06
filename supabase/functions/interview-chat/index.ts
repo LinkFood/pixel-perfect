@@ -22,21 +22,52 @@ Guidelines:
   * What makes this pet's bond with them unique
   * Their pet's "superpower" or most endearing quality
 - If they mention the pet has passed, be especially gentle and honor their grief while celebrating the pet's life.
-- After gathering enough rich material (~8-12 exchanges), gently let them know you have wonderful material for the story.
 - Keep responses concise (2-4 sentences) to maintain conversational flow.
 - Never use generic language. Make every response specific to what they've shared.`;
+
+function buildSystemPrompt(petName: string, petType: string, userMessageCount: number): string {
+  let prompt = `${SYSTEM_PROMPT}\n\nThe pet's name is "${petName}" and they are a ${petType}. Use their name naturally in conversation.`;
+
+  if (userMessageCount >= 15) {
+    prompt += `\n\nIMPORTANT: You have received MORE than enough material. DO NOT ask any more questions. Thank them warmly for sharing such beautiful memories of ${petName} and confirm that you have everything you need to create a wonderful, heartfelt storybook. End the conversation gracefully.`;
+  } else if (userMessageCount >= 10) {
+    prompt += `\n\nIMPORTANT: You now have plenty of wonderful material about ${petName}. In your next response, warmly wrap up the interview. Let them know you've gathered beautiful stories and have everything needed to create an amazing book about ${petName}. You may ask ONE final question at most, but focus on wrapping up.`;
+  } else if (userMessageCount >= 8) {
+    prompt += `\n\nNote: You're getting close to having enough material. Start thinking about wrapping up in the next few exchanges. After gathering enough rich material (~8-12 exchanges), gently let them know you have wonderful material for the story.`;
+  }
+
+  prompt += `\n\nCurrent exchange count: ${userMessageCount} user messages so far.`;
+  return prompt;
+}
+
+function windowMessages(messages: { role: string; content: string }[]): { role: string; content: string }[] {
+  if (messages.length <= 20) return messages;
+
+  const early = messages.slice(0, 6);
+  const recent = messages.slice(-14);
+
+  const summaryInstruction = {
+    role: "system" as const,
+    content: `[The conversation has been ongoing. Here are the first few exchanges for context, followed by the most recent messages. The middle portion has been omitted to save space, but assume a natural flowing conversation occurred between these segments.]`,
+  };
+
+  return [...early, summaryInstruction, ...recent];
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, petName, petType } = await req.json();
+    const { messages, petName, petType, userMessageCount = 0 } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    console.log(`Interview chat for ${petName} (${petType}), ${messages.length} messages`);
+    console.log(`Interview chat for ${petName} (${petType}), ${messages.length} messages, ${userMessageCount} user msgs`);
 
-    const systemContent = `${SYSTEM_PROMPT}\n\nThe pet's name is "${petName}" and they are a ${petType}. Use their name naturally in conversation.`;
+    const systemContent = buildSystemPrompt(petName, petType, userMessageCount);
+    const windowedMessages = windowMessages(messages);
+
+    console.log(`Windowed to ${windowedMessages.length} messages (from ${messages.length})`);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -48,7 +79,7 @@ serve(async (req) => {
         model: "openai/gpt-5.2",
         messages: [
           { role: "system", content: systemContent },
-          ...messages,
+          ...windowedMessages,
         ],
         stream: true,
         temperature: 0.85,
