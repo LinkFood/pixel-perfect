@@ -14,7 +14,198 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      project_illustrations: {
+        Row: {
+          created_at: string
+          generation_prompt: string | null
+          id: string
+          is_selected: boolean
+          page_id: string
+          project_id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          generation_prompt?: string | null
+          id?: string
+          is_selected?: boolean
+          page_id: string
+          project_id: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          generation_prompt?: string | null
+          id?: string
+          is_selected?: boolean
+          page_id?: string
+          project_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_illustrations_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "project_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_illustrations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_interview: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          project_id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          project_id: string
+          role: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_interview_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_pages: {
+        Row: {
+          created_at: string
+          id: string
+          illustration_prompt: string | null
+          is_approved: boolean
+          page_number: number
+          page_type: string
+          project_id: string
+          scene_description: string | null
+          text_content: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          illustration_prompt?: string | null
+          is_approved?: boolean
+          page_number: number
+          page_type?: string
+          project_id: string
+          scene_description?: string | null
+          text_content?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          illustration_prompt?: string | null
+          is_approved?: boolean
+          page_number?: number
+          page_type?: string
+          project_id?: string
+          scene_description?: string | null
+          text_content?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_pages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_photos: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          is_favorite: boolean
+          project_id: string
+          sort_order: number
+          storage_path: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          is_favorite?: boolean
+          project_id: string
+          sort_order?: number
+          storage_path: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          is_favorite?: boolean
+          project_id?: string
+          sort_order?: number
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_photos_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          id: string
+          pet_breed: string | null
+          pet_name: string
+          pet_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pet_breed?: string | null
+          pet_name: string
+          pet_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pet_breed?: string | null
+          pet_name?: string
+          pet_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
