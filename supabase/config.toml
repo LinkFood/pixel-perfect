@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.generate-story]
 verify_jwt = false
+
+[functions.describe-photo]
+verify_jwt = false

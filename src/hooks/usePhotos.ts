@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useState, useCallback } from "react";
 
 export type ProjectPhoto = {
   id: string;
@@ -31,8 +32,35 @@ export const usePhotos = (projectId: string | undefined) => {
 
 export const useUploadPhoto = () => {
   const queryClient = useQueryClient();
+  const [captioningIds, setCaptioningIds] = useState<Set<string>>(new Set());
 
-  return useMutation({
+  const describePhoto = useCallback(async (photoId: string, projectId: string) => {
+    setCaptioningIds(prev => new Set(prev).add(photoId));
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/describe-photo`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ photoId, projectId }),
+      });
+      if (!resp.ok) {
+        console.error("describe-photo failed:", resp.status);
+      }
+      queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+    } catch (e) {
+      console.error("describe-photo error:", e);
+    } finally {
+      setCaptioningIds(prev => {
+        const next = new Set(prev);
+        next.delete(photoId);
+        return next;
+      });
+    }
+  }, [queryClient]);
+
+  const mutation = useMutation({
     mutationFn: async ({ projectId, file }: { projectId: string; file: File }) => {
       const ext = file.name.split(".").pop();
       const path = `${projectId}/${crypto.randomUUID()}.${ext}`;
@@ -53,16 +81,20 @@ export const useUploadPhoto = () => {
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return data as ProjectPhoto;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["photos", variables.projectId] });
+      // Trigger AI captioning in background
+      describePhoto(data.id, variables.projectId);
     },
     onError: (error) => {
       toast.error("Upload failed");
       console.error(error);
     },
   });
+
+  return { ...mutation, captioningIds };
 };
 
 export const useUpdatePhoto = () => {

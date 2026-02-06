@@ -95,6 +95,7 @@ export const useInterviewChat = (projectId: string | undefined) => {
     existingMessages: InterviewMessage[],
     petName: string,
     petType: string,
+    photoCaptions?: string[],
   ) => {
     if (!projectId) return;
     setIsStreaming(true);
@@ -130,6 +131,7 @@ export const useInterviewChat = (projectId: string | undefined) => {
           petName,
           petType,
           userMessageCount,
+          photoCaptions,
         }),
       });
 

@@ -19,7 +19,7 @@ const ProjectUpload = () => {
   const { id } = useParams<{ id: string }>();
   const { data: project } = useProject(id);
   const { data: photos = [] } = usePhotos(id);
-  const uploadPhoto = useUploadPhoto();
+  const { captioningIds, ...uploadPhoto } = useUploadPhoto();
   const updatePhoto = useUpdatePhoto();
   const deletePhoto = useDeletePhoto();
 
@@ -64,6 +64,7 @@ const ProjectUpload = () => {
 
             <PhotoGrid
               photos={photos}
+              captioningIds={captioningIds}
               onUpdateCaption={(photoId, caption) => id && updatePhoto.mutate({ id: photoId, projectId: id, caption })}
               onToggleFavorite={(photoId, current) => id && updatePhoto.mutate({ id: photoId, projectId: id, is_favorite: !current })}
               onDelete={(photoId, storagePath) => id && deletePhoto.mutate({ id: photoId, projectId: id, storagePath })}
