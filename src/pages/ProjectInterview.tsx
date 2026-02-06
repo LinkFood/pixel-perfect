@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Send, CheckCircle, RotateCcw, PartyPopper } from "lucide-react";
+import { Send, CheckCircle, RotateCcw, PartyPopper, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import ChatMessage from "@/components/project/ChatMessage";
 import { useProject, useUpdateProjectStatus } from "@/hooks/useProject";
-import { useInterviewMessages, useInterviewChat, useClearInterview } from "@/hooks/useInterview";
+import { useInterviewMessages, useInterviewChat, useClearInterview, useAutoFillInterview } from "@/hooks/useInterview";
 import Navbar from "@/components/landing/Navbar";
 
 const ProjectInterview = () => {
@@ -17,6 +17,7 @@ const ProjectInterview = () => {
   const { data: messages = [] } = useInterviewMessages(id);
   const { sendMessage, isStreaming, streamingContent } = useInterviewChat(id);
   const clearInterview = useClearInterview(id);
+  const autoFill = useAutoFillInterview(id);
   const updateStatus = useUpdateProjectStatus();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -66,6 +67,17 @@ const ProjectInterview = () => {
               Tell us about {project?.pet_name || "your pet"}
             </h1>
             <div className="flex items-center gap-2">
+              {import.meta.env.DEV && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+                  onClick={() => autoFill.mutate()}
+                  disabled={isStreaming || autoFill.isPending}
+                >
+                  <Zap className="w-3.5 h-3.5" /> {autoFill.isPending ? "Filling..." : "Dev: Auto-Fill"}
+                </Button>
+              )}
               {userMsgCount > 0 && (
                 <Button
                   variant="ghost"
