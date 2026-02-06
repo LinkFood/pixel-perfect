@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
+import { linkInterviewSeed } from "@/data/linkInterviewSeed";
 
 export type InterviewMessage = {
   id: string;
@@ -45,6 +46,41 @@ export const useClearInterview = (projectId: string | undefined) => {
     },
     onError: () => {
       toast.error("Failed to clear interview");
+    },
+  });
+};
+
+export const useAutoFillInterview = (projectId: string | undefined) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!projectId) throw new Error("No project ID");
+      // Clear existing messages
+      const { error: delErr } = await supabase
+        .from("project_interview")
+        .delete()
+        .eq("project_id", projectId);
+      if (delErr) throw delErr;
+
+      // Insert in batches of 20 with sequential timestamps
+      const baseTime = new Date("2025-01-01T00:00:00Z").getTime();
+      for (let i = 0; i < linkInterviewSeed.length; i += 20) {
+        const batch = linkInterviewSeed.slice(i, i + 20).map((msg, j) => ({
+          project_id: projectId,
+          role: msg.role,
+          content: msg.content,
+          created_at: new Date(baseTime + (i + j) * 1000).toISOString(),
+        }));
+        const { error } = await supabase.from("project_interview").insert(batch);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["interview", projectId] });
+      toast.success("Link's interview restored! (165 messages)");
+    },
+    onError: () => {
+      toast.error("Failed to auto-fill interview");
     },
   });
 };
