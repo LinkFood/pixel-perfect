@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, Camera } from "lucide-react";
 
 interface BookPageViewerProps {
   pageNumber: number;
@@ -9,18 +9,75 @@ interface BookPageViewerProps {
   illustrationPrompt: string | null;
   illustrationUrl?: string | null;
   isApproved: boolean;
+  // Photo gallery props
+  photoUrl?: string | null;
+  photoCaption?: string | null;
 }
 
-const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt, illustrationUrl, isApproved }: BookPageViewerProps) => {
+const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt, illustrationUrl, isApproved, photoUrl, photoCaption }: BookPageViewerProps) => {
   const [imgLoaded, setImgLoaded] = useState(false);
 
+  const isPhotoGallery = pageType === "photo_gallery";
+  const isGalleryTitle = pageType === "photo_gallery_title";
+
+  // Gallery title page
+  if (isGalleryTitle) {
+    return (
+      <div className="rounded-2xl border-2 overflow-hidden bg-card border-primary/20">
+        <div className="aspect-square flex items-center justify-center bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
+          <div className="text-center space-y-4 p-8">
+            <Camera className="w-16 h-16 text-primary/60 mx-auto" />
+            <h2 className="font-display text-2xl font-bold text-foreground">
+              {textContent}
+            </h2>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Photo gallery page — real uploaded photo with caption
+  if (isPhotoGallery) {
+    return (
+      <div className="rounded-2xl border-2 overflow-hidden bg-card border-primary/20">
+        <div className="aspect-square flex flex-col items-center justify-center p-6 bg-gradient-to-b from-amber-50/50 to-white dark:from-amber-950/20 dark:to-card">
+          {photoUrl ? (
+            <div className="flex-1 w-full flex items-center justify-center p-4">
+              <div className="relative rounded-lg overflow-hidden shadow-lg border-4 border-white dark:border-gray-700 max-w-[80%] max-h-[70%]">
+                <img
+                  src={photoUrl}
+                  alt={photoCaption || `Photo of pet`}
+                  className={cn(
+                    "w-full h-full object-cover transition-opacity duration-500",
+                    imgLoaded ? "opacity-100" : "opacity-0"
+                  )}
+                  onLoad={() => setImgLoaded(true)}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 w-full flex items-center justify-center">
+              <Camera className="w-16 h-16 text-muted-foreground/30" />
+            </div>
+          )}
+          {photoCaption && (
+            <p className="font-body text-sm italic text-muted-foreground text-center mt-4 px-4 max-w-md">
+              {photoCaption}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Standard story page
   return (
     <div className={cn(
       "rounded-2xl border-2 overflow-hidden bg-card transition-colors",
       isApproved ? "border-primary/30" : "border-border"
     )}>
       {/* Illustration */}
-      <div className="aspect-[4/3] bg-secondary/50 relative overflow-hidden">
+      <div className="aspect-square bg-secondary/50 relative overflow-hidden">
         {illustrationUrl ? (
           <img
             src={illustrationUrl}
@@ -43,7 +100,11 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
         )}
         <div className="absolute top-3 left-3">
           <span className="text-xs font-body text-muted-foreground bg-background/80 backdrop-blur-sm rounded-full px-2.5 py-1">
-            {pageType === "cover" ? "Cover" : pageType === "dedication" ? "Dedication" : `Page ${pageNumber}`}
+            {pageType === "cover" ? "Cover"
+              : pageType === "dedication" ? "Dedication"
+              : pageType === "closing" ? "Closing"
+              : pageType === "back_cover" ? "Back Cover"
+              : `Page ${pageNumber}`}
           </span>
         </div>
       </div>

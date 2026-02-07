@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Camera } from "lucide-react";
 
 interface BookPage {
   pageNumber: number;
   pageType: string;
   textContent: string | null;
   illustrationUrl: string | null;
+  photoUrl?: string | null;
+  photoCaption?: string | null;
 }
 
 interface BookPreviewProps {
@@ -21,14 +23,67 @@ const BookPreview = ({ open, onOpenChange, pages, petName }: BookPreviewProps) =
   const [current, setCurrent] = useState(0);
   const page = pages[current];
 
+  // Reset to first page when opening
+  useEffect(() => {
+    if (open) setCurrent(0);
+  }, [open]);
+
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!open) return;
+    if (e.key === "ArrowLeft" && current > 0) {
+      setCurrent(c => c - 1);
+    } else if (e.key === "ArrowRight" && current < pages.length - 1) {
+      setCurrent(c => c + 1);
+    } else if (e.key === "Escape") {
+      onOpenChange(false);
+    }
+  }, [open, current, pages.length, onOpenChange]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
+  const isPhotoGallery = page?.pageType === "photo_gallery";
+  const isGalleryTitle = page?.pageType === "photo_gallery_title";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl w-full p-0 gap-0 rounded-2xl overflow-hidden border-none bg-card [&>button]:hidden">
         {page && (
           <>
-            {/* Image */}
-            <div className="aspect-[4/3] bg-secondary relative">
-              {page.illustrationUrl ? (
+            {/* Image / Photo area */}
+            <div className="aspect-square bg-secondary relative">
+              {isGalleryTitle ? (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
+                  <Camera className="w-16 h-16 text-primary/60 mb-4" />
+                  <h2 className="font-display text-2xl font-bold text-foreground">
+                    {page.textContent}
+                  </h2>
+                </div>
+              ) : isPhotoGallery ? (
+                <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-gradient-to-b from-amber-50/50 to-white dark:from-amber-950/20 dark:to-card">
+                  {page.photoUrl ? (
+                    <div className="flex-1 w-full flex items-center justify-center p-4">
+                      <div className="rounded-lg overflow-hidden shadow-lg border-4 border-white dark:border-gray-700 max-w-[75%] max-h-[70%]">
+                        <img
+                          src={page.photoUrl}
+                          alt={page.photoCaption || "Pet photo"}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <Camera className="w-16 h-16 text-muted-foreground/30" />
+                  )}
+                  {page.photoCaption && (
+                    <p className="font-body text-sm italic text-muted-foreground text-center mt-4 px-6 max-w-md">
+                      {page.photoCaption}
+                    </p>
+                  )}
+                </div>
+              ) : page.illustrationUrl ? (
                 <img
                   src={page.illustrationUrl}
                   alt={`Page ${page.pageNumber}`}
@@ -49,12 +104,14 @@ const BookPreview = ({ open, onOpenChange, pages, petName }: BookPreviewProps) =
               </Button>
             </div>
 
-            {/* Text */}
-            <div className="p-8 text-center">
-              <p className="font-display text-lg leading-relaxed text-foreground">
-                {page.textContent}
-              </p>
-            </div>
+            {/* Text (for story pages) */}
+            {!isPhotoGallery && !isGalleryTitle && page.textContent && (
+              <div className="p-8 text-center">
+                <p className="font-display text-lg leading-relaxed text-foreground">
+                  {page.textContent}
+                </p>
+              </div>
+            )}
 
             {/* Navigation */}
             <div className="flex items-center justify-between px-6 pb-6">

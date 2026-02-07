@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, BookOpen, ImageIcon, RefreshCw, AlertTriangle } from "lucide-react";
+import { Sparkles, BookOpen, ImageIcon, RefreshCw, AlertTriangle, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useProject, useUpdateProjectStatus } from "@/hooks/useProject";
@@ -10,6 +10,10 @@ import Navbar from "@/components/landing/Navbar";
 import { toast } from "sonner";
 
 type Phase = "loading" | "story" | "illustrations" | "done" | "failed";
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 const ProjectGenerating = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,8 +24,9 @@ const ProjectGenerating = () => {
   const [phase, setPhase] = useState<Phase>("loading");
   const [pagesGenerated, setPagesGenerated] = useState(0);
   const [illustrationsGenerated, setIllustrationsGenerated] = useState(0);
-  const [totalPages, setTotalPages] = useState(24);
+  const [totalPages, setTotalPages] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
+  const [currentPageLabel, setCurrentPageLabel] = useState("");
   const startedRef = useRef(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -53,7 +58,7 @@ const ProjectGenerating = () => {
     // Get all pages
     const { data: pages } = await supabase
       .from("project_pages")
-      .select("id")
+      .select("id, page_number, page_type")
       .eq("project_id", projectId)
       .order("page_number");
 
@@ -84,17 +89,42 @@ const ProjectGenerating = () => {
 
     let successes = 0;
     for (const page of missingPages) {
+      // Show which page is being illustrated
+      const label = page.page_type === "cover" ? "Cover"
+        : page.page_type === "dedication" ? "Dedication"
+        : page.page_type === "back_cover" ? "Back Cover"
+        : page.page_type === "closing" ? "Closing"
+        : `Page ${page.page_number}`;
+      setCurrentPageLabel(label);
+
       try {
-        const { error } = await supabase.functions.invoke("generate-illustration", {
+        const { data, error } = await supabase.functions.invoke("generate-illustration", {
           body: { pageId: page.id, projectId },
         });
-        if (!error) successes++;
-        else console.error(`Illustration error for page ${page.id}:`, error);
+
+        if (!error) {
+          successes++;
+        } else {
+          console.error(`Illustration error for ${label}:`, error);
+          // Show specific error messages
+          const errorBody = typeof error === "object" && error.message ? error.message : String(error);
+          if (errorBody.includes("402") || errorBody.includes("Credits")) {
+            toast.error(`${label}: Credits low, trying lighter model...`);
+          } else if (errorBody.includes("429") || errorBody.includes("Rate")) {
+            toast.error(`${label}: Rate limited, will retry remaining`);
+          }
+        }
       } catch (e) {
-        console.error(`Illustration failed for page ${page.id}:`, e);
+        console.error(`Illustration failed for ${label}:`, e);
+      }
+
+      // 1.5 second delay between requests to prevent 429 cascades
+      if (missingPages.indexOf(page) < missingPages.length - 1) {
+        await sleep(1500);
       }
     }
 
+    setCurrentPageLabel("");
     const remaining = missingPages.length - successes;
     if (remaining > 0) {
       setFailedCount(remaining);
@@ -147,17 +177,28 @@ const ProjectGenerating = () => {
     setIsRetrying(false);
   };
 
+  const handleSkip = () => {
+    if (!id) return;
+    updateStatus.mutate({ id, status: "review" });
+    navigate(`/project/${id}/review`);
+  };
+
   const getProgress = () => {
     if (phase === "loading") return 0;
-    if (phase === "story") return (pagesGenerated / totalPages) * 50;
-    if (phase === "illustrations" || phase === "failed") return 50 + (illustrationsGenerated / totalPages) * 50;
+    if (phase === "story") return Math.min(pagesGenerated * 2, 45); // grows gradually, caps at 45%
+    if (phase === "illustrations" || phase === "failed") {
+      return totalPages > 0 ? 50 + (illustrationsGenerated / totalPages) * 50 : 50;
+    }
     return 100;
   };
 
   const getStatusText = () => {
     if (phase === "loading") return "Checking progress...";
-    if (phase === "story") return `Writing story... ${pagesGenerated} of ${totalPages} pages`;
-    if (phase === "illustrations") return `Creating illustrations... ${illustrationsGenerated} of ${totalPages}`;
+    if (phase === "story") return `Writing story... ${pagesGenerated} page${pagesGenerated !== 1 ? "s" : ""} so far`;
+    if (phase === "illustrations") {
+      const base = `Creating illustrations... ${illustrationsGenerated} of ${totalPages}`;
+      return currentPageLabel ? `${base} — Drawing ${currentPageLabel}` : base;
+    }
     if (phase === "failed") return `${failedCount} illustration${failedCount !== 1 ? "s" : ""} failed to generate`;
     return "Your book is complete!";
   };
@@ -184,7 +225,7 @@ const ProjectGenerating = () => {
             {phase === "done"
               ? `${project?.pet_name}'s story has been written and illustrated`
               : phase === "failed"
-              ? "Don't worry — you can retry the failed illustrations"
+              ? "Don't worry — you can retry the failed illustrations or continue to review"
               : `Crafting ${project?.pet_name || "your pet"}'s story...`}
           </p>
 
@@ -192,6 +233,15 @@ const ProjectGenerating = () => {
             <Progress value={getProgress()} className="h-3" />
             <p className="font-body text-sm text-muted-foreground">{getStatusText()}</p>
           </div>
+
+          {/* Skip button during illustration generation */}
+          {phase === "illustrations" && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 5 }} className="mb-6">
+              <Button variant="outline" size="lg" className="rounded-xl gap-2" onClick={handleSkip}>
+                <SkipForward className="w-5 h-5" /> Continue to Review (skip remaining)
+              </Button>
+            </motion.div>
+          )}
 
           {phase === "failed" && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-3 items-center">

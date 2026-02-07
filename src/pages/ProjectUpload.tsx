@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { ArrowRight, Camera } from "lucide-react";
@@ -7,6 +7,7 @@ import UploadZone from "@/components/project/UploadZone";
 import PhotoGrid from "@/components/project/PhotoGrid";
 import { useProject } from "@/hooks/useProject";
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto } from "@/hooks/usePhotos";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/landing/Navbar";
 
 const thresholdMessages: Record<string, { text: string; color: string }> = {
@@ -18,6 +19,7 @@ const thresholdMessages: Record<string, { text: string; color: string }> = {
 
 const ProjectUpload = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data: project } = useProject(id);
   const { data: photos = [] } = usePhotos(id);
   const { captioningIds, ...uploadPhoto } = useUploadPhoto();
@@ -31,6 +33,19 @@ const ProjectUpload = () => {
   const handleUpload = (files: File[]) => {
     if (!id) return;
     files.forEach(file => uploadPhoto.mutate({ projectId: id, file }));
+  };
+
+  const handleContinue = () => {
+    if (!id) return;
+    // Fire appearance profile build in background (don't await)
+    supabase.functions.invoke("build-appearance-profile", {
+      body: { projectId: id },
+    }).then(({ error }) => {
+      if (error) console.error("Appearance profile build failed:", error);
+      else console.log("Appearance profile built successfully");
+    });
+    // Navigate immediately
+    navigate(`/project/${id}/interview`);
   };
 
   return (
@@ -53,10 +68,13 @@ const ProjectUpload = () => {
                 <Camera className="w-4 h-4 text-primary" />
                 <span className="font-body text-sm font-medium text-foreground">{count}</span>
               </div>
-              <Button asChild variant="hero" className="rounded-xl gap-2" disabled={count < 5}>
-                <Link to={`/project/${id}/interview`}>
-                  Continue <ArrowRight className="w-4 h-4" />
-                </Link>
+              <Button
+                variant="hero"
+                className="rounded-xl gap-2"
+                disabled={count < 5}
+                onClick={handleContinue}
+              >
+                Continue <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
           </div>

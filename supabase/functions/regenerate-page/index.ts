@@ -28,7 +28,7 @@ serve(async (req) => {
       .single();
     if (pageErr || !page) throw new Error("Page not found");
 
-    // Get project
+    // Get project with appearance profile
     const { data: project } = await supabase.from("projects").select("*").eq("id", projectId).single();
     if (!project) throw new Error("Project not found");
 
@@ -42,13 +42,13 @@ serve(async (req) => {
       .neq("id", pageId)
       .order("page_number");
 
-    // Get interview excerpt
+    // Get interview excerpt (increased to 40 messages)
     const { data: interview } = await supabase
       .from("project_interview")
       .select("role, content")
       .eq("project_id", projectId)
       .order("created_at")
-      .limit(20);
+      .limit(40);
 
     const transcript = (interview || [])
       .map(m => `${m.role === "user" ? "Owner" : "Interviewer"}: ${m.content}`)
@@ -57,6 +57,10 @@ serve(async (req) => {
     const context = (surroundingPages || [])
       .map(p => `Page ${p.page_number} (${p.page_type}): ${p.text_content}`)
       .join("\n");
+
+    const appearanceNote = project.pet_appearance_profile
+      ? `\n\nCHARACTER APPEARANCE (include in illustration_prompt):\n${project.pet_appearance_profile}\n\nThe illustration_prompt MUST include ${project.pet_name}'s physical description for consistent illustration.`
+      : "";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -69,7 +73,7 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are rewriting a single page of a children's picture book about a pet named ${project.pet_name} (a ${project.pet_breed || ""} ${project.pet_type}). Keep the same page type and position in the story but write fresh text and a new illustration prompt. Output JSON with text_content and illustration_prompt fields only.`,
+            content: `You are rewriting a single page of a children's picture book about a pet named ${project.pet_name} (a ${project.pet_breed || ""} ${project.pet_type}). Keep the same page type and position in the story but write fresh text and a new illustration prompt. Output JSON with text_content and illustration_prompt fields only.${appearanceNote}`,
           },
           {
             role: "user",
@@ -84,6 +88,16 @@ serve(async (req) => {
     if (!response.ok) {
       const text = await response.text();
       console.error(`AI error: ${response.status}`, text);
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: "Rate limited", retryable: true }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Credits exhausted", retryable: false }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       throw new Error(`AI error: ${response.status}`);
     }
 
@@ -105,7 +119,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("regenerate-page error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error", retryable: true }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

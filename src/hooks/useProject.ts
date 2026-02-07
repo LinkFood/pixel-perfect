@@ -8,6 +8,7 @@ export type Project = {
   pet_name: string;
   pet_type: string;
   pet_breed: string | null;
+  pet_appearance_profile: string | null;
   status: string;
   created_at: string;
   updated_at: string;

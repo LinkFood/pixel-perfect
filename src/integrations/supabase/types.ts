@@ -180,6 +180,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          pet_appearance_profile: string | null
           pet_breed: string | null
           pet_name: string
           pet_type: string
@@ -189,6 +190,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          pet_appearance_profile?: string | null
           pet_breed?: string | null
           pet_name: string
           pet_type?: string
@@ -198,6 +200,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          pet_appearance_profile?: string | null
           pet_breed?: string | null
           pet_name?: string
           pet_type?: string

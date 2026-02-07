@@ -6,16 +6,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are a master children's book author for PetPage Studios. You create heartwarming, beautifully written 24-page picture books about real pets based on interview transcripts.
+function buildSystemPrompt(petName: string, appearanceProfile: string | null) {
+  const characterBlock = appearanceProfile
+    ? `\n\nCHARACTER APPEARANCE (use in EVERY illustration_prompt):\n${appearanceProfile}\n\nCRITICAL: Every illustration_prompt you write MUST include ${petName}'s full physical description so the illustrator draws the pet consistently on every single page. Copy the key details (breed, coat colors, markings, size) into each illustration_prompt.`
+    : "";
 
-Your task: Generate a complete 24-page children's storybook that weaves the pet's REAL memories, personality, and special moments into a magical narrative that children and pet owners will treasure forever.
+  return `You are a master children's book author for PetPage Studios. You create heartwarming, beautifully written picture books about real pets based on interview transcripts.
+${characterBlock}
+
+Your task: Generate a complete children's storybook that weaves the pet's REAL memories, personality, and special moments into a magical narrative that children and pet owners will treasure forever. Use as many pages as the story naturally needs — let the depth of the interview guide the length.
 
 Structure:
 - Page 1: Cover concept (title page with the pet's name)
 - Page 2: Dedication page
-- Pages 3-22: The story (20 pages of narrative)
-- Page 23: A heartfelt closing/reflection page
-- Page 24: Back cover concept
+- Middle pages: The story (as many narrative pages as the story needs)
+- Second-to-last page: A heartfelt closing/reflection page that naturally transitions to the photo gallery — something like "And here is ${petName}, just as they really were..." or "Turn the page to see the real ${petName}..."
+- Last page: Back cover concept
+
+IMPORTANT: The final pages of this book (after your story) will feature the family's real photos of ${petName} as a keepsake gallery. Your closing page should create a beautiful emotional bridge from the illustrated story to those real photos. Make the reader want to turn the page and see the real pet.
 
 Writing style:
 - Warm, lyrical prose suitable for reading aloud
@@ -24,10 +32,12 @@ Writing style:
 - Each page should have 2-4 sentences (picture book pacing)
 - Create an emotional arc: introduction → adventures → challenges → celebration of bond
 - If the pet has passed, handle with grace — celebrating their life rather than focusing on loss
+- Include as many real memories and moments from the interview as possible — don't leave good stories on the table
 
-For each page, also provide a detailed illustration prompt describing exactly what the illustration should show — composition, colors, mood, specific visual details.
+For each page, provide a detailed illustration prompt describing exactly what the illustration should show — composition, colors, mood, specific visual details.${appearanceProfile ? ` ALWAYS include ${petName}'s physical description in the illustration prompt.` : ""}
 
-You MUST call the generate_pages function with all 24 pages.`;
+You MUST call the generate_pages function with all pages.`;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -42,7 +52,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get project details
+    // Get project details including appearance profile
     const { data: project, error: projErr } = await supabase
       .from("projects")
       .select("*")
@@ -70,16 +80,19 @@ serve(async (req) => {
 
     const captions = (photos || []).filter(p => p.caption).map(p => p.caption).join(", ");
 
-    console.log(`Generating story for ${project.pet_name}, ${interview?.length || 0} interview messages, ${photos?.length || 0} captioned photos`);
+    console.log(`Generating story for ${project.pet_name}, ${interview?.length || 0} interview messages, ${photos?.length || 0} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
 
-    const userPrompt = `Create a 24-page children's storybook about ${project.pet_name}, a ${project.pet_breed || ""} ${project.pet_type}.
+    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile);
 
+    const userPrompt = `Create a children's storybook about ${project.pet_name}, a ${project.pet_breed || ""} ${project.pet_type}. Use as many pages as the story naturally needs — don't cut short, include every meaningful memory.
+
+${project.pet_appearance_profile ? `PHYSICAL APPEARANCE:\n${project.pet_appearance_profile}\n` : ""}
 INTERVIEW TRANSCRIPT:
 ${transcript}
 
 ${captions ? `PHOTO CAPTIONS: ${captions}` : ""}
 
-Generate all 24 pages now using the generate_pages function.`;
+Generate all pages now using the generate_pages function.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -90,14 +103,14 @@ Generate all 24 pages now using the generate_pages function.`;
       body: JSON.stringify({
         model: "openai/gpt-5.2",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
         tools: [{
           type: "function",
           function: {
             name: "generate_pages",
-            description: "Generate all 24 pages of the storybook",
+            description: "Generate all pages of the storybook",
             parameters: {
               type: "object",
               properties: {
@@ -132,12 +145,12 @@ Generate all 24 pages now using the generate_pages function.`;
       console.error(`AI gateway error: ${response.status}`, text);
 
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited" }), {
+        return new Response(JSON.stringify({ error: "Rate limited", retryable: true }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required" }), {
+        return new Response(JSON.stringify({ error: "Credits exhausted", retryable: false }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -175,7 +188,7 @@ Generate all 24 pages now using the generate_pages function.`;
     });
   } catch (e) {
     console.error("generate-story error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error", retryable: true }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
