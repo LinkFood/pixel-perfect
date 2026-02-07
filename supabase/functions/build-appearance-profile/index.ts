@@ -141,8 +141,17 @@ Be extremely specific — an illustrator should be able to draw this pet identic
 
     console.log(`Appearance profile for ${project.pet_name}: ${profile.slice(0, 100)}...`);
 
-    // Profile is returned but not persisted (column was removed from schema)
-    console.log("Appearance profile generated successfully (not persisted)");
+    // Save profile to projects table
+    const { error: updateErr } = await supabase
+      .from("projects")
+      .update({ pet_appearance_profile: profile })
+      .eq("id", projectId);
+
+    if (updateErr) {
+      console.error("Failed to save appearance profile:", updateErr);
+    } else {
+      console.log(`Appearance profile saved for ${project.pet_name}`);
+    }
 
     return new Response(JSON.stringify({ success: true, profile }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

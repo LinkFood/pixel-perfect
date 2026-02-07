@@ -93,9 +93,9 @@ serve(async (req) => {
 
     const captions = (photos || []).filter(p => p.caption).map(p => p.caption).join(", ");
 
-    console.log(`Generating story for ${project.pet_name}, ${interview?.length || 0} interview messages, ${photos?.length || 0} captioned photos`);
+    console.log(`Generating story for ${project.pet_name}, ${interview?.length || 0} interview messages, ${photos?.length || 0} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
 
-    const systemPrompt = buildSystemPrompt(project.pet_name, null);
+    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile);
 
     const userPrompt = `Create a children's storybook about ${project.pet_name}, a ${project.pet_breed || ""} ${project.pet_type}. Use as many pages as the story naturally needs — don't cut short, include every meaningful memory.
 
