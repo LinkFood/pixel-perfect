@@ -112,10 +112,10 @@ const BookPreview = ({ open, onOpenChange, pages, petName }: BookPreviewProps) =
       );
     }
 
-    // Story page
+    // Story page — full-bleed with text overlay
     return (
-      <div className="flex-1 flex flex-col">
-        <div className="aspect-square bg-secondary relative flex-shrink-0">
+      <div className="flex-1">
+        <div className="aspect-square bg-secondary relative">
           {page.illustrationUrl ? (
             <img
               src={page.illustrationUrl}
@@ -127,14 +127,14 @@ const BookPreview = ({ open, onOpenChange, pages, petName }: BookPreviewProps) =
               No illustration
             </div>
           )}
+          {page.textContent && (
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pt-10 pb-4 px-4">
+              <p className="font-display text-sm leading-relaxed text-white text-center drop-shadow-md">
+                {page.textContent}
+              </p>
+            </div>
+          )}
         </div>
-        {page.textContent && (
-          <div className="p-3 text-center flex-shrink-0">
-            <p className="font-display text-sm leading-relaxed text-foreground">
-              {page.textContent}
-            </p>
-          </div>
-        )}
       </div>
     );
   };

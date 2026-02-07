@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useProject, useUpdateProjectStatus } from "@/hooks/useProject";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/landing/Navbar";
+import PageEditor from "@/components/project/PageEditor";
 import { toast } from "sonner";
 
 type Phase = "loading" | "story" | "illustrations" | "done" | "failed";
@@ -302,6 +303,16 @@ const ProjectGenerating = () => {
     setSkippedPageIds(prev => { const next = new Set(prev); next.add(pageId); return next; });
   };
 
+  const handleUpdateText = async (pageId: string, text: string) => {
+    await supabase.from("project_pages").update({ text_content: text }).eq("id", pageId);
+    setLivePages(prev => prev.map(p => p.id === pageId ? { ...p, text_content: text } : p));
+  };
+
+  const handleToggleApprove = async (pageId: string, approved: boolean) => {
+    await supabase.from("project_pages").update({ is_approved: approved }).eq("id", pageId);
+    setLivePages(prev => prev.map(p => p.id === pageId ? { ...p, is_approved: approved } : p));
+  };
+
   const getProgress = () => {
     if (phase === "loading") return 0;
     if (phase === "story") return Math.min(pagesGenerated * 2, 45);
@@ -429,7 +440,7 @@ const ProjectGenerating = () => {
               }
               const illUrl = liveIllustrations.get(page.id);
               return (
-                <div className="flex-1 flex flex-col bg-card overflow-hidden">
+                <div className="flex-1 bg-card overflow-hidden">
                   <div className="aspect-square bg-secondary/50 relative">
                     {illUrl ? (
                       <img src={illUrl} alt={`Page ${page.page_number}`} className="w-full h-full object-cover" />
@@ -451,14 +462,15 @@ const ProjectGenerating = () => {
                           : `Page ${page.page_number}`}
                       </span>
                     </div>
+                    {/* Text overlay */}
+                    {page.text_content && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pt-10 pb-4 px-4">
+                        <p className="font-display text-sm leading-relaxed text-white text-center line-clamp-3 drop-shadow-md">
+                          {page.text_content}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  {page.text_content && (
-                    <div className="p-3 text-center">
-                      <p className="font-display text-sm leading-relaxed text-foreground line-clamp-3">
-                        {page.text_content}
-                      </p>
-                    </div>
-                  )}
                 </div>
               );
             };
@@ -618,28 +630,31 @@ const ProjectGenerating = () => {
                           <RefreshCw className="w-3 h-3 text-white" />
                         </div>
                       )}
+                      {/* Text overlay on thumbnail */}
+                      {illUrl && page.text_content && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-1.5 pt-4">
+                          <p className="text-[8px] font-display text-white line-clamp-2 leading-tight text-center drop-shadow-sm">
+                            {page.text_content}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Label + text preview */}
+                    {/* Label */}
                     <div className="p-1.5">
                       <div className="flex items-center gap-1">
                         <p className="text-[10px] font-body font-medium text-muted-foreground">{label}</p>
                         {isRendering && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />}
                         {isFailed && <div className="w-1.5 h-1.5 rounded-full bg-red-500" />}
                       </div>
-                      {page.text_content && (
-                        <p className="text-[9px] font-body text-muted-foreground/70 line-clamp-2 leading-tight">
-                          {page.text_content}
-                        </p>
-                      )}
                     </div>
 
                     {/* Hover actions */}
                     {illUrl && !isSkipped && (
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 pointer-events-none">
                         {!page.is_approved && (
                           <button
-                            className="w-7 h-7 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors"
+                            className="w-7 h-7 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors pointer-events-auto"
                             onClick={(e) => { e.stopPropagation(); handleApprove(page.id); }}
                             title="Approve"
                           >
@@ -647,7 +662,7 @@ const ProjectGenerating = () => {
                           </button>
                         )}
                         <button
-                          className="w-7 h-7 rounded-full bg-amber-500 hover:bg-amber-600 flex items-center justify-center transition-colors"
+                          className="w-7 h-7 rounded-full bg-amber-500 hover:bg-amber-600 flex items-center justify-center transition-colors pointer-events-auto"
                           onClick={(e) => { e.stopPropagation(); handleReject(page.id); }}
                           title="Redo"
                         >
@@ -656,9 +671,9 @@ const ProjectGenerating = () => {
                       </div>
                     )}
                     {!illUrl && !isSkipped && !isRendering && (phase === "illustrations" || isFailed) && (
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                         <button
-                          className="w-7 h-7 rounded-full bg-gray-500 hover:bg-gray-600 flex items-center justify-center transition-colors"
+                          className="w-7 h-7 rounded-full bg-gray-500 hover:bg-gray-600 flex items-center justify-center transition-colors pointer-events-auto"
                           onClick={(e) => { e.stopPropagation(); handleSkip(page.id); }}
                           title="Skip"
                         >
@@ -681,15 +696,41 @@ const ProjectGenerating = () => {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-6 max-w-lg mx-auto bg-card rounded-2xl border border-border overflow-hidden"
+                className="mt-6 max-w-2xl mx-auto bg-card rounded-2xl border border-border overflow-hidden"
               >
-                {illUrl && (
-                  <img src={illUrl} alt={`Page ${page.page_number}`} className="w-full aspect-square object-cover" />
-                )}
-                <div className="p-4">
-                  <p className="font-display text-base leading-relaxed text-foreground">
-                    {page.text_content || "No text yet"}
-                  </p>
+                {/* Close button */}
+                <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                  <span className="font-display text-sm font-medium text-muted-foreground">
+                    {page.page_type === "cover" ? "Cover"
+                      : page.page_type === "dedication" ? "Dedication"
+                      : page.page_type === "closing" ? "Closing"
+                      : page.page_type === "back_cover" ? "Back Cover"
+                      : `Page ${page.page_number}`}
+                  </span>
+                  <button
+                    className="w-7 h-7 rounded-full hover:bg-secondary flex items-center justify-center transition-colors"
+                    onClick={() => setSelectedPageId(null)}
+                  >
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </div>
+                {/* Content: illustration + editor side by side on md+ */}
+                <div className="flex flex-col md:flex-row">
+                  {illUrl && (
+                    <div className="md:w-1/2 flex-shrink-0">
+                      <img src={illUrl} alt={`Page ${page.page_number}`} className="w-full aspect-square object-cover" />
+                    </div>
+                  )}
+                  <div className={cn("p-4 flex-1", illUrl ? "" : "w-full")}>
+                    <PageEditor
+                      pageId={page.id}
+                      textContent={page.text_content}
+                      illustrationPrompt={page.illustration_prompt}
+                      isApproved={page.is_approved}
+                      onUpdateText={(text) => handleUpdateText(page.id, text)}
+                      onToggleApprove={(approved) => handleToggleApprove(page.id, approved)}
+                    />
+                  </div>
                 </div>
               </motion.div>
             );

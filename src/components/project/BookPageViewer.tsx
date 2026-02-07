@@ -125,13 +125,12 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
     );
   }
 
-  // Standard story page
+  // Standard story page — full-bleed illustration with text overlay
   return (
     <div className={cn(
       "rounded-2xl border-2 overflow-hidden bg-card transition-colors",
       isApproved ? "border-primary/30" : "border-border"
     )}>
-      {/* Illustration */}
       <div className="aspect-square bg-secondary/50 relative overflow-hidden">
         {illustrationUrl && !imgError ? (
           <img
@@ -161,6 +160,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
             </div>
           </div>
         )}
+        {/* Page label */}
         <div className="absolute top-3 left-3">
           <span className="text-xs font-body text-muted-foreground bg-background/80 backdrop-blur-sm rounded-full px-2.5 py-1">
             {pageType === "cover" ? "Cover"
@@ -170,12 +170,24 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
               : `Page ${pageNumber}`}
           </span>
         </div>
-      </div>
-      {/* Text content */}
-      <div className={cn("p-6", isHalf && "p-3")}>
-        <p className={cn("font-display leading-relaxed text-foreground", isHalf ? "text-sm" : "text-base")}>
-          {textContent || "Text will appear here after generation..."}
-        </p>
+        {/* Text overlay at bottom */}
+        {textContent && (
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pt-12 pb-5 px-5">
+            <p className={cn(
+              "font-display leading-relaxed text-white text-center drop-shadow-md",
+              isHalf ? "text-sm" : "text-base"
+            )}>
+              {textContent}
+            </p>
+          </div>
+        )}
+        {!textContent && (
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent pt-8 pb-4 px-5">
+            <p className={cn("font-display leading-relaxed text-white/60 text-center italic", isHalf ? "text-xs" : "text-sm")}>
+              Text will appear here after generation...
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

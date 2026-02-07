@@ -1,4 +1,4 @@
-import jsPDF from "jspdf";
+import jsPDF, { GState } from "jspdf";
 
 interface StoryPage {
   pageNumber: number;
@@ -135,29 +135,28 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
         });
       }
     } else {
-      // Story / closing pages: top 70% illustration, bottom 30% text
-      const illustrationHeight = PAGE_SIZE * 0.7;
-      const textAreaHeight = PAGE_SIZE * 0.3;
-
+      // Story / closing pages: full-bleed illustration with text overlay at bottom
       if (imgData) {
-        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, illustrationHeight);
+        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
       } else {
         doc.setFillColor(245, 240, 230);
-        doc.rect(0, 0, PAGE_SIZE, illustrationHeight, "F");
+        doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
       }
 
-      // Text area with white background
-      doc.setFillColor(255, 255, 255);
-      doc.rect(0, illustrationHeight, PAGE_SIZE, textAreaHeight, "F");
-
       if (page.textContent) {
+        // Semi-transparent overlay bar at bottom
+        doc.setGState(new GState({ opacity: 0.75 }));
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, PAGE_SIZE - 130, PAGE_SIZE, 130, "F");
+        doc.setGState(new GState({ opacity: 1 }));
+
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(14);
-        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(16);
+        doc.setTextColor(40, 40, 40);
         const lines = wrapText(doc, page.textContent, textArea - 20);
-        const lineHeight = 22;
+        const lineHeight = 24;
         const totalTextHeight = lines.length * lineHeight;
-        const startY = illustrationHeight + (textAreaHeight - totalTextHeight) / 2 + 10;
+        const startY = PAGE_SIZE - 130 + (130 - totalTextHeight) / 2 + 8;
         lines.forEach((line, i) => {
           doc.text(line, PAGE_SIZE / 2, startY + i * lineHeight, { align: "center" });
         });
