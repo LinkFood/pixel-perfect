@@ -166,16 +166,16 @@ serve(async (req) => {
       .single();
     if (pageErr || !page) throw new Error("Page not found");
 
-    // Get project with appearance profile
+    // Get project
     const { data: project, error: projErr } = await supabase
       .from("projects")
-      .select("pet_name, pet_type, pet_breed, pet_appearance_profile")
+      .select("pet_name, pet_type, pet_breed")
       .eq("id", projectId)
       .single();
     if (projErr || !project) throw new Error("Project not found");
 
     const scenePrompt = page.illustration_prompt || page.scene_description || "A cute pet illustration";
-    const appearanceProfile = project.pet_appearance_profile || "";
+    const appearanceProfile = "";
     const breed = project.pet_breed || project.pet_type || "dog";
 
     // Extract key visual traits for reinforcement
