@@ -1,16 +1,20 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, PawPrint, Dog, Cat, Bird, Fish } from "lucide-react";
+import { Plus, PawPrint, Dog, Cat, Bird, Fish, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import ProjectStatusBadge from "@/components/project/ProjectStatusBadge";
-import { useProjects } from "@/hooks/useProject";
+import { useProjects, useDeleteProject, type Project } from "@/hooks/useProject";
 import Navbar from "@/components/landing/Navbar";
 
 const petIcons: Record<string, React.ElementType> = { dog: Dog, cat: Cat, bird: Bird, fish: Fish };
 
 const Dashboard = () => {
   const { data: projects, isLoading } = useProjects();
+  const deleteProject = useDeleteProject();
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
   const getProjectLink = (project: { id: string; status: string }) => {
     const routes: Record<string, string> = {
@@ -20,6 +24,12 @@ const Dashboard = () => {
       review: `/project/${project.id}/review`,
     };
     return routes[project.status] || `/project/${project.id}/upload`;
+  };
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    deleteProject.mutate(deleteTarget.id);
+    setDeleteTarget(null);
   };
 
   return (
@@ -47,13 +57,21 @@ const Dashboard = () => {
               return (
                 <motion.div key={project.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
                   <Link to={getProjectLink(project)}>
-                    <Card className="rounded-2xl hover:shadow-lg transition-all duration-300 cursor-pointer group border-border" style={{ boxShadow: "var(--card-shadow)" }}>
+                    <Card className="rounded-2xl hover:shadow-lg transition-all duration-300 cursor-pointer group border-border relative" style={{ boxShadow: "var(--card-shadow)" }}>
                       <CardContent className="p-6 space-y-4">
                         <div className="flex items-start justify-between">
                           <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                             <Icon className="w-6 h-6 text-primary" />
                           </div>
-                          <ProjectStatusBadge status={project.status} />
+                          <div className="flex items-center gap-2">
+                            <ProjectStatusBadge status={project.status} />
+                            <button
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(project); }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <h3 className="font-display text-xl font-semibold text-foreground group-hover:text-primary transition-colors">{project.pet_name}</h3>
@@ -86,6 +104,23 @@ const Dashboard = () => {
           </motion.div>
         )}
       </main>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Delete {deleteTarget?.pet_name}'s Book?</AlertDialogTitle>
+            <AlertDialogDescription className="font-body">
+              This will permanently delete the project, all photos, interview data, and generated pages. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

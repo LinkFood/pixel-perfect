@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Send, CheckCircle, RotateCcw, PartyPopper, Zap } from "lucide-react";
+import { Send, CheckCircle, RotateCcw, PartyPopper, Zap, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -65,6 +65,9 @@ const ProjectInterview = () => {
       <main className="flex-1 flex flex-col pt-16 max-w-2xl mx-auto w-full">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border">
+          <Link to={`/project/${id}/upload`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-body transition-colors mb-2">
+            <ArrowLeft className="w-3 h-3" /> Back to Photos
+          </Link>
           <div className="flex items-center justify-between mb-2">
             <h1 className="font-display text-xl font-semibold text-foreground">
               Tell us about {project?.pet_name || "your pet"}
