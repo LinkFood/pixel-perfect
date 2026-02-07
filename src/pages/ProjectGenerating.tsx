@@ -494,6 +494,30 @@ const ProjectGenerating = () => {
             </div>
           </div>
 
+          {/* Skeleton placeholders during story generation */}
+          {phase === "story" && livePages.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="mt-2"
+            >
+              <p className="text-center font-body text-xs text-muted-foreground/60 mb-4">
+                Your pages will appear here as the story is written...
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <div key={i} className="rounded-xl border-2 border-border/40 overflow-hidden bg-card">
+                    <div className="aspect-square bg-secondary/30 animate-pulse" />
+                    <div className="p-1.5">
+                      <div className="h-2 w-8 bg-secondary/40 rounded animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
           {/* View toggle */}
           {showThumbnails && (
             <div className="flex justify-center gap-1 mb-6">
