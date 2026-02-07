@@ -48,6 +48,8 @@ const ProjectGenerating = () => {
   const [redoQueue, setRedoQueue] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "book">("grid");
   const [spreadIdx, setSpreadIdx] = useState(0);
+  const [currentlyRenderingId, setCurrentlyRenderingId] = useState<string | null>(null);
+  const [failedPageIds, setFailedPageIds] = useState<Set<string>>(new Set());
 
   // Fetch pages whenever they change
   const fetchPages = useCallback(async () => {
@@ -149,6 +151,7 @@ const ProjectGenerating = () => {
         : page.page_type === "closing" ? "Closing"
         : `Page ${page.page_number}`;
       setCurrentPageLabel(label);
+      setCurrentlyRenderingId(page.id);
 
       try {
         const { error } = await supabase.functions.invoke("generate-illustration", {
@@ -157,8 +160,10 @@ const ProjectGenerating = () => {
 
         if (!error) {
           successes++;
+          setFailedPageIds(prev => { const next = new Set(prev); next.delete(page.id); return next; });
         } else {
           console.error(`Illustration error for ${label}:`, error);
+          setFailedPageIds(prev => { const next = new Set(prev); next.add(page.id); return next; });
           const errorBody = typeof error === "object" && error.message ? error.message : String(error);
           if (errorBody.includes("402") || errorBody.includes("Credits")) {
             toast.error(`${label}: Credits low, trying lighter model...`);
@@ -168,6 +173,7 @@ const ProjectGenerating = () => {
         }
       } catch (e) {
         console.error(`Illustration failed for ${label}:`, e);
+        setFailedPageIds(prev => { const next = new Set(prev); next.add(page.id); return next; });
       }
 
       // 1.5 second delay between requests
@@ -177,6 +183,7 @@ const ProjectGenerating = () => {
     }
 
     setCurrentPageLabel("");
+    setCurrentlyRenderingId(null);
 
     // Process redo queue
     if (redoQueue.size > 0) {
@@ -469,6 +476,32 @@ const ProjectGenerating = () => {
             );
           })()}
 
+          {/* Status legend */}
+          {showThumbnails && viewMode === "grid" && (
+            <div className="flex items-center justify-center gap-4 mb-4 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" />
+                <span className="text-xs font-body text-muted-foreground">Rendering</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600" />
+                <span className="text-xs font-body text-muted-foreground">Queued</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="text-xs font-body text-muted-foreground">Done</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-red-500" />
+                <span className="text-xs font-body text-muted-foreground">Failed</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-amber-500" />
+                <span className="text-xs font-body text-muted-foreground">Redo queued</span>
+              </div>
+            </div>
+          )}
+
           {/* Live page thumbnails grid */}
           {showThumbnails && viewMode === "grid" && (
             <motion.div
@@ -481,11 +514,24 @@ const ProjectGenerating = () => {
                 const illUrl = liveIllustrations.get(page.id);
                 const isSkipped = skippedPageIds.has(page.id);
                 const isRedoQueued = redoQueue.has(page.id);
+                const isRendering = currentlyRenderingId === page.id;
+                const isFailed = failedPageIds.has(page.id) && !illUrl;
+                const isDone = !!illUrl && !isRedoQueued;
+                const isQueued = !illUrl && !isRendering && !isFailed && !isSkipped && phase === "illustrations";
+
                 const label = page.page_type === "cover" ? "Cover"
                   : page.page_type === "dedication" ? "Ded."
                   : page.page_type === "back_cover" ? "Back"
                   : page.page_type === "closing" ? "Close"
                   : `P${page.page_number}`;
+
+                // Status-based border color
+                const borderClass = isRendering ? "border-blue-500 shadow-blue-500/20 shadow-md"
+                  : isFailed ? "border-red-400/70"
+                  : page.is_approved ? "border-green-400/60"
+                  : isRedoQueued ? "border-amber-400/60"
+                  : isDone ? "border-green-300/40"
+                  : "border-border";
 
                 return (
                   <motion.div
@@ -494,8 +540,7 @@ const ProjectGenerating = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     className={cn(
                       "relative rounded-xl border-2 overflow-hidden bg-card cursor-pointer transition-all group",
-                      page.is_approved ? "border-green-400/60" : "border-border",
-                      isRedoQueued ? "border-amber-400/60" : "",
+                      borderClass,
                       isSkipped ? "opacity-40" : "",
                       selectedPageId === page.id ? "ring-2 ring-primary shadow-lg" : ""
                     )}
@@ -505,24 +550,40 @@ const ProjectGenerating = () => {
                     <div className="aspect-square bg-secondary/50 relative">
                       {illUrl ? (
                         <img src={illUrl} alt={label} className="w-full h-full object-cover" />
+                      ) : isRendering ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-blue-50/50 dark:bg-blue-950/20">
+                          <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                          <span className="text-[9px] font-body text-blue-600 dark:text-blue-400 font-medium">Rendering...</span>
+                        </div>
+                      ) : isFailed ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-red-50/50 dark:bg-red-950/20">
+                          <AlertTriangle className="w-5 h-5 text-red-400" />
+                          <span className="text-[9px] font-body text-red-500 font-medium">Failed</span>
+                        </div>
+                      ) : isQueued ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+                          <div className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600" />
+                          <span className="text-[9px] font-body text-muted-foreground/50">Queued</span>
+                        </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          {phase === "illustrations" && !isSkipped ? (
-                            <Loader2 className="w-5 h-5 text-muted-foreground/40 animate-spin" />
-                          ) : (
-                            <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
-                          )}
+                          <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
                         </div>
                       )}
-                      {/* Approved checkmark */}
-                      {page.is_approved && (
-                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+
+                      {/* Status badge - top right */}
+                      {isDone && page.is_approved && (
+                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
                           <Check className="w-3 h-3 text-white" />
                         </div>
                       )}
-                      {/* Redo badge */}
+                      {isDone && !page.is_approved && (
+                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-green-400/80 flex items-center justify-center shadow-sm">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      )}
                       {isRedoQueued && (
-                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shadow-sm">
                           <RefreshCw className="w-3 h-3 text-white" />
                         </div>
                       )}
@@ -530,7 +591,11 @@ const ProjectGenerating = () => {
 
                     {/* Label + text preview */}
                     <div className="p-1.5">
-                      <p className="text-[10px] font-body font-medium text-muted-foreground">{label}</p>
+                      <div className="flex items-center gap-1">
+                        <p className="text-[10px] font-body font-medium text-muted-foreground">{label}</p>
+                        {isRendering && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />}
+                        {isFailed && <div className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+                      </div>
                       {page.text_content && (
                         <p className="text-[9px] font-body text-muted-foreground/70 line-clamp-2 leading-tight">
                           {page.text_content}
@@ -559,7 +624,7 @@ const ProjectGenerating = () => {
                         </button>
                       </div>
                     )}
-                    {!illUrl && !isSkipped && phase === "illustrations" && (
+                    {!illUrl && !isSkipped && !isRendering && (phase === "illustrations" || isFailed) && (
                       <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button
                           className="w-7 h-7 rounded-full bg-gray-500 hover:bg-gray-600 flex items-center justify-center transition-colors"
