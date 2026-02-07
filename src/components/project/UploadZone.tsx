@@ -34,7 +34,7 @@ const UploadZone = ({ onFilesSelected, isUploading }: UploadZoneProps) => {
       onDragLeave={() => setIsDragging(false)}
       onDrop={handleDrop}
     >
-      <input type="file" className="sr-only" accept="image/*" multiple onChange={handleFileInput} disabled={isUploading} />
+      <input type="file" className="sr-only" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={handleFileInput} disabled={isUploading} />
       <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
         {isUploading ? <Upload className="w-7 h-7 text-primary animate-pulse" /> : <ImagePlus className="w-7 h-7 text-primary" />}
       </div>
