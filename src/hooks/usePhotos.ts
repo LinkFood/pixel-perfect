@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
 export type ProjectPhoto = {
   id: string;
@@ -34,6 +34,12 @@ export const useUploadPhoto = () => {
   const queryClient = useQueryClient();
   const [captioningIds, setCaptioningIds] = useState<Set<string>>(new Set());
 
+  // Batch upload tracking
+  const [uploadProgress, setUploadProgress] = useState({ total: 0, completed: 0, failed: 0 });
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
+  const batchQueueRef = useRef<{ projectId: string; file: File }[]>([]);
+  const batchActiveRef = useRef(false);
+
   const describePhoto = useCallback(async (photoId: string, projectId: string) => {
     setCaptioningIds(prev => new Set(prev).add(photoId));
     try {
@@ -60,8 +66,9 @@ export const useUploadPhoto = () => {
     }
   }, [queryClient]);
 
-  const mutation = useMutation({
-    mutationFn: async ({ projectId, file }: { projectId: string; file: File }) => {
+  // Upload a single file — returns the photo record or null on failure
+  const uploadSingleFile = useCallback(async (projectId: string, file: File, sortOrder: number): Promise<ProjectPhoto | null> => {
+    try {
       const ext = file.name.split(".").pop();
       const path = `${projectId}/${crypto.randomUUID()}.${ext}`;
 
@@ -70,11 +77,103 @@ export const useUploadPhoto = () => {
         .upload(path, file, { contentType: file.type });
       if (uploadError) throw uploadError;
 
+      const { data, error } = await supabase
+        .from("project_photos")
+        .insert({ project_id: projectId, storage_path: path, sort_order: sortOrder })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as ProjectPhoto;
+    } catch (e) {
+      console.error(`Upload failed for ${file.name}:`, e);
+      return null;
+    }
+  }, []);
+
+  // Process batch queue with concurrency of 3
+  const processBatchQueue = useCallback(async () => {
+    if (batchActiveRef.current) return;
+    batchActiveRef.current = true;
+    setIsBatchUploading(true);
+
+    const queue = [...batchQueueRef.current];
+    batchQueueRef.current = [];
+
+    const CONCURRENCY = 3;
+    let completed = 0;
+    let failed = 0;
+    const total = queue.length;
+
+    setUploadProgress({ total, completed: 0, failed: 0 });
+
+    // Get current count for sort_order
+    const projectId = queue[0]?.projectId;
+    if (!projectId) { batchActiveRef.current = false; setIsBatchUploading(false); return; }
+
+    const { count: existingCount } = await supabase
+      .from("project_photos")
+      .select("*", { count: "exact", head: true })
+      .eq("project_id", projectId);
+    let sortBase = existingCount || 0;
+
+    // Process in chunks of CONCURRENCY
+    for (let i = 0; i < queue.length; i += CONCURRENCY) {
+      const chunk = queue.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map((item, j) => uploadSingleFile(item.projectId, item.file, sortBase + i + j))
+      );
+
+      for (const result of results) {
+        if (result.status === "fulfilled" && result.value) {
+          completed++;
+          // Fire captioning in background (don't await)
+          describePhoto(result.value.id, projectId);
+        } else {
+          failed++;
+        }
+      }
+
+      setUploadProgress({ total, completed, failed });
+
+      // Refresh photo list every 10 uploads (not every single one)
+      if (completed % 10 === 0 || i + CONCURRENCY >= queue.length) {
+        queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+      }
+    }
+
+    // Final refresh
+    queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+
+    if (failed > 0) {
+      toast.error(`${failed} of ${total} photos failed to upload`);
+    } else {
+      toast.success(`All ${total} photos uploaded!`);
+    }
+
+    batchActiveRef.current = false;
+    setIsBatchUploading(false);
+  }, [queryClient, describePhoto, uploadSingleFile]);
+
+  // Queue files for batch upload
+  const uploadBatch = useCallback((projectId: string, files: File[]) => {
+    batchQueueRef.current.push(...files.map(file => ({ projectId, file })));
+    setUploadProgress(prev => ({ ...prev, total: prev.total + files.length }));
+    processBatchQueue();
+  }, [processBatchQueue]);
+
+  // Keep the old single mutation for backward compat but it's unused now
+  const mutation = useMutation({
+    mutationFn: async ({ projectId, file }: { projectId: string; file: File }) => {
+      const ext = file.name.split(".").pop();
+      const path = `${projectId}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("pet-photos")
+        .upload(path, file, { contentType: file.type });
+      if (uploadError) throw uploadError;
       const { count } = await supabase
         .from("project_photos")
         .select("*", { count: "exact", head: true })
         .eq("project_id", projectId);
-
       const { data, error } = await supabase
         .from("project_photos")
         .insert({ project_id: projectId, storage_path: path, sort_order: count || 0 })
@@ -85,16 +184,14 @@ export const useUploadPhoto = () => {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["photos", variables.projectId] });
-      // Trigger AI captioning in background
       describePhoto(data.id, variables.projectId);
     },
-    onError: (error) => {
+    onError: () => {
       toast.error("Upload failed");
-      console.error(error);
     },
   });
 
-  return { ...mutation, captioningIds };
+  return { ...mutation, captioningIds, uploadBatch, uploadProgress, isBatchUploading };
 };
 
 export const useUpdatePhoto = () => {

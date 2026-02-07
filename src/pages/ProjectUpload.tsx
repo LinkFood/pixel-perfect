@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { ArrowRight, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import UploadZone from "@/components/project/UploadZone";
 import PhotoGrid from "@/components/project/PhotoGrid";
 import { useProject } from "@/hooks/useProject";
@@ -22,7 +23,7 @@ const ProjectUpload = () => {
   const navigate = useNavigate();
   const { data: project } = useProject(id);
   const { data: photos = [] } = usePhotos(id);
-  const { captioningIds, ...uploadPhoto } = useUploadPhoto();
+  const { captioningIds, uploadBatch, uploadProgress, isBatchUploading, ...uploadPhoto } = useUploadPhoto();
   const updatePhoto = useUpdatePhoto();
   const deletePhoto = useDeletePhoto();
 
@@ -32,7 +33,7 @@ const ProjectUpload = () => {
 
   const handleUpload = (files: File[]) => {
     if (!id) return;
-    files.forEach(file => uploadPhoto.mutate({ projectId: id, file }));
+    uploadBatch(id, files);
   };
 
   const handleContinue = () => {
@@ -47,6 +48,10 @@ const ProjectUpload = () => {
     // Navigate immediately
     navigate(`/project/${id}/interview`);
   };
+
+  const uploadPercent = uploadProgress.total > 0
+    ? Math.round(((uploadProgress.completed + uploadProgress.failed) / uploadProgress.total) * 100)
+    : 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -71,7 +76,7 @@ const ProjectUpload = () => {
               <Button
                 variant="hero"
                 className="rounded-xl gap-2"
-                disabled={count < 5}
+                disabled={count < 5 || isBatchUploading}
                 onClick={handleContinue}
               >
                 Continue <ArrowRight className="w-4 h-4" />
@@ -82,7 +87,11 @@ const ProjectUpload = () => {
           <p className={`font-body text-sm mb-6 ${msg.color}`}>{msg.text}</p>
 
           <div className="space-y-8">
-            <UploadZone onFilesSelected={handleUpload} isUploading={uploadPhoto.isPending} />
+            <UploadZone
+              onFilesSelected={handleUpload}
+              isUploading={isBatchUploading}
+              uploadProgress={isBatchUploading ? uploadProgress : undefined}
+            />
 
             <PhotoGrid
               photos={photos}
