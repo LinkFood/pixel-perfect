@@ -23,6 +23,7 @@ const ProjectInterview = () => {
   const autoFill = useAutoFillInterview(id);
   const updateStatus = useUpdateProjectStatus();
   const [input, setInput] = useState("");
+  const [showDevMenu, setShowDevMenu] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const userMsgCount = messages.filter(m => m.role === "user").length;
@@ -74,32 +75,38 @@ const ProjectInterview = () => {
             </h1>
             <div className="flex items-center gap-2">
               {import.meta.env.DEV && (
-                <div className="relative group">
+                <div className="relative">
                   <Button
                     variant="outline"
                     size="sm"
                     className="rounded-xl gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
                     disabled={isStreaming || autoFill.isPending}
+                    onClick={() => setShowDevMenu(prev => !prev)}
                   >
                     <Zap className="w-3.5 h-3.5" /> {autoFill.isPending ? "Filling..." : "Dev: Auto-Fill"}
                     <ChevronDown className="w-3 h-3" />
                   </Button>
-                  <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[160px] hidden group-hover:block z-50">
-                    {([
-                      { key: "link" as SeedOption, label: "Link (full, 165)" },
-                      { key: "luna" as SeedOption, label: "Luna (cat, 40)" },
-                      { key: "max" as SeedOption, label: "Max (short, 15)" },
-                    ]).map(opt => (
-                      <button
-                        key={opt.key}
-                        className="w-full text-left px-3 py-1.5 text-sm font-body text-foreground hover:bg-secondary/60 transition-colors"
-                        onClick={() => autoFill.mutate(opt.key)}
-                        disabled={autoFill.isPending}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
+                  {showDevMenu && (
+                    <div
+                      className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[160px] z-50"
+                      onMouseLeave={() => setShowDevMenu(false)}
+                    >
+                      {([
+                        { key: "link" as SeedOption, label: "Link (full, 165)" },
+                        { key: "luna" as SeedOption, label: "Luna (cat, 40)" },
+                        { key: "max" as SeedOption, label: "Max (short, 15)" },
+                      ]).map(opt => (
+                        <button
+                          key={opt.key}
+                          className="w-full text-left px-3 py-1.5 text-sm font-body text-foreground hover:bg-secondary/60 transition-colors"
+                          onClick={() => { autoFill.mutate(opt.key); setShowDevMenu(false); }}
+                          disabled={autoFill.isPending}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {userMsgCount > 0 && (
