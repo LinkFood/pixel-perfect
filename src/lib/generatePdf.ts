@@ -25,7 +25,10 @@ const SAFE_MARGIN = 27; // 0.375" safe area for text
 
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
   try {
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
     if (!response.ok) return null;
     const blob = await response.blob();
     return new Promise((resolve) => {
@@ -37,6 +40,20 @@ async function loadImageAsDataUrl(url: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** Pre-fetch all image URLs in parallel and return a lookup map */
+async function preloadImages(urls: (string | null)[]): Promise<Map<string, string>> {
+  const unique = [...new Set(urls.filter(Boolean))] as string[];
+  const results = await Promise.all(unique.map(async (url) => {
+    const data = await loadImageAsDataUrl(url);
+    return [url, data] as const;
+  }));
+  const map = new Map<string, string>();
+  for (const [url, data] of results) {
+    if (data) map.set(url, data);
+  }
+  return map;
 }
 
 function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
@@ -69,12 +86,19 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
   const textArea = PAGE_SIZE - 2 * SAFE_MARGIN;
   let isFirstPage = true;
 
+  // Pre-fetch ALL images in parallel (story + gallery)
+  const allUrls = [
+    ...storyPages.map(p => p.illustrationUrl),
+    ...galleryPhotos.map(p => p.photoUrl),
+  ];
+  const imageCache = await preloadImages(allUrls);
+
   // --- Story Pages ---
   for (const page of storyPages) {
     if (!isFirstPage) doc.addPage([PAGE_SIZE, PAGE_SIZE]);
     isFirstPage = false;
 
-    const imgData = page.illustrationUrl ? await loadImageAsDataUrl(page.illustrationUrl) : null;
+    const imgData = page.illustrationUrl ? (imageCache.get(page.illustrationUrl) ?? null) : null;
 
     if (page.pageType === "cover") {
       // Cover: full illustration with title overlay
@@ -202,7 +226,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
         const x = gridMargin + col * (cellSize + gridGap);
         const y = gridMargin + row * (cellSize + gridGap + 30); // 30pt for caption space
 
-        const imgData = await loadImageAsDataUrl(photo.photoUrl);
+        const imgData = imageCache.get(photo.photoUrl) ?? null;
         if (imgData) {
           // Shadow/frame effect
           doc.setFillColor(230, 225, 218);
