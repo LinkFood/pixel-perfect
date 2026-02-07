@@ -67,6 +67,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
                     src={photo.photoUrl}
                     alt={photo.caption || `Photo ${i + 1}`}
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 </div>
                 {photo.caption && (
@@ -107,6 +108,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
                     imgLoaded ? "opacity-100" : "opacity-0"
                   )}
                   onLoad={() => setImgLoaded(true)}
+                  loading="lazy"
                 />
               </div>
             </div>
@@ -142,6 +144,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
             )}
             onLoad={() => setImgLoaded(true)}
             onError={handleError}
+            loading="lazy"
           />
         ) : illustrationUrl && imgError ? (
           <div className="w-full h-full flex items-center justify-center">

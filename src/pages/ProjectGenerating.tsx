@@ -67,7 +67,7 @@ const ProjectGenerating = () => {
     }
   }, [id]);
 
-  // Fetch illustrations
+  // Fetch illustrations — only triggers re-render if data actually changed
   const fetchIllustrations = useCallback(async () => {
     if (!id) return;
     const { data } = await supabase
@@ -76,23 +76,44 @@ const ProjectGenerating = () => {
       .eq("project_id", id)
       .eq("is_selected", true);
     if (data) {
-      const map = new Map<string, string>();
-      data.forEach(ill => {
-        const { data: urlData } = supabase.storage.from("pet-photos").getPublicUrl(ill.storage_path);
-        map.set(ill.page_id, urlData.publicUrl);
+      setLiveIllustrations(prev => {
+        // Build new map entries
+        const entries = data.map(ill => {
+          const existing = prev.get(ill.page_id);
+          if (existing) return [ill.page_id, existing] as const;
+          const { data: urlData } = supabase.storage.from("pet-photos").getPublicUrl(ill.storage_path);
+          return [ill.page_id, urlData.publicUrl] as const;
+        });
+        // Skip re-render if nothing changed
+        if (entries.length === prev.size && entries.every(([k, v]) => prev.get(k) === v)) {
+          return prev;
+        }
+        return new Map(entries);
       });
-      setLiveIllustrations(map);
       setIllustrationsGenerated(data.length);
     }
   }, [id]);
 
-  // Listen for realtime page inserts
+  // Listen for realtime page inserts — append delta instead of full refetch
   useEffect(() => {
     if (!id) return;
     const channel = supabase
       .channel(`pages-live-${id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "project_pages", filter: `project_id=eq.${id}` },
-        () => { setPagesGenerated(prev => prev + 1); fetchPages(); }
+        (payload) => {
+          setPagesGenerated(prev => prev + 1);
+          const newPage = payload.new as PageData;
+          if (newPage?.id) {
+            setLivePages(prev => {
+              if (prev.some(p => p.id === newPage.id)) return prev;
+              const updated = [...prev, newPage].sort((a, b) => a.page_number - b.page_number);
+              setTotalPages(updated.length);
+              return updated;
+            });
+          } else {
+            fetchPages();
+          }
+        }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -443,7 +464,7 @@ const ProjectGenerating = () => {
                 <div className="flex-1 bg-card overflow-hidden">
                   <div className="aspect-square bg-secondary/50 relative">
                     {illUrl ? (
-                      <img src={illUrl} alt={`Page ${page.page_number}`} className="w-full h-full object-cover" />
+                      <img src={illUrl} alt={`Page ${page.page_number}`} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         {phase === "illustrations" ? (
@@ -592,7 +613,7 @@ const ProjectGenerating = () => {
                     {/* Thumbnail illustration */}
                     <div className="aspect-square bg-secondary/50 relative">
                       {illUrl ? (
-                        <img src={illUrl} alt={label} className="w-full h-full object-cover" />
+                        <img src={illUrl} alt={label} className="w-full h-full object-cover" loading="lazy" />
                       ) : isRendering ? (
                         <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-blue-50/50 dark:bg-blue-950/20">
                           <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
@@ -718,7 +739,7 @@ const ProjectGenerating = () => {
                 <div className="flex flex-col md:flex-row">
                   {illUrl && (
                     <div className="md:w-1/2 flex-shrink-0">
-                      <img src={illUrl} alt={`Page ${page.page_number}`} className="w-full aspect-square object-cover" />
+                      <img src={illUrl} alt={`Page ${page.page_number}`} className="w-full aspect-square object-cover" loading="lazy" />
                     </div>
                   )}
                   <div className={cn("p-4 flex-1", illUrl ? "" : "w-full")}>

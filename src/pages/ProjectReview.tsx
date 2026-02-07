@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace } from "lucide-react";
@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import Navbar from "@/components/landing/Navbar";
-import { generatePdf } from "@/lib/generatePdf";
+// generatePdf is dynamically imported when user clicks Download
 
 type Page = {
   id: string;
@@ -99,12 +99,19 @@ const ProjectReview = () => {
   const illustratedPageIds = new Set(illustrations.map(i => i.page_id));
   const missingCount = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id)).length;
 
-  const getIllustrationUrl = (pageId: string) => {
-    const ill = illustrations.find(i => i.page_id === pageId);
-    if (!ill) return null;
-    const { data } = supabase.storage.from("pet-photos").getPublicUrl(ill.storage_path);
-    return data.publicUrl;
-  };
+  // Memoize URL map so getPublicUrl isn't called on every render
+  const illustrationUrlMap = useMemo(() => {
+    const map = new Map<string, string>();
+    illustrations.forEach(ill => {
+      const { data } = supabase.storage.from("pet-photos").getPublicUrl(ill.storage_path);
+      map.set(ill.page_id, data.publicUrl);
+    });
+    return map;
+  }, [illustrations]);
+
+  const getIllustrationUrl = useCallback((pageId: string) => {
+    return illustrationUrlMap.get(pageId) || null;
+  }, [illustrationUrlMap]);
 
   // Build virtual pages: story pages + photo gallery
   const galleryPhotos = [...photos]
@@ -241,6 +248,7 @@ const ProjectReview = () => {
         caption: photo.caption,
       }));
 
+      const { generatePdf } = await import("@/lib/generatePdf");
       await generatePdf({
         petName: project.pet_name,
         storyPages: storyPagesData,

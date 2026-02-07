@@ -98,6 +98,7 @@ const BookPreview = ({ open, onOpenChange, pages, petName }: BookPreviewProps) =
                     src={photo.photoUrl}
                     alt={photo.caption || `Photo ${i + 1}`}
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 </div>
                 {photo.caption && (
@@ -121,6 +122,7 @@ const BookPreview = ({ open, onOpenChange, pages, petName }: BookPreviewProps) =
               src={page.illustrationUrl}
               alt={`Page ${page.pageNumber}`}
               className="w-full h-full object-cover"
+              loading="lazy"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground/40 text-xs">

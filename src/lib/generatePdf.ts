@@ -1,4 +1,4 @@
-import jsPDF, { GState } from "jspdf";
+import type jsPDF from "jspdf";
 
 interface StoryPage {
   pageNumber: number;
@@ -59,6 +59,7 @@ function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
 }
 
 export async function generatePdf({ petName, storyPages, galleryPhotos }: GeneratePdfOptions) {
+  const { default: jsPDF, GState } = await import("jspdf");
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "pt",
