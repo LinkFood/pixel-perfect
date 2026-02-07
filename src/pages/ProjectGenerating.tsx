@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, BookOpen, ImageIcon, RefreshCw, AlertTriangle, SkipForward, Check, X, Loader2 } from "lucide-react";
+import { Sparkles, BookOpen, ImageIcon, RefreshCw, AlertTriangle, SkipForward, Check, X, Loader2, LayoutGrid, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -46,6 +46,8 @@ const ProjectGenerating = () => {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [skippedPageIds, setSkippedPageIds] = useState<Set<string>>(new Set());
   const [redoQueue, setRedoQueue] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<"grid" | "book">("grid");
+  const [spreadIdx, setSpreadIdx] = useState(0);
 
   // Fetch pages whenever they change
   const fetchPages = useCallback(async () => {
@@ -346,8 +348,129 @@ const ProjectGenerating = () => {
             </div>
           </div>
 
-          {/* Live page thumbnails grid */}
+          {/* View toggle */}
           {showThumbnails && (
+            <div className="flex justify-center gap-1 mb-6">
+              <Button
+                variant={viewMode === "grid" ? "default" : "outline"}
+                size="sm"
+                className="rounded-xl gap-1.5"
+                onClick={() => setViewMode("grid")}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> Grid
+              </Button>
+              <Button
+                variant={viewMode === "book" ? "default" : "outline"}
+                size="sm"
+                className="rounded-xl gap-1.5"
+                onClick={() => setViewMode("book")}
+              >
+                <BookOpen className="w-3.5 h-3.5" /> Book
+              </Button>
+            </div>
+          )}
+
+          {/* Book spread view */}
+          {showThumbnails && viewMode === "book" && (() => {
+            // Build spreads from live pages
+            const spreads: [PageData | null, PageData | null][] = [];
+            if (livePages.length > 0) {
+              spreads.push([null, livePages[0]]); // blank + cover
+              for (let i = 1; i < livePages.length; i += 2) {
+                spreads.push([livePages[i], livePages[i + 1] || null]);
+              }
+            }
+            const currentSpread = spreads[spreadIdx] || spreads[0];
+            if (!currentSpread) return null;
+
+            const renderSpreadPage = (page: PageData | null) => {
+              if (!page) {
+                return (
+                  <div className="flex-1 aspect-square bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30" />
+                );
+              }
+              const illUrl = liveIllustrations.get(page.id);
+              return (
+                <div className="flex-1 flex flex-col bg-card overflow-hidden">
+                  <div className="aspect-square bg-secondary/50 relative">
+                    {illUrl ? (
+                      <img src={illUrl} alt={`Page ${page.page_number}`} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        {phase === "illustrations" ? (
+                          <Loader2 className="w-8 h-8 text-muted-foreground/30 animate-spin" />
+                        ) : (
+                          <ImageIcon className="w-8 h-8 text-muted-foreground/20" />
+                        )}
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2">
+                      <span className="text-[10px] font-body text-muted-foreground bg-background/80 backdrop-blur-sm rounded-full px-2 py-0.5">
+                        {page.page_type === "cover" ? "Cover"
+                          : page.page_type === "dedication" ? "Dedication"
+                          : page.page_type === "closing" ? "Closing"
+                          : page.page_type === "back_cover" ? "Back Cover"
+                          : `Page ${page.page_number}`}
+                      </span>
+                    </div>
+                  </div>
+                  {page.text_content && (
+                    <div className="p-3 text-center">
+                      <p className="font-display text-sm leading-relaxed text-foreground line-clamp-3">
+                        {page.text_content}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            };
+
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="max-w-3xl mx-auto"
+              >
+                {/* Spread */}
+                <div className="flex rounded-2xl overflow-hidden border border-border shadow-lg">
+                  <div className="flex-1 border-r border-border/30">
+                    {renderSpreadPage(currentSpread[0])}
+                  </div>
+                  <div className="w-1 bg-gradient-to-r from-black/10 via-black/5 to-black/10 flex-shrink-0" />
+                  <div className="flex-1">
+                    {renderSpreadPage(currentSpread[1])}
+                  </div>
+                </div>
+                {/* Spread navigation */}
+                <div className="flex items-center justify-center gap-4 mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl gap-1"
+                    disabled={spreadIdx === 0}
+                    onClick={() => setSpreadIdx(s => s - 1)}
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Prev
+                  </Button>
+                  <span className="font-body text-sm text-muted-foreground">
+                    {spreadIdx + 1} / {spreads.length}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl gap-1"
+                    disabled={spreadIdx >= spreads.length - 1}
+                    onClick={() => setSpreadIdx(s => s + 1)}
+                  >
+                    Next <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </motion.div>
+            );
+          })()}
+
+          {/* Live page thumbnails grid */}
+          {showThumbnails && viewMode === "grid" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -453,8 +576,8 @@ const ProjectGenerating = () => {
             </motion.div>
           )}
 
-          {/* Selected page detail */}
-          {selectedPageId && (() => {
+          {/* Selected page detail (grid mode only) */}
+          {viewMode === "grid" && selectedPageId && (() => {
             const page = livePages.find(p => p.id === selectedPageId);
             if (!page) return null;
             const illUrl = liveIllustrations.get(page.id);
