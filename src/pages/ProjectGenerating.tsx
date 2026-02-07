@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, BookOpen, ImageIcon, RefreshCw, AlertTriangle, SkipForward, Check, X, Loader2, LayoutGrid, ChevronLeft, ChevronRight } from "lucide-react";
+import { Sparkles, BookOpen, ImageIcon, RefreshCw, AlertTriangle, SkipForward, Check, X, Loader2, LayoutGrid, ChevronLeft, ChevronRight, StopCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,7 @@ const ProjectGenerating = () => {
   const [failedCount, setFailedCount] = useState(0);
   const [currentPageLabel, setCurrentPageLabel] = useState("");
   const startedRef = useRef(false);
+  const cancelRef = useRef(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
   // Live page data
@@ -143,6 +144,7 @@ const ProjectGenerating = () => {
 
     let successes = 0;
     for (const page of missingPages) {
+      if (cancelRef.current) break;
       if (skippedPageIds.has(page.id)) continue;
 
       const label = page.page_type === "cover" ? "Cover"
@@ -255,6 +257,7 @@ const ProjectGenerating = () => {
     if (!id) return;
     setIsRetrying(true);
     setFailedCount(0);
+    cancelRef.current = false;
 
     // If no pages exist yet, retry story generation first
     if (livePages.length === 0) {
@@ -272,6 +275,11 @@ const ProjectGenerating = () => {
 
     await generateMissingIllustrations(id);
     setIsRetrying(false);
+  };
+
+  const handleStop = () => {
+    cancelRef.current = true;
+    toast.info("Stopping after current illustration finishes...");
   };
 
   const handleContinueToReview = () => {
@@ -349,6 +357,11 @@ const ProjectGenerating = () => {
 
             {/* Action buttons */}
             <div className="flex items-center justify-center gap-3">
+              {(phase === "story" || phase === "illustrations") && (
+                <Button variant="destructive" size="sm" className="rounded-xl gap-2" onClick={handleStop}>
+                  <StopCircle className="w-4 h-4" /> Stop
+                </Button>
+              )}
               {phase === "illustrations" && (
                 <Button variant="outline" size="sm" className="rounded-xl gap-2" onClick={handleContinueToReview}>
                   <SkipForward className="w-4 h-4" /> Skip to Review
