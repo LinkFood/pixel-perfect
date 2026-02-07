@@ -1,48 +1,92 @@
 
 
-# Build It All: Illustrations, Book Preview, Export, and Polish
+# Resume Build: All Remaining Features
 
-Resuming the approved plan. Everything needed to go from uploaded photos to a finished book you can see and download.
-
----
-
-## What You'll Get When This Is Done
-
-1. After the interview, story generation creates text AND illustrations for all 24 pages
-2. The review page shows real AI-generated artwork on every page
-3. You can regenerate any single page's text or illustration
-4. A full-screen book preview lets you flip through the finished product
-5. A "Download / Print" button exports the whole book as a PDF
-6. Back buttons on every step so you're never stuck
-7. Delete projects from the dashboard when you're done with them
+The database migration is already done (realtime enabled on `project_illustrations`). Now building all the code.
 
 ---
 
-## Build Sequence (all in one shot)
+## Files to Create
 
-1. Database migration: enable realtime on `project_illustrations`
-2. New edge function: `generate-illustration` -- calls Gemini image model, uploads to storage, saves to DB
-3. New edge function: `regenerate-page` -- regenerates a single page's text and illustration prompt
-4. Update `supabase/config.toml` with new functions
-5. Update `ProjectGenerating.tsx` with two-phase progress (story writing then illustration creation)
-6. Update `BookPageViewer.tsx` to show real illustrations instead of placeholders
-7. Update `PageEditor.tsx` with "Regenerate Text" and "Regenerate Illustration" buttons
-8. Update `ProjectReview.tsx` to fetch illustrations and wire up regeneration
-9. New component: `BookPreview.tsx` -- full-screen flip-through modal
-10. New component: `PrintableBook.tsx` -- hidden print layout for PDF export via window.print()
-11. Update `ProjectUpload.tsx` and `ProjectInterview.tsx` with back navigation
-12. Add `useDeleteProject` to `useProject.ts`
-13. Update `Dashboard.tsx` with delete functionality (trash icon, confirmation dialog)
+### 1. Edge Function: `supabase/functions/generate-illustration/index.ts`
+- Accepts `pageId` and `projectId`
+- Fetches `illustration_prompt` and `scene_description` from `project_pages`
+- Calls `google/gemini-3-pro-image-preview` via Lovable AI gateway with the prompt
+- Extracts base64 image from response
+- Uploads to `pet-photos` bucket at `illustrations/{projectId}/{pageId}.png`
+- Inserts record into `project_illustrations` (page_id, project_id, storage_path, generation_prompt, is_selected=true)
+- Deletes any previous illustration for the same page first (for regeneration support)
+
+### 2. Edge Function: `supabase/functions/regenerate-page/index.ts`
+- Accepts `pageId` and `projectId`
+- Fetches project info, interview transcript, and surrounding pages for context
+- Calls `openai/gpt-5.2` to regenerate that single page's `text_content` and `illustration_prompt`
+- Updates the `project_pages` row
+- Returns updated page data
+
+### 3. Component: `src/components/project/BookPreview.tsx`
+- Full-screen Dialog with dark overlay
+- Shows each page: illustration image on top, text below
+- Previous/Next navigation with page counter
+- Close button
+
+### 4. Component: `src/components/project/PrintableBook.tsx`
+- Hidden div rendered off-screen, shown only during print
+- All pages with CSS page breaks
+- Each page: illustration + text
+- Export triggered via `window.print()` with `@media print` styles
 
 ---
 
-## Technical Notes
+## Files to Update
 
-- Illustrations use `google/gemini-3-pro-image-preview` through Lovable AI gateway (no API key needed)
-- Images generated sequentially (one at a time) to avoid rate limits
-- Base64 image data uploaded to storage immediately, never stored in database
-- `project_illustrations` table already exists with correct schema
-- PDF export uses zero additional dependencies -- pure CSS @media print with window.print()
-- Project deletion cascades manually through all related tables
-- Realtime on `project_illustrations` uses same pattern as `project_pages`
+### 5. `supabase/config.toml`
+- Add `generate-illustration` and `regenerate-page` function entries (verify_jwt = false)
+
+### 6. `src/pages/ProjectGenerating.tsx`
+- Two-phase progress: story writing then illustration generation
+- After `generate-story` completes, sequentially call `generate-illustration` for each page
+- Listen for realtime inserts on `project_illustrations` for phase 2 progress
+- Only show "Review" button after both phases complete
+
+### 7. `src/components/project/BookPageViewer.tsx`
+- Add optional `illustrationUrl` prop
+- Show real image when available, placeholder when not
+- Fade-in animation on image load
+
+### 8. `src/components/project/PageEditor.tsx`
+- Add "Regenerate Text" button (calls `regenerate-page`)
+- Add "Regenerate Illustration" button (calls `generate-illustration`)
+- Loading states for both
+
+### 9. `src/pages/ProjectReview.tsx`
+- Fetch illustrations from `project_illustrations` alongside pages
+- Pass illustration URLs to `BookPageViewer`
+- Wire regeneration callbacks to `PageEditor`
+- Add "Preview Book" and "Download/Print" buttons in header
+- Include `BookPreview` and `PrintableBook` components
+
+### 10. `src/pages/ProjectUpload.tsx`
+- Add back arrow link to `/dashboard`
+
+### 11. `src/pages/ProjectInterview.tsx`
+- Add back arrow link to `/project/{id}/upload`
+
+### 12. `src/hooks/useProject.ts`
+- Add `useDeleteProject` hook that deletes illustrations, pages, interview messages, photos (storage + DB), then the project row
+
+### 13. `src/pages/Dashboard.tsx`
+- Add trash icon on project cards (visible on hover)
+- Confirmation dialog before delete
+- Wire to `useDeleteProject`
+
+---
+
+## Technical Details
+
+- `generate-illustration` uses the same Lovable AI gateway pattern as `describe-photo` and `generate-story`
+- Images are generated one at a time (sequential loop in `ProjectGenerating`) to avoid rate limits
+- Storage path: `illustrations/{projectId}/{pageId}.png` in the existing `pet-photos` public bucket
+- `PrintableBook` uses CSS `@media print` with `page-break-after: always` -- zero new dependencies
+- Project deletion order: illustrations -> pages -> interview -> photos (storage) -> photos (DB) -> project
 
