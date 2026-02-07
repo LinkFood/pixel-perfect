@@ -1,43 +1,47 @@
 
-# Fix: Story Generation Failing Silently (0 Pages)
 
-## What's Happening
+# Reject Unsupported Photo Formats at Upload
 
-The `generate-story` edge function is being called successfully and logs "Generating story for Link, 165 interview messages, 162 captioned photos" — but **0 pages** end up in the database. The screen shows "Creating Your Book" but nothing is actually happening.
+## What's Changing
+When a user tries to upload photos in formats the app can't use (like HEIC from iPhones), they'll see a friendly message explaining the issue. The unsupported files won't be stored at all — saving storage space and avoiding broken images in the final book.
 
-Two issues are causing this:
+## Why
+These formats can't be used anywhere in the app:
+- The AI can't analyze them for captions or appearance profiling
+- Browsers can't display them in the photo gallery or the final printed book
+- Storing them wastes space and creates confusion
 
-1. **The `generate-story` function still references `pet_appearance_profile`** — a column that was removed from the database. While `select("*")` won't crash (it just returns what exists), the code references `project.pet_appearance_profile` in the prompt and logging. This is harmless but messy.
+## How It Works
 
-2. **The real problem: the AI call is likely timing out or failing silently.** With 165 interview messages and 162 photo captions, the prompt sent to GPT-5.2 is enormous. The edge function has a default timeout, and the AI gateway may be taking too long to respond. The function catches the error but the client-side code doesn't show it — it just stays on "Writing story..." forever with 0 pages.
+### 1. Filter files in `UploadZone.tsx`
+- In both the drag-and-drop handler and the file picker handler, filter files by MIME type (jpeg, png, webp, gif)
+- If any files are rejected, show a toast: "X photo(s) can't be used. Please use JPG, PNG, or WebP."
+- Only pass supported files through to the upload logic
+- Import `toast` from sonner
 
-## Fix Plan
+### 2. Keep existing safety nets
+- The `accept` attribute on the file input already limits the picker (added in the last edit)
+- The server-side check in `describe-photo` stays as a fallback
+- No other files need to change
 
-### 1. Clean up `generate-story/index.ts` references to removed column
-- Remove all references to `project.pet_appearance_profile` 
-- Pass `null` to `buildSystemPrompt` for the appearance profile parameter
-- Remove the appearance block from the user prompt
-
-### 2. Add better error handling and visibility
-- Make sure the client-side code in `ProjectGenerating.tsx` properly handles the case where `generate-story` returns an error
-- Currently it does `toast.error("Story generation failed")` but the screen stays on "Writing story..." — it should switch to the `failed` phase so the user can retry
-
-### 3. Add a retry button for story generation (not just illustrations)
-- Currently the "Retry" button only works for illustrations
-- Add a "Retry Story" option when story generation fails
-
-## Files to Change
-
-- `supabase/functions/generate-story/index.ts` — remove `pet_appearance_profile` references, clean up prompts
-- `src/pages/ProjectGenerating.tsx` — handle story failure by setting phase to `"failed"` and allowing retry of the story step
+---
 
 ## Technical Details
 
-In `generate-story/index.ts`:
-- Line 83: Remove `project.pet_appearance_profile` from log
-- Line 85: Change to `buildSystemPrompt(project.pet_name, null)`
-- Line 89: Remove the appearance profile block from user prompt
+**File: `src/components/project/UploadZone.tsx`**
 
-In `ProjectGenerating.tsx`:
-- Lines 236-241: After `storyErr`, set `setPhase("failed")` and return, so the UI shows the failure state with a retry option
-- Add a `retryStory` handler that re-invokes `generate-story` and then proceeds to illustrations
+Update `handleDrop`:
+```typescript
+const supportedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const supported = files.filter(f => supportedTypes.includes(f.type));
+const rejected = files.length - supported.length;
+if (rejected > 0) {
+  toast.error(`${rejected} photo(s) can't be used. Please use JPG, PNG, or WebP.`);
+}
+if (supported.length) onFilesSelected(supported);
+```
+
+Apply the same filtering in `handleFileInput`.
+
+No changes to backend functions, hooks, or other components needed.
+
