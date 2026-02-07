@@ -536,6 +536,8 @@ const ProjectGenerating = () => {
                 );
               }
               const illUrl = liveIllustrations.get(page.id);
+              const isDedication = page.page_type === "dedication";
+              const isCover = page.page_type === "cover";
               return (
                 <div className="flex-1 bg-card overflow-hidden">
                   <div className="aspect-square bg-secondary/50 relative">
@@ -550,19 +552,38 @@ const ProjectGenerating = () => {
                         )}
                       </div>
                     )}
-                    <div className="absolute top-2 left-2">
+                    {/* Dedication: heavy wash to hide AI text artifacts */}
+                    {isDedication && illUrl && (
+                      <div className="absolute inset-0 bg-amber-50/[0.88] dark:bg-background/90" />
+                    )}
+                    {/* Cover: top wash to hide garbled AI text */}
+                    {isCover && illUrl && (
+                      <div className="absolute top-0 left-0 right-0 h-[30%] bg-gradient-to-b from-white/90 via-white/60 to-transparent dark:from-background/90 dark:via-background/60" />
+                    )}
+                    <div className="absolute top-2 left-2 z-10">
                       <span className="text-[10px] font-body text-muted-foreground bg-background/80 backdrop-blur-sm rounded-full px-2 py-0.5">
-                        {page.page_type === "cover" ? "Cover"
-                          : page.page_type === "dedication" ? "Dedication"
+                        {isCover ? "Cover"
+                          : isDedication ? "Dedication"
                           : page.page_type === "closing" ? "Closing"
                           : page.page_type === "back_cover" ? "Back Cover"
                           : `Page ${page.page_number}`}
                       </span>
                     </div>
-                    {/* Text overlay */}
-                    {page.text_content && (
+                    {/* Dedication: centered text */}
+                    {isDedication && page.text_content && (
+                      <div className="absolute inset-0 flex items-center justify-center z-10 px-6">
+                        <p className="font-display text-base italic leading-relaxed text-foreground/80 text-center drop-shadow-sm">
+                          {page.text_content}
+                        </p>
+                      </div>
+                    )}
+                    {/* Cover/story: text overlay at bottom */}
+                    {!isDedication && page.text_content && (
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pt-10 pb-4 px-4">
-                        <p className="font-display text-sm leading-relaxed text-white text-center line-clamp-3 drop-shadow-md">
+                        <p className={cn(
+                          "font-display text-sm leading-relaxed text-white text-center drop-shadow-md",
+                          isCover ? "font-bold text-base" : "line-clamp-3"
+                        )}>
                           {page.text_content}
                         </p>
                       </div>
@@ -711,24 +732,41 @@ const ProjectGenerating = () => {
                         </div>
                       )}
 
+                      {/* Dedication: heavy wash to hide AI text */}
+                      {page.page_type === "dedication" && illUrl && (
+                        <div className="absolute inset-0 bg-amber-50/[0.88] dark:bg-background/90" />
+                      )}
+                      {/* Cover: top wash to hide garbled AI text */}
+                      {page.page_type === "cover" && illUrl && (
+                        <div className="absolute top-0 left-0 right-0 h-[30%] bg-gradient-to-b from-white/90 via-white/60 to-transparent dark:from-background/90 dark:via-background/60" />
+                      )}
+
                       {/* Status badge - top right */}
                       {isDone && page.is_approved && (
-                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shadow-sm z-10">
                           <Check className="w-3 h-3 text-white" />
                         </div>
                       )}
                       {isDone && !page.is_approved && (
-                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-green-400/80 flex items-center justify-center shadow-sm">
+                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-green-400/80 flex items-center justify-center shadow-sm z-10">
                           <Check className="w-3 h-3 text-white" />
                         </div>
                       )}
                       {isRedoQueued && (
-                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shadow-sm">
+                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shadow-sm z-10">
                           <RefreshCw className="w-3 h-3 text-white" />
                         </div>
                       )}
-                      {/* Text overlay on thumbnail */}
-                      {illUrl && page.text_content && (
+                      {/* Dedication: centered text on thumbnail */}
+                      {page.page_type === "dedication" && illUrl && page.text_content && (
+                        <div className="absolute inset-0 flex items-center justify-center z-10 px-2">
+                          <p className="text-[8px] font-display italic text-foreground/70 text-center leading-tight">
+                            {page.text_content}
+                          </p>
+                        </div>
+                      )}
+                      {/* Cover/story: text overlay on thumbnail */}
+                      {page.page_type !== "dedication" && illUrl && page.text_content && (
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-1.5 pt-4">
                           <p className="text-[8px] font-display text-white line-clamp-2 leading-tight text-center drop-shadow-sm">
                             {page.text_content}

@@ -113,6 +113,9 @@ const BookPreview = ({ open, onOpenChange, pages, petName }: BookPreviewProps) =
       );
     }
 
+    const isDedication = page.pageType === "dedication";
+    const isCover = page.pageType === "cover";
+
     // Story page — full-bleed with text overlay
     return (
       <div className="flex-1">
@@ -129,9 +132,26 @@ const BookPreview = ({ open, onOpenChange, pages, petName }: BookPreviewProps) =
               No illustration
             </div>
           )}
-          {page.textContent && (
+          {/* Dedication: heavy wash to hide AI text artifacts */}
+          {isDedication && page.illustrationUrl && (
+            <div className="absolute inset-0 bg-amber-50/[0.88] dark:bg-background/90" />
+          )}
+          {/* Cover: top wash to hide garbled AI text */}
+          {isCover && page.illustrationUrl && (
+            <div className="absolute top-0 left-0 right-0 h-[30%] bg-gradient-to-b from-white/90 via-white/60 to-transparent dark:from-background/90 dark:via-background/60" />
+          )}
+          {/* Dedication: centered text */}
+          {isDedication && page.textContent && (
+            <div className="absolute inset-0 flex items-center justify-center z-10 px-8">
+              <p className="font-display text-lg italic leading-relaxed text-foreground/80 text-center drop-shadow-sm">
+                {page.textContent}
+              </p>
+            </div>
+          )}
+          {/* Cover/story: text overlay at bottom */}
+          {!isDedication && page.textContent && (
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pt-10 pb-4 px-4">
-              <p className="font-display text-sm leading-relaxed text-white text-center drop-shadow-md">
+              <p className={`font-display text-sm leading-relaxed text-white text-center drop-shadow-md ${isCover ? "font-bold text-base" : ""}`}>
                 {page.textContent}
               </p>
             </div>

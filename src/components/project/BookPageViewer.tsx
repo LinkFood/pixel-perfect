@@ -127,6 +127,102 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
     );
   }
 
+  // Dedication page — illustration with heavy wash, centered text
+  if (pageType === "dedication") {
+    return (
+      <div className={cn(
+        "rounded-2xl border-2 overflow-hidden bg-card transition-colors",
+        isApproved ? "border-primary/30" : "border-border"
+      )}>
+        <div className="aspect-square relative overflow-hidden">
+          {illustrationUrl && !imgError ? (
+            <>
+              <img
+                src={illustrationUrl}
+                alt="Dedication illustration"
+                className={cn(
+                  "w-full h-full object-cover transition-opacity duration-500",
+                  imgLoaded ? "opacity-100" : "opacity-0"
+                )}
+                onLoad={() => setImgLoaded(true)}
+                onError={handleError}
+                loading="lazy"
+              />
+              {/* Heavy cream wash to hide AI text artifacts */}
+              <div className="absolute inset-0 bg-amber-50/[0.88] dark:bg-background/90" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-b from-amber-50 to-orange-50/50 dark:from-amber-950/30 dark:to-background" />
+          )}
+          {/* Page label */}
+          <div className="absolute top-3 left-3 z-10">
+            <span className="text-xs font-body text-muted-foreground bg-background/80 backdrop-blur-sm rounded-full px-2.5 py-1">
+              Dedication
+            </span>
+          </div>
+          {/* Centered dedication text */}
+          <div className="absolute inset-0 flex items-center justify-center z-10 px-10">
+            <p className={cn(
+              "font-display italic leading-relaxed text-foreground/80 text-center drop-shadow-sm",
+              isHalf ? "text-base" : "text-xl"
+            )}>
+              {textContent || "Dedication text will appear here..."}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Cover page — illustration with top wash to hide AI text, title at bottom
+  if (pageType === "cover") {
+    return (
+      <div className={cn(
+        "rounded-2xl border-2 overflow-hidden bg-card transition-colors",
+        isApproved ? "border-primary/30" : "border-border"
+      )}>
+        <div className="aspect-square relative overflow-hidden">
+          {illustrationUrl && !imgError ? (
+            <>
+              <img
+                src={illustrationUrl}
+                alt="Cover illustration"
+                className={cn(
+                  "w-full h-full object-cover transition-opacity duration-500",
+                  imgLoaded ? "opacity-100" : "opacity-0"
+                )}
+                onLoad={() => setImgLoaded(true)}
+                onError={handleError}
+                loading="lazy"
+              />
+              {/* Top wash to hide garbled AI text */}
+              <div className="absolute top-0 left-0 right-0 h-[30%] bg-gradient-to-b from-white/90 via-white/60 to-transparent dark:from-background/90 dark:via-background/60" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-background" />
+          )}
+          {/* Page label */}
+          <div className="absolute top-3 left-3 z-10">
+            <span className="text-xs font-body text-muted-foreground bg-background/80 backdrop-blur-sm rounded-full px-2.5 py-1">
+              Cover
+            </span>
+          </div>
+          {/* Title overlay at bottom */}
+          {textContent && (
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pt-12 pb-5 px-5">
+              <p className={cn(
+                "font-display font-bold leading-relaxed text-white text-center drop-shadow-md",
+                isHalf ? "text-lg" : "text-2xl"
+              )}>
+                {textContent}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Standard story page — full-bleed illustration with text overlay
   return (
     <div className={cn(
@@ -166,9 +262,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
         {/* Page label */}
         <div className="absolute top-3 left-3">
           <span className="text-xs font-body text-muted-foreground bg-background/80 backdrop-blur-sm rounded-full px-2.5 py-1">
-            {pageType === "cover" ? "Cover"
-              : pageType === "dedication" ? "Dedication"
-              : pageType === "closing" ? "Closing"
+            {pageType === "closing" ? "Closing"
               : pageType === "back_cover" ? "Back Cover"
               : `Page ${pageNumber}`}
           </span>
