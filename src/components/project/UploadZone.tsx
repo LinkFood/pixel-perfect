@@ -1,6 +1,9 @@
 import { useCallback, useState } from "react";
 import { Upload, ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+const SUPPORTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void;
@@ -13,13 +16,23 @@ const UploadZone = ({ onFilesSelected, isUploading }: UploadZoneProps) => {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-    if (files.length) onFilesSelected(files);
+    const allFiles = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+    const supported = allFiles.filter(f => SUPPORTED_TYPES.includes(f.type));
+    const rejected = allFiles.length - supported.length;
+    if (rejected > 0) {
+      toast.error(`${rejected} photo(s) can't be used. Please use JPG, PNG, or WebP.`);
+    }
+    if (supported.length) onFilesSelected(supported);
   }, [onFilesSelected]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length) onFilesSelected(files);
+    const allFiles = Array.from(e.target.files || []);
+    const supported = allFiles.filter(f => SUPPORTED_TYPES.includes(f.type));
+    const rejected = allFiles.length - supported.length;
+    if (rejected > 0) {
+      toast.error(`${rejected} photo(s) can't be used. Please use JPG, PNG, or WebP.`);
+    }
+    if (supported.length) onFilesSelected(supported);
     e.target.value = "";
   }, [onFilesSelected]);
 
