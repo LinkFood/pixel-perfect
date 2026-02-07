@@ -53,6 +53,35 @@ const ProjectGenerating = () => {
   const [currentlyRenderingIds, setCurrentlyRenderingIds] = useState<Set<string>>(new Set());
   const [failedPageIds, setFailedPageIds] = useState<Set<string>>(new Set());
 
+  // Animated story-phase status messages
+  const storyMessages = [
+    "Reading your interview responses...",
+    "Getting to know your pet's personality...",
+    "Crafting the narrative arc...",
+    "Weaving your memories into prose...",
+    "Writing page by page...",
+    "Choosing the perfect words...",
+    "Building emotional moments...",
+    "Polishing the story...",
+  ];
+  const [storyMsgIdx, setStoryMsgIdx] = useState(0);
+  const [storyElapsed, setStoryElapsed] = useState(0);
+
+  useEffect(() => {
+    if (phase !== "story") {
+      setStoryMsgIdx(0);
+      setStoryElapsed(0);
+      return;
+    }
+    const msgTimer = setInterval(() => {
+      setStoryMsgIdx(prev => (prev + 1) % storyMessages.length);
+    }, 4000);
+    const elapsedTimer = setInterval(() => {
+      setStoryElapsed(prev => prev + 1);
+    }, 1000);
+    return () => { clearInterval(msgTimer); clearInterval(elapsedTimer); };
+  }, [phase, storyMessages.length]);
+
   // Fetch pages whenever they change
   const fetchPages = useCallback(async () => {
     if (!id) return;
@@ -367,7 +396,12 @@ const ProjectGenerating = () => {
 
   const getProgress = () => {
     if (phase === "loading") return 0;
-    if (phase === "story") return Math.min(pagesGenerated * 2, 45);
+    if (phase === "story") {
+      // If pages started arriving, jump progress based on real data
+      if (pagesGenerated > 0) return Math.min(10 + pagesGenerated * 2, 45);
+      // Otherwise, slowly creep progress to show activity (max ~40% over 90s)
+      return Math.min(5 + storyElapsed * 0.4, 40);
+    }
     if (phase === "illustrations" || phase === "failed") {
       return totalPages > 0 ? 50 + (illustrationsGenerated / totalPages) * 50 : 50;
     }
@@ -376,7 +410,10 @@ const ProjectGenerating = () => {
 
   const getStatusText = () => {
     if (phase === "loading") return "Checking progress...";
-    if (phase === "story") return `Writing story... ${pagesGenerated} page${pagesGenerated !== 1 ? "s" : ""} so far`;
+    if (phase === "story") {
+      if (pagesGenerated > 0) return `Writing story... ${pagesGenerated} page${pagesGenerated !== 1 ? "s" : ""} so far`;
+      return storyMessages[storyMsgIdx];
+    }
     if (phase === "illustrations") {
       const base = `Creating illustrations... ${illustrationsGenerated} of ${totalPages}`;
       return currentPageLabel ? `${base} — Drawing ${currentPageLabel}` : base;
@@ -415,7 +452,15 @@ const ProjectGenerating = () => {
 
             <div className="max-w-md mx-auto space-y-2 mb-4">
               <Progress value={getProgress()} className="h-2" />
-              <p className="font-body text-sm text-muted-foreground">{getStatusText()}</p>
+              <motion.p
+                key={getStatusText()}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="font-body text-sm text-muted-foreground"
+              >
+                {getStatusText()}
+              </motion.p>
             </div>
 
             {/* Action buttons */}
