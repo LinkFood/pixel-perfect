@@ -235,8 +235,10 @@ const ProjectGenerating = () => {
       setPhase("story");
       const { error: storyErr } = await supabase.functions.invoke("generate-story", { body: { projectId: id } });
       if (storyErr) {
-        toast.error("Story generation failed");
+        toast.error("Story generation failed — tap Retry to try again");
         console.error(storyErr);
+        setPhase("failed");
+        setFailedCount(0);
         return;
       }
 
@@ -253,6 +255,21 @@ const ProjectGenerating = () => {
     if (!id) return;
     setIsRetrying(true);
     setFailedCount(0);
+
+    // If no pages exist yet, retry story generation first
+    if (livePages.length === 0) {
+      setPhase("story");
+      const { error: storyErr } = await supabase.functions.invoke("generate-story", { body: { projectId: id } });
+      if (storyErr) {
+        toast.error("Story generation failed again");
+        console.error(storyErr);
+        setPhase("failed");
+        setIsRetrying(false);
+        return;
+      }
+      await fetchPages();
+    }
+
     await generateMissingIllustrations(id);
     setIsRetrying(false);
   };
@@ -293,6 +310,7 @@ const ProjectGenerating = () => {
       const base = `Creating illustrations... ${illustrationsGenerated} of ${totalPages}`;
       return currentPageLabel ? `${base} — Drawing ${currentPageLabel}` : base;
     }
+    if (phase === "failed" && livePages.length === 0) return "Story generation failed — tap Retry to try again";
     if (phase === "failed") return `${failedCount} illustration${failedCount !== 1 ? "s" : ""} failed to generate`;
     return "Your book is complete!";
   };
@@ -340,7 +358,7 @@ const ProjectGenerating = () => {
                 <>
                   <Button variant="hero" size="sm" className="rounded-xl gap-2" onClick={handleRetry} disabled={isRetrying}>
                     <RefreshCw className={cn("w-4 h-4", isRetrying && "animate-spin")} />
-                    {isRetrying ? "Retrying..." : `Retry ${failedCount} Failed`}
+                    {isRetrying ? "Retrying..." : livePages.length === 0 ? "Retry Story" : `Retry ${failedCount} Failed`}
                   </Button>
                   <Button variant="outline" size="sm" className="rounded-xl gap-2" onClick={handleContinueToReview}>
                     <BookOpen className="w-4 h-4" /> Continue to Review
