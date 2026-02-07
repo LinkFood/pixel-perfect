@@ -50,7 +50,7 @@ const ProjectGenerating = () => {
   const [redoQueue, setRedoQueue] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "book">("grid");
   const [spreadIdx, setSpreadIdx] = useState(0);
-  const [currentlyRenderingId, setCurrentlyRenderingId] = useState<string | null>(null);
+  const [currentlyRenderingIds, setCurrentlyRenderingIds] = useState<Set<string>>(new Set());
   const [failedPageIds, setFailedPageIds] = useState<Set<string>>(new Set());
 
   // Fetch pages whenever they change
@@ -165,49 +165,80 @@ const ProjectGenerating = () => {
     setPhase("illustrations");
 
     let successes = 0;
-    for (const page of missingPages) {
-      if (cancelRef.current) break;
-      if (skippedPageIds.has(page.id)) continue;
+    let batchDelay = 1000; // Start at 1s, increase on 429
+    const CONCURRENCY = 2; // 2 illustrations at a time
 
-      const label = page.page_type === "cover" ? "Cover"
+    const getLabel = (page: { page_type: string; page_number: number }) =>
+      page.page_type === "cover" ? "Cover"
         : page.page_type === "dedication" ? "Dedication"
         : page.page_type === "back_cover" ? "Back Cover"
         : page.page_type === "closing" ? "Closing"
         : `Page ${page.page_number}`;
-      setCurrentPageLabel(label);
-      setCurrentlyRenderingId(page.id);
 
-      try {
-        const { error } = await supabase.functions.invoke("generate-illustration", {
-          body: { pageId: page.id, projectId },
-        });
+    // Process in batches of CONCURRENCY
+    for (let i = 0; i < missingPages.length; i += CONCURRENCY) {
+      if (cancelRef.current) break;
 
-        if (!error) {
-          successes++;
-          setFailedPageIds(prev => { const next = new Set(prev); next.delete(page.id); return next; });
-        } else {
-          console.error(`Illustration error for ${label}:`, error);
-          setFailedPageIds(prev => { const next = new Set(prev); next.add(page.id); return next; });
-          const errorBody = typeof error === "object" && error.message ? error.message : String(error);
-          if (errorBody.includes("402") || errorBody.includes("Credits")) {
-            toast.error(`${label}: Credits low, trying lighter model...`);
-          } else if (errorBody.includes("429") || errorBody.includes("Rate")) {
-            toast.error(`${label}: Rate limited, will retry remaining`);
+      const batch = missingPages.slice(i, i + CONCURRENCY).filter(p => !skippedPageIds.has(p.id));
+      if (batch.length === 0) continue;
+
+      // Mark all pages in batch as rendering
+      const batchIds = new Set(batch.map(p => p.id));
+      setCurrentlyRenderingIds(batchIds);
+      setCurrentPageLabel(batch.map(getLabel).join(" & "));
+
+      // Fire all requests in batch simultaneously
+      const results = await Promise.allSettled(
+        batch.map(async (page) => {
+          const { error } = await supabase.functions.invoke("generate-illustration", {
+            body: { pageId: page.id, projectId },
+          });
+          return { page, error };
+        })
+      );
+
+      // Process results
+      let gotRateLimited = false;
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const { page, error } = result.value;
+          if (!error) {
+            successes++;
+            setFailedPageIds(prev => { const next = new Set(prev); next.delete(page.id); return next; });
+          } else {
+            console.error(`Illustration error for ${getLabel(page)}:`, error);
+            setFailedPageIds(prev => { const next = new Set(prev); next.add(page.id); return next; });
+            const errorBody = typeof error === "object" && error.message ? error.message : String(error);
+            if (errorBody.includes("402") || errorBody.includes("Credits")) {
+              toast.error(`${getLabel(page)}: Credits low, trying lighter model...`);
+            } else if (errorBody.includes("429") || errorBody.includes("Rate")) {
+              gotRateLimited = true;
+            }
           }
+        } else {
+          // Promise rejected
+          const page = batch[results.indexOf(result)];
+          console.error(`Illustration failed for ${getLabel(page)}:`, result.reason);
+          setFailedPageIds(prev => { const next = new Set(prev); next.add(page.id); return next; });
         }
-      } catch (e) {
-        console.error(`Illustration failed for ${label}:`, e);
-        setFailedPageIds(prev => { const next = new Set(prev); next.add(page.id); return next; });
       }
 
-      // 1.5 second delay between requests
-      if (missingPages.indexOf(page) < missingPages.length - 1) {
-        await sleep(1500);
+      // Adaptive delay: back off on 429, recover when clear
+      if (gotRateLimited) {
+        batchDelay = Math.min(batchDelay * 2, 5000);
+        toast.error(`Rate limited — slowing down (${batchDelay / 1000}s between batches)`);
+      } else if (batchDelay > 1000) {
+        batchDelay = Math.max(batchDelay - 500, 1000);
+      }
+
+      // Delay before next batch
+      if (i + CONCURRENCY < missingPages.length) {
+        await sleep(batchDelay);
       }
     }
 
     setCurrentPageLabel("");
-    setCurrentlyRenderingId(null);
+    setCurrentlyRenderingIds(new Set());
 
     // Process redo queue
     if (redoQueue.size > 0) {
@@ -578,7 +609,7 @@ const ProjectGenerating = () => {
                 const illUrl = liveIllustrations.get(page.id);
                 const isSkipped = skippedPageIds.has(page.id);
                 const isRedoQueued = redoQueue.has(page.id);
-                const isRendering = currentlyRenderingId === page.id;
+                const isRendering = currentlyRenderingIds.has(page.id);
                 const isFailed = failedPageIds.has(page.id) && !illUrl;
                 const isDone = !!illUrl && !isRedoQueued;
                 const isQueued = !illUrl && !isRendering && !isFailed && !isSkipped && phase === "illustrations";
