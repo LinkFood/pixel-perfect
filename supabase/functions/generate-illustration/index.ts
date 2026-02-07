@@ -70,27 +70,44 @@ Style: Soft watercolor with gentle outlines, warm lighting, pastel and vibrant c
 
     const result = await response.json();
     
-    // Extract base64 image from response
-    const content = result.choices?.[0]?.message?.content;
+    const message = result.choices?.[0]?.message;
     let base64Data: string | null = null;
 
-    if (typeof content === "string") {
-      // Check for inline base64 image in markdown format
-      const match = content.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
-      if (match) base64Data = match[1];
-    } else if (Array.isArray(content)) {
-      // Multi-part response
-      for (const part of content) {
-        if (part.type === "image_url" && part.image_url?.url) {
-          const match = part.image_url.url.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
-          if (match) { base64Data = match[1]; break; }
+    // Primary: check message.images array (Lovable AI gateway format)
+    if (Array.isArray(message?.images) && message.images.length > 0) {
+      const img = message.images[0];
+      // Format: { type: "image_url", image_url: { url: "data:image/png;base64,..." } }
+      const url = img?.image_url?.url || img?.url || (typeof img === "string" ? img : null);
+      if (url) {
+        const match = url.match(/^data:image\/[^;]+;base64,(.+)$/s);
+        base64Data = match ? match[1] : url;
+      }
+      if (!base64Data && (img?.b64_json || img?.data)) {
+        base64Data = img.b64_json || img.data;
+      }
+    }
+
+    // Fallback: check content for inline base64 or multi-part
+    if (!base64Data) {
+      const content = message?.content;
+      if (typeof content === "string" && content.length > 100) {
+        const match = content.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
+        if (match) base64Data = match[1];
+      }
+      if (!base64Data && Array.isArray(content)) {
+        for (const part of content) {
+          if (part.type === "image_url" && part.image_url?.url) {
+            const match = part.image_url.url.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
+            if (match) { base64Data = match[1]; break; }
+          }
+          if (part.inline_data?.data) { base64Data = part.inline_data.data; break; }
         }
       }
     }
 
     if (!base64Data) {
-      console.error("No image data in response. Content type:", typeof content);
-      console.error("Content preview:", JSON.stringify(content).slice(0, 500));
+      console.error("No image data found. Message keys:", Object.keys(message || {}));
+      console.error("Images field:", JSON.stringify(message?.images).slice(0, 500));
       throw new Error("No image generated");
     }
 
