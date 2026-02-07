@@ -86,8 +86,10 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
       }
       // Title overlay at bottom
       if (page.textContent) {
-        doc.setFillColor(255, 255, 255, 0.7);
+        doc.setGState(new GState({ opacity: 0.7 }));
+        doc.setFillColor(255, 255, 255);
         doc.rect(0, PAGE_SIZE - 120, PAGE_SIZE, 120, "F");
+        doc.setGState(new GState({ opacity: 1 }));
         doc.setFont("helvetica", "bold");
         doc.setFontSize(28);
         doc.setTextColor(40, 40, 40);
@@ -101,8 +103,10 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
       // Dedication: centered text, soft background
       if (imgData) {
         doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
-        doc.setFillColor(255, 255, 255, 0.85);
+        doc.setGState(new GState({ opacity: 0.85 }));
+        doc.setFillColor(255, 255, 255);
         doc.rect(SAFE_MARGIN, PAGE_SIZE * 0.3, textArea, PAGE_SIZE * 0.4, "F");
+        doc.setGState(new GState({ opacity: 1 }));
       } else {
         doc.setFillColor(255, 250, 240);
         doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
