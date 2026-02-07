@@ -33,6 +33,18 @@ serve(async (req) => {
     const { data: urlData } = supabase.storage.from("pet-photos").getPublicUrl(photo.storage_path);
     const imageUrl = urlData.publicUrl;
 
+    // Check for unsupported image formats
+    const supportedExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+    const lowerPath = photo.storage_path.toLowerCase();
+    if (!supportedExts.some(ext => lowerPath.endsWith(ext))) {
+      console.warn(`Skipping unsupported format: ${photo.storage_path}`);
+      const fallbackCaption = "Photo uploaded (format not supported for AI analysis)";
+      await supabase.from("project_photos").update({ caption: fallbackCaption }).eq("id", photoId);
+      return new Response(JSON.stringify({ caption: fallbackCaption }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     console.log(`Describing photo ${photoId}: ${imageUrl}`);
 
     // Call Gemini 2.5 Flash with vision
