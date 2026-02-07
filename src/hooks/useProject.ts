@@ -87,3 +87,49 @@ export const useUpdateProjectStatus = () => {
     },
   });
 };
+
+export const useDeleteProject = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      // 1. Delete illustrations (storage + DB)
+      const { data: illustrations } = await supabase
+        .from("project_illustrations")
+        .select("storage_path")
+        .eq("project_id", projectId);
+      if (illustrations && illustrations.length > 0) {
+        await supabase.storage.from("pet-photos").remove(illustrations.map(i => i.storage_path));
+        await supabase.from("project_illustrations").delete().eq("project_id", projectId);
+      }
+
+      // 2. Delete pages
+      await supabase.from("project_pages").delete().eq("project_id", projectId);
+
+      // 3. Delete interview
+      await supabase.from("project_interview").delete().eq("project_id", projectId);
+
+      // 4. Delete photos (storage + DB)
+      const { data: photos } = await supabase
+        .from("project_photos")
+        .select("storage_path")
+        .eq("project_id", projectId);
+      if (photos && photos.length > 0) {
+        await supabase.storage.from("pet-photos").remove(photos.map(p => p.storage_path));
+        await supabase.from("project_photos").delete().eq("project_id", projectId);
+      }
+
+      // 5. Delete project
+      const { error } = await supabase.from("projects").delete().eq("id", projectId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Project deleted");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete project");
+      console.error(error);
+    },
+  });
+};

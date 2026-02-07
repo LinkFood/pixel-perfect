@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.describe-photo]
 verify_jwt = false
+
+[functions.generate-illustration]
+verify_jwt = false
+
+[functions.regenerate-page]
+verify_jwt = false

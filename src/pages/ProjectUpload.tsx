@@ -1,4 +1,5 @@
 import { useParams, Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { ArrowRight, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,9 @@ const ProjectUpload = () => {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex items-end justify-between mb-8">
             <div>
+              <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3 font-body transition-colors">
+                <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+              </Link>
               <h1 className="font-display text-3xl font-bold text-foreground">
                 {project ? `${project.pet_name}'s Photos` : "Upload Photos"}
               </h1>
