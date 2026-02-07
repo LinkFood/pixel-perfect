@@ -90,7 +90,7 @@ export const useUploadPhoto = () => {
     }
   }, []);
 
-  // Process batch queue with concurrency of 3
+  // Process batch queue with concurrency of 3, retry logic, and pacing
   const processBatchQueue = useCallback(async () => {
     if (batchActiveRef.current) return;
     batchActiveRef.current = true;
@@ -103,6 +103,8 @@ export const useUploadPhoto = () => {
     let completed = 0;
     let failed = 0;
     const total = queue.length;
+    const failedItems: { projectId: string; file: File; sortOrder: number }[] = [];
+    const successfulIds: { id: string; projectId: string }[] = [];
 
     setUploadProgress({ total, completed: 0, failed: 0 });
 
@@ -116,33 +118,70 @@ export const useUploadPhoto = () => {
       .eq("project_id", projectId);
     let sortBase = existingCount || 0;
 
-    // Process in chunks of CONCURRENCY
+    // Process in chunks of CONCURRENCY with pacing
     for (let i = 0; i < queue.length; i += CONCURRENCY) {
       const chunk = queue.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map((item, j) => uploadSingleFile(item.projectId, item.file, sortBase + i + j))
       );
 
-      for (const result of results) {
+      for (let r = 0; r < results.length; r++) {
+        const result = results[r];
         if (result.status === "fulfilled" && result.value) {
           completed++;
-          // Fire captioning in background (don't await)
-          describePhoto(result.value.id, projectId);
+          successfulIds.push({ id: result.value.id, projectId });
         } else {
           failed++;
+          failedItems.push({ projectId: chunk[r].projectId, file: chunk[r].file, sortOrder: sortBase + i + r });
         }
       }
 
       setUploadProgress({ total, completed, failed });
 
-      // Refresh photo list every 10 uploads (not every single one)
+      // Refresh photo list every 10 uploads
       if (completed % 10 === 0 || i + CONCURRENCY >= queue.length) {
         queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+      }
+
+      // Small delay between chunks to avoid overwhelming Supabase storage
+      if (i + CONCURRENCY < queue.length) {
+        await new Promise(r => setTimeout(r, 150));
+      }
+    }
+
+    // Retry failed uploads once (with slightly more spacing)
+    if (failedItems.length > 0) {
+      console.log(`Retrying ${failedItems.length} failed uploads...`);
+      for (let i = 0; i < failedItems.length; i += CONCURRENCY) {
+        const chunk = failedItems.slice(i, i + CONCURRENCY);
+        const results = await Promise.allSettled(
+          chunk.map(item => uploadSingleFile(item.projectId, item.file, item.sortOrder))
+        );
+
+        for (let r = 0; r < results.length; r++) {
+          const result = results[r];
+          if (result.status === "fulfilled" && result.value) {
+            completed++;
+            failed--;
+            successfulIds.push({ id: result.value.id, projectId });
+          }
+        }
+
+        setUploadProgress({ total, completed, failed });
+
+        if (i + CONCURRENCY < failedItems.length) {
+          await new Promise(r => setTimeout(r, 300));
+        }
       }
     }
 
     // Final refresh
     queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+
+    // Fire captioning AFTER all uploads are done (not during — saves bandwidth)
+    for (const item of successfulIds) {
+      describePhoto(item.id, item.projectId);
+    }
 
     if (failed > 0) {
       toast.error(`${failed} of ${total} photos failed to upload`);
