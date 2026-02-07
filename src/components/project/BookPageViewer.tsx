@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ImageIcon, Camera } from "lucide-react";
+import { ImageIcon, Camera, AlertTriangle } from "lucide-react";
 
 interface BookPageViewerProps {
   pageNumber: number;
@@ -9,13 +9,20 @@ interface BookPageViewerProps {
   illustrationPrompt: string | null;
   illustrationUrl?: string | null;
   isApproved: boolean;
+  onImageError?: () => void;
   // Photo gallery props
   photoUrl?: string | null;
   photoCaption?: string | null;
 }
 
-const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt, illustrationUrl, isApproved, photoUrl, photoCaption }: BookPageViewerProps) => {
+const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt, illustrationUrl, isApproved, onImageError, photoUrl, photoCaption }: BookPageViewerProps) => {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  const handleError = () => {
+    setImgError(true);
+    onImageError?.();
+  };
 
   const isPhotoGallery = pageType === "photo_gallery";
   const isGalleryTitle = pageType === "photo_gallery_title";
@@ -78,7 +85,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
     )}>
       {/* Illustration */}
       <div className="aspect-square bg-secondary/50 relative overflow-hidden">
-        {illustrationUrl ? (
+        {illustrationUrl && !imgError ? (
           <img
             src={illustrationUrl}
             alt={`Page ${pageNumber} illustration`}
@@ -87,7 +94,15 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
               imgLoaded ? "opacity-100" : "opacity-0"
             )}
             onLoad={() => setImgLoaded(true)}
+            onError={handleError}
           />
+        ) : illustrationUrl && imgError ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-center space-y-2 p-6">
+              <AlertTriangle className="w-12 h-12 text-destructive/60 mx-auto" />
+              <p className="text-xs text-destructive font-body">Illustration is corrupt — click "Regenerate" to fix</p>
+            </div>
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center space-y-2 p-6">

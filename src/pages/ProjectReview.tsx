@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2 } from "lucide-react";
@@ -52,6 +52,15 @@ const ProjectReview = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [isGeneratingMissing, setIsGeneratingMissing] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [brokenImagePageIds, setBrokenImagePageIds] = useState<Set<string>>(new Set());
+
+  const handleImageError = useCallback((pageId: string) => {
+    setBrokenImagePageIds(prev => {
+      const next = new Set(prev);
+      next.add(pageId);
+      return next;
+    });
+  }, []);
 
   const { data: pages = [] } = useQuery({
     queryKey: ["pages", id],
@@ -82,7 +91,7 @@ const ProjectReview = () => {
   });
 
   const illustratedPageIds = new Set(illustrations.map(i => i.page_id));
-  const missingCount = pages.filter(p => !illustratedPageIds.has(p.id)).length;
+  const missingCount = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id)).length;
 
   const getIllustrationUrl = (pageId: string) => {
     const ill = illustrations.find(i => i.page_id === pageId);
@@ -155,8 +164,15 @@ const ProjectReview = () => {
   const handleGenerateMissing = async () => {
     if (!id) return;
     setIsGeneratingMissing(true);
-    const missingPages = pages.filter(p => !illustratedPageIds.has(p.id));
+    const missingPages = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id));
     let successes = 0;
+
+    // Delete broken illustration records first so they can be regenerated
+    for (const p of missingPages) {
+      if (brokenImagePageIds.has(p.id)) {
+        await supabase.from("project_illustrations").delete().eq("page_id", p.id).eq("project_id", id!);
+      }
+    }
 
     for (const p of missingPages) {
       try {
@@ -171,6 +187,7 @@ const ProjectReview = () => {
 
     queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
     setIsGeneratingMissing(false);
+    setBrokenImagePageIds(new Set());
 
     if (successes === missingPages.length) {
       toast.success("All missing illustrations generated!");
@@ -183,7 +200,6 @@ const ProjectReview = () => {
     if (!project) return;
     setIsDownloadingPdf(true);
     try {
-      // Build story pages data
       const storyPagesData = pages.map(p => ({
         pageNumber: p.page_number,
         pageType: p.page_type,
@@ -191,7 +207,6 @@ const ProjectReview = () => {
         illustrationUrl: getIllustrationUrl(p.id),
       }));
 
-      // Build photo gallery data
       const galleryData = galleryPhotos.map(photo => ({
         photoUrl: getPhotoUrl(photo.storage_path),
         caption: photo.caption,
@@ -312,6 +327,7 @@ const ProjectReview = () => {
                   illustrationPrompt={currentVirtual.page.illustration_prompt}
                   illustrationUrl={getIllustrationUrl(currentVirtual.page.id)}
                   isApproved={currentVirtual.page.is_approved}
+                  onImageError={() => handleImageError(currentVirtual.page.id)}
                 />
               )}
               {currentVirtual.type === "photo_gallery_title" && (

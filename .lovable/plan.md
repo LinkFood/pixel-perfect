@@ -1,39 +1,69 @@
 
-# Retry Failed Illustrations
+
+# Fix Blank Illustrations
 
 ## Problem
-Credits are now active, but the illustration generation loop already completed — all 24 pages failed with 402 errors and there are 0 illustrations. The page moved to "done" state even though nothing was generated.
+Every single generated illustration (all 15 out of 15) is a blank/white/corrupt PNG file. The AI gateway returns images successfully (no errors in logs), but the saved files contain no visible content. The base64 decoding and upload process is silently producing garbage data.
 
-## Solution
-Two changes to make the system resilient to failures like this:
+## Root Cause Analysis
+The `generate-illustration` edge function extracts base64 from the AI gateway response and converts it to bytes via `atob()`. The likely issues:
 
-### 1. Update `ProjectGenerating.tsx`
-- After the illustration loop finishes, check how many illustrations were actually created
-- If some failed, show a **"Retry Failed"** button instead of immediately marking as "done"
-- The retry button re-runs the loop but only for pages that don't have an illustration yet
-- Also skip the story phase on retry (pages already exist)
+1. **Whitespace/newlines in base64**: The base64 string from the gateway may contain line breaks or whitespace that need to be stripped before `atob()` can decode properly
+2. **Content type mismatch**: The image may be JPEG but is saved as `image/png`
+3. **No validation**: The function never checks if the decoded data is actually a valid image (e.g., checking PNG magic bytes or minimum file size)
 
-### 2. Update `ProjectReview.tsx`
-- Add a **"Generate Missing Illustrations"** button in the header (only visible when some pages lack illustrations)
-- This queries pages without a matching illustration and calls `generate-illustration` for each
-- Shows a progress toast during generation
+## Fix Plan
 
-### 3. Smart resume on page load (`ProjectGenerating.tsx`)
-- On mount, check if pages already exist (story already done) and if illustrations are missing
-- If so, skip straight to illustration phase and only process pages without illustrations
-- This handles the case where the user refreshes or navigates back to the generating page
+### 1. Fix the edge function (`supabase/functions/generate-illustration/index.ts`)
 
-## Technical Details
+**Add debug logging** to capture the actual response structure (first 200 chars of base64, total length, first few bytes after decode) so we can verify the fix works.
 
-**ProjectGenerating.tsx changes:**
-- Before starting, query existing pages and illustrations to determine what's already done
-- If pages exist but illustrations are missing, skip to phase 2 and only loop over pages without an illustration record
-- After the loop, count successes. If failures remain, show "Retry" button + error count
-- "Retry" resets the loop for missing illustrations only
+**Strip whitespace from base64** before decoding:
+```
+base64Data = base64Data.replace(/\s/g, '');
+```
 
-**ProjectReview.tsx changes:**
-- Compare `pages` array to `illustrations` array to find missing ones
-- Show "Generate Missing Illustrations" button with count badge when mismatches exist
-- Button triggers sequential generation with a progress indicator
+**Detect actual image type** from the data URI prefix (image/png vs image/jpeg) and use the correct content type for upload.
 
-**No edge function changes needed** -- the `generate-illustration` function already works correctly (confirmed by test call).
+**Validate the decoded image** by checking:
+- Minimum byte size (a real image should be at least a few KB, not a few bytes)
+- PNG magic bytes (`89 50 4E 47`) or JPEG magic bytes (`FF D8 FF`) at the start
+
+**Handle the base64 properly**: Use `Uint8Array.from()` with proper chunking for very large base64 strings, since `atob()` can struggle with multi-megabyte strings in some runtimes.
+
+### 2. Add a "regenerate corrupt" capability
+
+Since all 15 existing illustrations are broken, the review page's "Generate Missing" button won't help — those pages already have illustration records. Add logic to detect and regenerate corrupt illustrations:
+
+- In `ProjectReview.tsx`, when an illustration URL fails to load a valid image (via `onError` on the img tag), mark it as needing regeneration
+- The "Generate Missing" button should also consider pages where the illustration exists but the image failed to load
+- Alternatively, delete all existing corrupt illustration records so the "Generate Missing" flow picks them up
+
+### 3. Clean up existing corrupt data
+
+Delete all 15 corrupt illustration records for this project so the fixed function can regenerate them cleanly. This will be done by:
+- Deleting records from `project_illustrations` for this project
+- Deleting the corrupt files from storage
+- The "Generate Missing" button (or generating page) will then re-process all 24 pages
+
+## Technical Changes
+
+**`supabase/functions/generate-illustration/index.ts`:**
+- Add `base64Data = base64Data.replace(/[\s\n\r]/g, '')` before decoding
+- Detect content type from data URI: parse `data:image/(png|jpeg|webp);base64,...` and use matched type
+- Add size validation: if decoded bytes < 1000, log error and throw
+- Add magic byte check for PNG/JPEG headers
+- Log base64 length and first 50 chars for debugging
+- Use proper binary conversion with chunked approach for large strings
+
+**`src/pages/ProjectReview.tsx`:**
+- Add `onError` handler to illustration images in BookPageViewer to detect broken images
+- Modify missing count logic to include pages with broken illustrations
+
+**`src/components/project/BookPageViewer.tsx`:**
+- Add `onError` callback prop so parent can track which illustrations are broken
+
+**One-time data cleanup:**
+- Delete all illustration records for project `8df4f6bc` so they regenerate fresh
+- Also clean up project `6e2439cd` which likely has the same issue
+
