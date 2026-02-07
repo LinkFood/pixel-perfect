@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, CheckCircle, Eye, Printer, ImageIcon, RefreshCw } from "lucide-react";
@@ -36,6 +36,15 @@ const ProjectReview = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [isGeneratingMissing, setIsGeneratingMissing] = useState(false);
+  const [brokenImagePageIds, setBrokenImagePageIds] = useState<Set<string>>(new Set());
+
+  const handleImageError = useCallback((pageId: string) => {
+    setBrokenImagePageIds(prev => {
+      const next = new Set(prev);
+      next.add(pageId);
+      return next;
+    });
+  }, []);
 
   const { data: pages = [] } = useQuery({
     queryKey: ["pages", id],
@@ -66,7 +75,7 @@ const ProjectReview = () => {
   });
 
   const illustratedPageIds = new Set(illustrations.map(i => i.page_id));
-  const missingCount = pages.filter(p => !illustratedPageIds.has(p.id)).length;
+  const missingCount = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id)).length;
 
   const getIllustrationUrl = (pageId: string) => {
     const ill = illustrations.find(i => i.page_id === pageId);
@@ -116,8 +125,15 @@ const ProjectReview = () => {
   const handleGenerateMissing = async () => {
     if (!id) return;
     setIsGeneratingMissing(true);
-    const missingPages = pages.filter(p => !illustratedPageIds.has(p.id));
+    const missingPages = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id));
     let successes = 0;
+
+    // Delete broken illustration records first so they can be regenerated
+    for (const p of missingPages) {
+      if (brokenImagePageIds.has(p.id)) {
+        await supabase.from("project_illustrations").delete().eq("page_id", p.id).eq("project_id", id!);
+      }
+    }
 
     for (const p of missingPages) {
       try {
@@ -205,6 +221,7 @@ const ProjectReview = () => {
                 illustrationPrompt={page.illustration_prompt}
                 illustrationUrl={getIllustrationUrl(page.id)}
                 isApproved={page.is_approved}
+                onImageError={() => handleImageError(page.id)}
               />
 
               <div className="space-y-6">

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, AlertTriangle } from "lucide-react";
 
 interface BookPageViewerProps {
   pageNumber: number;
@@ -9,10 +9,17 @@ interface BookPageViewerProps {
   illustrationPrompt: string | null;
   illustrationUrl?: string | null;
   isApproved: boolean;
+  onImageError?: () => void;
 }
 
-const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt, illustrationUrl, isApproved }: BookPageViewerProps) => {
+const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt, illustrationUrl, isApproved, onImageError }: BookPageViewerProps) => {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  const handleError = () => {
+    setImgError(true);
+    onImageError?.();
+  };
 
   return (
     <div className={cn(
@@ -21,7 +28,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
     )}>
       {/* Illustration */}
       <div className="aspect-[4/3] bg-secondary/50 relative overflow-hidden">
-        {illustrationUrl ? (
+        {illustrationUrl && !imgError ? (
           <img
             src={illustrationUrl}
             alt={`Page ${pageNumber} illustration`}
@@ -30,7 +37,15 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
               imgLoaded ? "opacity-100" : "opacity-0"
             )}
             onLoad={() => setImgLoaded(true)}
+            onError={handleError}
           />
+        ) : illustrationUrl && imgError ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-center space-y-2 p-6">
+              <AlertTriangle className="w-12 h-12 text-destructive/60 mx-auto" />
+              <p className="text-xs text-destructive font-body">Illustration is corrupt — click "Regenerate" to fix</p>
+            </div>
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center space-y-2 p-6">

@@ -72,15 +72,22 @@ Style: Soft watercolor with gentle outlines, warm lighting, pastel and vibrant c
     
     const message = result.choices?.[0]?.message;
     let base64Data: string | null = null;
+    let detectedContentType = "image/png"; // default
 
     // Primary: check message.images array (Lovable AI gateway format)
     if (Array.isArray(message?.images) && message.images.length > 0) {
       const img = message.images[0];
-      // Format: { type: "image_url", image_url: { url: "data:image/png;base64,..." } }
       const url = img?.image_url?.url || img?.url || (typeof img === "string" ? img : null);
       if (url) {
-        const match = url.match(/^data:image\/[^;]+;base64,(.+)$/s);
-        base64Data = match ? match[1] : url;
+        // Detect content type from data URI
+        const dataUriMatch = url.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/s);
+        if (dataUriMatch) {
+          const format = dataUriMatch[1];
+          detectedContentType = format === "jpg" ? "image/jpeg" : `image/${format}`;
+          base64Data = dataUriMatch[2];
+        } else {
+          base64Data = url;
+        }
       }
       if (!base64Data && (img?.b64_json || img?.data)) {
         base64Data = img.b64_json || img.data;
@@ -91,16 +98,29 @@ Style: Soft watercolor with gentle outlines, warm lighting, pastel and vibrant c
     if (!base64Data) {
       const content = message?.content;
       if (typeof content === "string" && content.length > 100) {
-        const match = content.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
-        if (match) base64Data = match[1];
+        const match = content.match(/data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\s]+)/);
+        if (match) {
+          detectedContentType = match[1] === "jpg" ? "image/jpeg" : `image/${match[1]}`;
+          base64Data = match[2];
+        }
       }
       if (!base64Data && Array.isArray(content)) {
         for (const part of content) {
           if (part.type === "image_url" && part.image_url?.url) {
-            const match = part.image_url.url.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
-            if (match) { base64Data = match[1]; break; }
+            const match = part.image_url.url.match(/data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\s]+)/);
+            if (match) {
+              detectedContentType = match[1] === "jpg" ? "image/jpeg" : `image/${match[1]}`;
+              base64Data = match[2];
+              break;
+            }
           }
-          if (part.inline_data?.data) { base64Data = part.inline_data.data; break; }
+          if (part.inline_data?.data) {
+            base64Data = part.inline_data.data;
+            if (part.inline_data.mime_type) {
+              detectedContentType = part.inline_data.mime_type;
+            }
+            break;
+          }
         }
       }
     }
@@ -111,6 +131,12 @@ Style: Soft watercolor with gentle outlines, warm lighting, pastel and vibrant c
       throw new Error("No image generated");
     }
 
+    // Strip ALL whitespace/newlines from base64 before decoding
+    base64Data = base64Data.replace(/[\s\n\r]/g, "");
+
+    console.log(`Base64 length: ${base64Data.length}, first 50 chars: ${base64Data.slice(0, 50)}`);
+    console.log(`Detected content type: ${detectedContentType}`);
+
     // Convert base64 to Uint8Array
     const binaryString = atob(base64Data);
     const bytes = new Uint8Array(binaryString.length);
@@ -118,13 +144,39 @@ Style: Soft watercolor with gentle outlines, warm lighting, pastel and vibrant c
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    const storagePath = `illustrations/${projectId}/${pageId}.png`;
+    // Validate image data
+    console.log(`Decoded ${bytes.length} bytes. First 8 bytes: [${Array.from(bytes.slice(0, 8)).join(", ")}]`);
+
+    if (bytes.length < 1000) {
+      console.error(`Image too small: ${bytes.length} bytes — likely corrupt`);
+      throw new Error(`Generated image is too small (${bytes.length} bytes), likely corrupt`);
+    }
+
+    // Check magic bytes
+    const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+    const isJPEG = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
+    const isWebP = bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+
+    if (!isPNG && !isJPEG && !isWebP) {
+      console.error(`Unknown image format. First 16 bytes: [${Array.from(bytes.slice(0, 16)).join(", ")}]`);
+      throw new Error("Decoded data does not appear to be a valid image (bad magic bytes)");
+    }
+
+    // Use correct content type based on actual magic bytes (override detected)
+    if (isPNG) detectedContentType = "image/png";
+    else if (isJPEG) detectedContentType = "image/jpeg";
+    else if (isWebP) detectedContentType = "image/webp";
+
+    const ext = detectedContentType === "image/jpeg" ? "jpg" : detectedContentType === "image/webp" ? "webp" : "png";
+    const storagePath = `illustrations/${projectId}/${pageId}.${ext}`;
+
+    console.log(`Uploading as ${detectedContentType} to ${storagePath} (${bytes.length} bytes)`);
 
     // Upload to storage (upsert to handle regeneration)
     const { error: uploadErr } = await supabase.storage
       .from("pet-photos")
       .upload(storagePath, bytes, {
-        contentType: "image/png",
+        contentType: detectedContentType,
         upsert: true,
       });
     if (uploadErr) throw new Error(`Upload failed: ${uploadErr.message}`);
@@ -148,7 +200,7 @@ Style: Soft watercolor with gentle outlines, warm lighting, pastel and vibrant c
       });
     if (insertErr) throw new Error(`Insert failed: ${insertErr.message}`);
 
-    console.log(`Illustration saved for page ${page.page_number}`);
+    console.log(`Illustration saved for page ${page.page_number} (${detectedContentType}, ${bytes.length} bytes)`);
 
     return new Response(JSON.stringify({ success: true, storagePath }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
