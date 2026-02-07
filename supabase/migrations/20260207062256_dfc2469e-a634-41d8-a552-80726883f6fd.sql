@@ -1,0 +1,1 @@
+ALTER TABLE public.projects ADD COLUMN pet_appearance_profile TEXT;
