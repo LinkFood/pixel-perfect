@@ -101,18 +101,23 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
     const imgData = page.illustrationUrl ? (imageCache.get(page.illustrationUrl) ?? null) : null;
 
     if (page.pageType === "cover") {
-      // Cover: full illustration with title overlay
+      // Cover: full illustration with overlays to hide AI-generated text artifacts
       if (imgData) {
         doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
+        // Top overlay to hide garbled AI text in illustration
+        doc.setGState(new GState({ opacity: 0.85 }));
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, 0, PAGE_SIZE, 140, "F");
+        doc.setGState(new GState({ opacity: 1 }));
       } else {
         doc.setFillColor(255, 248, 235); // warm cream
         doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
       }
       // Title overlay at bottom
       if (page.textContent) {
-        doc.setGState(new GState({ opacity: 0.7 }));
+        doc.setGState(new GState({ opacity: 0.75 }));
         doc.setFillColor(255, 255, 255);
-        doc.rect(0, PAGE_SIZE - 120, PAGE_SIZE, 120, "F");
+        doc.rect(0, PAGE_SIZE - 130, PAGE_SIZE, 130, "F");
         doc.setGState(new GState({ opacity: 1 }));
         doc.setFont("helvetica", "bold");
         doc.setFontSize(28);
@@ -124,12 +129,13 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
         });
       }
     } else if (page.pageType === "dedication") {
-      // Dedication: centered text, soft background
+      // Dedication: full-page soft overlay to hide AI text artifacts, centered text
       if (imgData) {
         doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
-        doc.setGState(new GState({ opacity: 0.85 }));
-        doc.setFillColor(255, 255, 255);
-        doc.rect(SAFE_MARGIN, PAGE_SIZE * 0.3, textArea, PAGE_SIZE * 0.4, "F");
+        // Full-page semi-transparent overlay so garbled AI text is hidden
+        doc.setGState(new GState({ opacity: 0.88 }));
+        doc.setFillColor(255, 252, 245);
+        doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
         doc.setGState(new GState({ opacity: 1 }));
       } else {
         doc.setFillColor(255, 250, 240);
@@ -137,12 +143,12 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
       }
       if (page.textContent) {
         doc.setFont("helvetica", "italic");
-        doc.setFontSize(16);
-        doc.setTextColor(80, 80, 80);
+        doc.setFontSize(18);
+        doc.setTextColor(80, 70, 60);
         const lines = wrapText(doc, page.textContent, textArea - 60);
-        const startY = PAGE_SIZE / 2 - (lines.length * 12);
+        const startY = PAGE_SIZE / 2 - (lines.length * 14);
         lines.forEach((line, i) => {
-          doc.text(line, PAGE_SIZE / 2, startY + i * 24, { align: "center" });
+          doc.text(line, PAGE_SIZE / 2, startY + i * 28, { align: "center" });
         });
       }
     } else if (page.pageType === "back_cover") {
@@ -173,19 +179,36 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
       }
 
       if (page.textContent) {
-        // Semi-transparent overlay bar at bottom
+        // Auto-size: measure text first, then size the overlay to fit
+        let fontSize = 15;
+        let lineHeight = 22;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(fontSize);
+        let lines = wrapText(doc, page.textContent, textArea - 30);
+
+        // If text is long (>5 lines), shrink font to fit more
+        if (lines.length > 5) {
+          fontSize = 12;
+          lineHeight = 18;
+          doc.setFontSize(fontSize);
+          lines = wrapText(doc, page.textContent, textArea - 30);
+        }
+
+        const padding = 24; // top + bottom padding
+        const overlayHeight = Math.max(100, lines.length * lineHeight + padding * 2);
+        const overlayY = PAGE_SIZE - overlayHeight;
+
+        // Semi-transparent overlay bar at bottom, sized to fit text
         doc.setGState(new GState({ opacity: 0.75 }));
         doc.setFillColor(255, 255, 255);
-        doc.rect(0, PAGE_SIZE - 130, PAGE_SIZE, 130, "F");
+        doc.rect(0, overlayY, PAGE_SIZE, overlayHeight, "F");
         doc.setGState(new GState({ opacity: 1 }));
 
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(16);
+        doc.setFontSize(fontSize);
         doc.setTextColor(40, 40, 40);
-        const lines = wrapText(doc, page.textContent, textArea - 20);
-        const lineHeight = 24;
         const totalTextHeight = lines.length * lineHeight;
-        const startY = PAGE_SIZE - 130 + (130 - totalTextHeight) / 2 + 8;
+        const startY = overlayY + (overlayHeight - totalTextHeight) / 2 + fontSize * 0.4;
         lines.forEach((line, i) => {
           doc.text(line, PAGE_SIZE / 2, startY + i * lineHeight, { align: "center" });
         });
