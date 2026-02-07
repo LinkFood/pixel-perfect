@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, CheckCircle, Eye, Printer } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle, Eye, Printer, ImageIcon, RefreshCw } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -35,6 +35,7 @@ const ProjectReview = () => {
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [isGeneratingMissing, setIsGeneratingMissing] = useState(false);
 
   const { data: pages = [] } = useQuery({
     queryKey: ["pages", id],
@@ -63,6 +64,9 @@ const ProjectReview = () => {
     },
     enabled: !!id,
   });
+
+  const illustratedPageIds = new Set(illustrations.map(i => i.page_id));
+  const missingCount = pages.filter(p => !illustratedPageIds.has(p.id)).length;
 
   const getIllustrationUrl = (pageId: string) => {
     const ill = illustrations.find(i => i.page_id === pageId);
@@ -109,6 +113,33 @@ const ProjectReview = () => {
     toast.success("Illustration regenerated!");
   };
 
+  const handleGenerateMissing = async () => {
+    if (!id) return;
+    setIsGeneratingMissing(true);
+    const missingPages = pages.filter(p => !illustratedPageIds.has(p.id));
+    let successes = 0;
+
+    for (const p of missingPages) {
+      try {
+        const { error } = await supabase.functions.invoke("generate-illustration", {
+          body: { pageId: p.id, projectId: id },
+        });
+        if (!error) successes++;
+      } catch (e) {
+        console.error(`Failed for page ${p.id}:`, e);
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
+    setIsGeneratingMissing(false);
+
+    if (successes === missingPages.length) {
+      toast.success("All missing illustrations generated! 🎉");
+    } else {
+      toast.error(`${missingPages.length - successes} illustration(s) still failed`);
+    }
+  };
+
   const previewPages = pages.map(p => ({
     pageNumber: p.page_number,
     pageType: p.page_type,
@@ -129,7 +160,22 @@ const ProjectReview = () => {
               </h1>
               <p className="font-body text-muted-foreground mt-1">Review and edit each page</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {missingCount > 0 && (
+                <Button
+                  variant="destructive"
+                  className="rounded-xl gap-2"
+                  onClick={handleGenerateMissing}
+                  disabled={isGeneratingMissing}
+                >
+                  {isGeneratingMissing ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ImageIcon className="w-4 h-4" />
+                  )}
+                  {isGeneratingMissing ? "Generating..." : `Generate ${missingCount} Missing`}
+                </Button>
+              )}
               <Button variant="outline" className="rounded-xl gap-2" onClick={() => setPreviewOpen(true)}>
                 <Eye className="w-4 h-4" /> Preview
               </Button>
