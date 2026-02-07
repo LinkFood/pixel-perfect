@@ -42,6 +42,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-3-pro-image-preview",
+        modalities: ["text", "image"],
         messages: [
           {
             role: "user",
