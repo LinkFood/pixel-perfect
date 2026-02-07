@@ -169,25 +169,50 @@ serve(async (req) => {
     // Get project with appearance profile
     const { data: project, error: projErr } = await supabase
       .from("projects")
-      .select("pet_name, pet_appearance_profile")
+      .select("pet_name, pet_type, pet_breed, pet_appearance_profile")
       .eq("id", projectId)
       .single();
     if (projErr || !project) throw new Error("Project not found");
 
     const scenePrompt = page.illustration_prompt || page.scene_description || "A cute pet illustration";
     const appearanceProfile = project.pet_appearance_profile || "";
+    const breed = project.pet_breed || project.pet_type || "dog";
 
-    // Build the full illustration prompt with character consistency
-    const fullPrompt = `Create a children's book illustration in warm watercolor style.
+    // Extract key visual traits for reinforcement
+    const breedUpper = breed.toUpperCase();
+    const petNameUpper = project.pet_name.toUpperCase();
 
-${appearanceProfile ? `CHARACTER (draw EXACTLY as described):\n${appearanceProfile}\n` : ""}
+    // Build the full illustration prompt with character consistency at TOP and BOTTOM
+    const fullPrompt = appearanceProfile
+      ? `CRITICAL CHARACTER REQUIREMENT — READ THIS FIRST:
+${petNameUpper} MUST be drawn as a ${breedUpper}. ${appearanceProfile}
+DO NOT draw any other breed. DO NOT change the colors. DO NOT add a collar unless specified above.
+
+---
+
 SCENE (Page ${page.page_number}):
 ${scenePrompt}
 
 STYLE RULES:
 - Soft watercolor with gentle ink outlines
 - Warm golden lighting, amber/cream/green/blue palette
-- ${appearanceProfile ? `${project.pet_name} must look IDENTICAL to the character description above` : "The pet should look friendly and appealing"}
+- Square 1:1 composition for 8.5"x8.5" book
+- No text or words in the image
+- Children's picture book quality, suitable for printing
+
+---
+
+REMINDER — CHARACTER MUST MATCH EXACTLY:
+The ${project.pet_type} in this image MUST be a ${breed}. ${appearanceProfile.split('.').slice(0, 3).join('.')}. NEVER draw a different breed, color, or body type.`
+      : `Create a children's book illustration in warm watercolor style.
+
+SCENE (Page ${page.page_number}):
+${scenePrompt}
+
+STYLE RULES:
+- Soft watercolor with gentle ink outlines
+- Warm golden lighting, amber/cream/green/blue palette
+- The pet should look friendly and appealing
 - Square 1:1 composition for 8.5"x8.5" book
 - No text or words in the image
 - Children's picture book quality, suitable for printing`;

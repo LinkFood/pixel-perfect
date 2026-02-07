@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -12,6 +12,7 @@ import { useProject } from "@/hooks/useProject";
 import { usePhotos, getPhotoUrl } from "@/hooks/usePhotos";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import Navbar from "@/components/landing/Navbar";
 import { generatePdf } from "@/lib/generatePdf";
 
@@ -30,6 +31,11 @@ type Illustration = {
   storage_path: string;
 };
 
+type GalleryGridPhoto = {
+  photoUrl: string;
+  caption: string | null;
+};
+
 // Virtual page type for combined story + gallery view
 type VirtualPage = {
   type: "story";
@@ -38,9 +44,8 @@ type VirtualPage = {
   type: "photo_gallery_title";
   petName: string;
 } | {
-  type: "photo_gallery";
-  photoUrl: string;
-  caption: string | null;
+  type: "photo_gallery_grid";
+  photos: GalleryGridPhoto[];
 };
 
 const ProjectReview = () => {
@@ -52,6 +57,7 @@ const ProjectReview = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [isGeneratingMissing, setIsGeneratingMissing] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isRebuildingProfile, setIsRebuildingProfile] = useState(false);
   const [brokenImagePageIds, setBrokenImagePageIds] = useState<Set<string>>(new Set());
 
   const handleImageError = useCallback((pageId: string) => {
@@ -108,21 +114,44 @@ const ProjectReview = () => {
       return a.sort_order - b.sort_order;
     });
 
+  // Group gallery photos into pages of 6
+  const galleryGridPages: GalleryGridPhoto[][] = [];
+  for (let i = 0; i < galleryPhotos.length; i += 6) {
+    galleryGridPages.push(
+      galleryPhotos.slice(i, i + 6).map(photo => ({
+        photoUrl: getPhotoUrl(photo.storage_path),
+        caption: photo.caption,
+      }))
+    );
+  }
+
   const virtualPages: VirtualPage[] = [
     ...pages.map(p => ({ type: "story" as const, page: p })),
     ...(galleryPhotos.length > 0 ? [
       { type: "photo_gallery_title" as const, petName: project?.pet_name || "Your Pet" },
-      ...galleryPhotos.map(photo => ({
-        type: "photo_gallery" as const,
-        photoUrl: getPhotoUrl(photo.storage_path),
-        caption: photo.caption,
+      ...galleryGridPages.map(photos => ({
+        type: "photo_gallery_grid" as const,
+        photos,
       })),
     ] : []),
   ];
 
-  const currentVirtual = virtualPages[currentPage];
-  const isStoryPage = currentVirtual?.type === "story";
-  const storyPage = isStoryPage ? currentVirtual.page : null;
+  // Build spreads for two-page view: [left, right] pairs
+  const spreads: [VirtualPage | null, VirtualPage | null][] = [];
+  if (virtualPages.length > 0) {
+    // Cover alone on right
+    spreads.push([null, virtualPages[0]]);
+    for (let i = 1; i < virtualPages.length; i += 2) {
+      spreads.push([virtualPages[i], virtualPages[i + 1] || null]);
+    }
+    // If we ended with an odd remaining, the last push already handled it
+  }
+
+  const [selectedSide, setSelectedSide] = useState<"left" | "right">("right");
+  const currentSpread = spreads[currentPage];
+  const selectedVirtual = selectedSide === "left" ? currentSpread?.[0] : currentSpread?.[1];
+  const isStoryPage = selectedVirtual?.type === "story";
+  const storyPage = isStoryPage ? selectedVirtual.page : null;
 
   const approvedCount = pages.filter(p => p.is_approved).length;
   const approvalProgress = pages.length > 0 ? (approvedCount / pages.length) * 100 : 0;
@@ -227,15 +256,31 @@ const ProjectReview = () => {
     }
   };
 
-  // Build preview pages (story + gallery)
+  const handleRebuildProfile = async () => {
+    if (!id) return;
+    setIsRebuildingProfile(true);
+    try {
+      const { error } = await supabase.functions.invoke("build-appearance-profile", {
+        body: { projectId: id },
+      });
+      if (error) { toast.error("Failed to rebuild appearance profile"); return; }
+      queryClient.invalidateQueries({ queryKey: ["project", id] });
+      toast.success("Appearance profile rebuilt! Regenerate illustrations to see the effect.");
+    } catch {
+      toast.error("Failed to rebuild appearance profile");
+    } finally {
+      setIsRebuildingProfile(false);
+    }
+  };
+
+  // Build preview pages (story + gallery grids)
   const previewPages = [
     ...pages.map(p => ({
       pageNumber: p.page_number,
       pageType: p.page_type,
       textContent: p.text_content,
       illustrationUrl: getIllustrationUrl(p.id),
-      photoUrl: null as string | null,
-      photoCaption: null as string | null,
+      galleryPhotos: undefined as GalleryGridPhoto[] | undefined,
     })),
     ...(galleryPhotos.length > 0 ? [
       {
@@ -243,16 +288,14 @@ const ProjectReview = () => {
         pageType: "photo_gallery_title",
         textContent: `The Real ${project?.pet_name || ""}`,
         illustrationUrl: null,
-        photoUrl: null,
-        photoCaption: null,
+        galleryPhotos: undefined as GalleryGridPhoto[] | undefined,
       },
-      ...galleryPhotos.map((photo, i) => ({
+      ...galleryGridPages.map((gridPhotos, i) => ({
         pageNumber: pages.length + 2 + i,
-        pageType: "photo_gallery",
-        textContent: photo.caption,
+        pageType: "photo_gallery_grid",
+        textContent: null,
         illustrationUrl: null,
-        photoUrl: getPhotoUrl(photo.storage_path),
-        photoCaption: photo.caption,
+        galleryPhotos: gridPhotos,
       })),
     ] : []),
   ];
@@ -271,6 +314,19 @@ const ProjectReview = () => {
               <p className="font-body text-muted-foreground mt-1">Review and edit each page</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Button
+                variant="outline"
+                className="rounded-xl gap-2"
+                onClick={handleRebuildProfile}
+                disabled={isRebuildingProfile}
+              >
+                {isRebuildingProfile ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ScanFace className="w-4 h-4" />
+                )}
+                {isRebuildingProfile ? "Rebuilding..." : "Rebuild Profile"}
+              </Button>
               {missingCount > 0 && (
                 <Button
                   variant="destructive"
@@ -316,43 +372,67 @@ const ProjectReview = () => {
             </span>
           </div>
 
-          {currentVirtual ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Left: Page Viewer */}
-              {currentVirtual.type === "story" && (
-                <BookPageViewer
-                  pageNumber={currentVirtual.page.page_number}
-                  pageType={currentVirtual.page.page_type}
-                  textContent={currentVirtual.page.text_content}
-                  illustrationPrompt={currentVirtual.page.illustration_prompt}
-                  illustrationUrl={getIllustrationUrl(currentVirtual.page.id)}
-                  isApproved={currentVirtual.page.is_approved}
-                  onImageError={() => handleImageError(currentVirtual.page.id)}
-                />
-              )}
-              {currentVirtual.type === "photo_gallery_title" && (
-                <BookPageViewer
-                  pageNumber={pages.length + 1}
-                  pageType="photo_gallery_title"
-                  textContent={`The Real ${currentVirtual.petName}`}
-                  illustrationPrompt={null}
-                  isApproved={true}
-                />
-              )}
-              {currentVirtual.type === "photo_gallery" && (
-                <BookPageViewer
-                  pageNumber={currentPage + 1}
-                  pageType="photo_gallery"
-                  textContent={currentVirtual.caption}
-                  illustrationPrompt={null}
-                  isApproved={true}
-                  photoUrl={currentVirtual.photoUrl}
-                  photoCaption={currentVirtual.caption}
-                />
-              )}
+          {currentSpread ? (
+            <div className="space-y-8">
+              {/* Two-page spread */}
+              <div className="flex gap-1 max-w-4xl mx-auto relative">
+                {/* Left page */}
+                <div
+                  className={cn(
+                    "flex-1 cursor-pointer rounded-l-2xl overflow-hidden transition-shadow",
+                    selectedSide === "left" && currentSpread[0] ? "ring-2 ring-primary/50 shadow-lg" : ""
+                  )}
+                  onClick={() => currentSpread[0] && setSelectedSide("left")}
+                >
+                  {currentSpread[0] ? (
+                    <SpreadPageRenderer
+                      vp={currentSpread[0]}
+                      pagesCount={pages.length}
+                      getIllustrationUrl={getIllustrationUrl}
+                      handleImageError={handleImageError}
+                    />
+                  ) : (
+                    <div className="aspect-square bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 rounded-l-2xl" />
+                  )}
+                </div>
+                {/* Spine shadow */}
+                <div className="w-1 bg-gradient-to-r from-black/10 via-black/5 to-black/10 flex-shrink-0" />
+                {/* Right page */}
+                <div
+                  className={cn(
+                    "flex-1 cursor-pointer rounded-r-2xl overflow-hidden transition-shadow",
+                    selectedSide === "right" && currentSpread[1] ? "ring-2 ring-primary/50 shadow-lg" : ""
+                  )}
+                  onClick={() => currentSpread[1] && setSelectedSide("right")}
+                >
+                  {currentSpread[1] ? (
+                    <SpreadPageRenderer
+                      vp={currentSpread[1]}
+                      pagesCount={pages.length}
+                      getIllustrationUrl={getIllustrationUrl}
+                      handleImageError={handleImageError}
+                    />
+                  ) : (
+                    <div className="aspect-square bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 rounded-r-2xl" />
+                  )}
+                </div>
+              </div>
 
-              {/* Right: Editor (only for story pages) */}
-              <div className="space-y-6">
+              {/* Navigation */}
+              <div className="flex items-center justify-center gap-6">
+                <Button variant="outline" className="rounded-xl gap-2" disabled={currentPage === 0} onClick={() => { setCurrentPage(p => p - 1); setSelectedSide("right"); }}>
+                  <ChevronLeft className="w-4 h-4" /> Previous
+                </Button>
+                <span className="font-body text-sm text-muted-foreground">
+                  Spread {currentPage + 1} / {spreads.length}
+                </span>
+                <Button variant="outline" className="rounded-xl gap-2" disabled={currentPage >= spreads.length - 1} onClick={() => { setCurrentPage(p => p + 1); setSelectedSide("left"); }}>
+                  Next <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {/* Editor panel below spread (full width) */}
+              <div className="max-w-2xl mx-auto">
                 {storyPage ? (
                   <PageEditor
                     pageId={storyPage.id}
@@ -364,27 +444,19 @@ const ProjectReview = () => {
                     onRegenerateText={() => handleRegenerateText(storyPage.id)}
                     onRegenerateIllustration={() => handleRegenerateIllustration(storyPage.id)}
                   />
-                ) : (
+                ) : selectedVirtual ? (
                   <div className="bg-card rounded-2xl border border-border p-8 text-center">
                     <p className="font-body text-muted-foreground">
-                      {currentVirtual.type === "photo_gallery_title"
+                      {selectedVirtual.type === "photo_gallery_title"
                         ? "This is the gallery title page introducing the real photos section."
-                        : "This is a real photo from your collection. It will appear in the final book as-is."}
+                        : "These are real photos from your collection. They will appear in the final book as-is."}
                     </p>
                   </div>
+                ) : (
+                  <div className="bg-card rounded-2xl border border-border p-8 text-center">
+                    <p className="font-body text-muted-foreground">Click a page above to select it.</p>
+                  </div>
                 )}
-
-                <div className="flex items-center justify-between pt-4">
-                  <Button variant="outline" className="rounded-xl gap-2" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>
-                    <ChevronLeft className="w-4 h-4" /> Previous
-                  </Button>
-                  <span className="font-body text-sm text-muted-foreground">
-                    {currentPage + 1} / {virtualPages.length}
-                  </span>
-                  <Button variant="outline" className="rounded-xl gap-2" disabled={currentPage >= virtualPages.length - 1} onClick={() => setCurrentPage(p => p + 1)}>
-                    Next <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
               </div>
             </div>
           ) : (
@@ -398,6 +470,60 @@ const ProjectReview = () => {
       <BookPreview open={previewOpen} onOpenChange={setPreviewOpen} pages={previewPages} petName={project?.pet_name || ""} />
     </div>
   );
+};
+
+// Helper to render a virtual page in the spread view
+const SpreadPageRenderer = ({
+  vp,
+  pagesCount,
+  getIllustrationUrl,
+  handleImageError,
+}: {
+  vp: VirtualPage;
+  pagesCount: number;
+  getIllustrationUrl: (pageId: string) => string | null;
+  handleImageError: (pageId: string) => void;
+}) => {
+  if (vp.type === "story") {
+    return (
+      <BookPageViewer
+        pageNumber={vp.page.page_number}
+        pageType={vp.page.page_type}
+        textContent={vp.page.text_content}
+        illustrationPrompt={vp.page.illustration_prompt}
+        illustrationUrl={getIllustrationUrl(vp.page.id)}
+        isApproved={vp.page.is_approved}
+        onImageError={() => handleImageError(vp.page.id)}
+        size="spread-half"
+      />
+    );
+  }
+  if (vp.type === "photo_gallery_title") {
+    return (
+      <BookPageViewer
+        pageNumber={pagesCount + 1}
+        pageType="photo_gallery_title"
+        textContent={`The Real ${vp.petName}`}
+        illustrationPrompt={null}
+        isApproved={true}
+        size="spread-half"
+      />
+    );
+  }
+  if (vp.type === "photo_gallery_grid") {
+    return (
+      <BookPageViewer
+        pageNumber={0}
+        pageType="photo_gallery_grid"
+        textContent={null}
+        illustrationPrompt={null}
+        isApproved={true}
+        galleryPhotos={vp.photos}
+        size="spread-half"
+      />
+    );
+  }
+  return null;
 };
 
 export default ProjectReview;

@@ -3,13 +3,17 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, X, Camera } from "lucide-react";
 
+type GalleryGridPhoto = {
+  photoUrl: string;
+  caption: string | null;
+};
+
 interface BookPage {
   pageNumber: number;
   pageType: string;
   textContent: string | null;
   illustrationUrl: string | null;
-  photoUrl?: string | null;
-  photoCaption?: string | null;
+  galleryPhotos?: GalleryGridPhoto[];
 }
 
 interface BookPreviewProps {
@@ -20,117 +24,167 @@ interface BookPreviewProps {
 }
 
 const BookPreview = ({ open, onOpenChange, pages, petName }: BookPreviewProps) => {
-  const [current, setCurrent] = useState(0);
-  const page = pages[current];
+  // Spread index: each spread shows 2 pages
+  const [spreadIdx, setSpreadIdx] = useState(0);
 
-  // Reset to first page when opening
+  // Build spreads: cover alone (right side), then pairs, back cover alone
+  const spreads: [BookPage | null, BookPage | null][] = [];
+  if (pages.length > 0) {
+    // First spread: blank left + cover right
+    spreads.push([null, pages[0]]);
+    // Middle spreads: pairs
+    for (let i = 1; i < pages.length - 1; i += 2) {
+      spreads.push([pages[i], pages[i + 1] || null]);
+    }
+    // If odd number of remaining pages, last page is right-only
+    if (pages.length > 1 && (pages.length - 1) % 2 === 1) {
+      spreads.push([pages[pages.length - 1], null]);
+    }
+  }
+
+  const currentSpread = spreads[spreadIdx];
+  const totalSpreads = spreads.length;
+
   useEffect(() => {
-    if (open) setCurrent(0);
+    if (open) setSpreadIdx(0);
   }, [open]);
 
-  // Keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!open) return;
-    if (e.key === "ArrowLeft" && current > 0) {
-      setCurrent(c => c - 1);
-    } else if (e.key === "ArrowRight" && current < pages.length - 1) {
-      setCurrent(c => c + 1);
+    if (e.key === "ArrowLeft" && spreadIdx > 0) {
+      setSpreadIdx(s => s - 1);
+    } else if (e.key === "ArrowRight" && spreadIdx < totalSpreads - 1) {
+      setSpreadIdx(s => s + 1);
     } else if (e.key === "Escape") {
       onOpenChange(false);
     }
-  }, [open, current, pages.length, onOpenChange]);
+  }, [open, spreadIdx, totalSpreads, onOpenChange]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  const isPhotoGallery = page?.pageType === "photo_gallery";
-  const isGalleryTitle = page?.pageType === "photo_gallery_title";
+  const renderPage = (page: BookPage | null, side: "left" | "right") => {
+    if (!page) {
+      // Blank endpaper
+      return (
+        <div className="flex-1 aspect-square bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30" />
+      );
+    }
+
+    const isGalleryTitle = page.pageType === "photo_gallery_title";
+    const isGalleryGrid = page.pageType === "photo_gallery_grid";
+
+    if (isGalleryTitle) {
+      return (
+        <div className="flex-1 aspect-square flex flex-col items-center justify-center bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
+          <Camera className="w-10 h-10 text-primary/60 mb-3" />
+          <h2 className="font-display text-lg font-bold text-foreground">
+            {page.textContent}
+          </h2>
+        </div>
+      );
+    }
+
+    if (isGalleryGrid && page.galleryPhotos) {
+      return (
+        <div className="flex-1 aspect-square bg-gradient-to-b from-amber-50/50 to-white dark:from-amber-950/20 dark:to-card p-2">
+          <div className="grid grid-cols-2 grid-rows-3 gap-1.5 h-full">
+            {page.galleryPhotos.map((photo, i) => (
+              <div key={i} className="rounded overflow-hidden bg-white dark:bg-gray-800 shadow-sm border border-border/50 flex flex-col">
+                <div className="flex-1 min-h-0">
+                  <img
+                    src={photo.photoUrl}
+                    alt={photo.caption || `Photo ${i + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                {photo.caption && (
+                  <p className="font-body text-[7px] text-center text-muted-foreground px-0.5 py-0.5 truncate">
+                    {photo.caption}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Story page
+    return (
+      <div className="flex-1 flex flex-col">
+        <div className="aspect-square bg-secondary relative flex-shrink-0">
+          {page.illustrationUrl ? (
+            <img
+              src={page.illustrationUrl}
+              alt={`Page ${page.pageNumber}`}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground/40 text-xs">
+              No illustration
+            </div>
+          )}
+        </div>
+        {page.textContent && (
+          <div className="p-3 text-center flex-shrink-0">
+            <p className="font-display text-sm leading-relaxed text-foreground">
+              {page.textContent}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-full p-0 gap-0 rounded-2xl overflow-hidden border-none bg-card [&>button]:hidden">
-        {page && (
+      <DialogContent className="max-w-4xl w-full p-0 gap-0 rounded-2xl overflow-hidden border-none bg-card [&>button]:hidden">
+        {currentSpread && (
           <>
-            {/* Image / Photo area */}
-            <div className="aspect-square bg-secondary relative">
-              {isGalleryTitle ? (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
-                  <Camera className="w-16 h-16 text-primary/60 mb-4" />
-                  <h2 className="font-display text-2xl font-bold text-foreground">
-                    {page.textContent}
-                  </h2>
-                </div>
-              ) : isPhotoGallery ? (
-                <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-gradient-to-b from-amber-50/50 to-white dark:from-amber-950/20 dark:to-card">
-                  {page.photoUrl ? (
-                    <div className="flex-1 w-full flex items-center justify-center p-4">
-                      <div className="rounded-lg overflow-hidden shadow-lg border-4 border-white dark:border-gray-700 max-w-[75%] max-h-[70%]">
-                        <img
-                          src={page.photoUrl}
-                          alt={page.photoCaption || "Pet photo"}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <Camera className="w-16 h-16 text-muted-foreground/30" />
-                  )}
-                  {page.photoCaption && (
-                    <p className="font-body text-sm italic text-muted-foreground text-center mt-4 px-6 max-w-md">
-                      {page.photoCaption}
-                    </p>
-                  )}
-                </div>
-              ) : page.illustrationUrl ? (
-                <img
-                  src={page.illustrationUrl}
-                  alt={`Page ${page.pageNumber}`}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                  No illustration
-                </div>
-              )}
+            {/* Two-page spread with spine */}
+            <div className="flex relative">
+              {/* Left page */}
+              <div className="flex-1 bg-card border-r border-border/30 overflow-hidden">
+                {renderPage(currentSpread[0], "left")}
+              </div>
+              {/* Spine shadow */}
+              <div className="absolute left-1/2 top-0 bottom-0 w-4 -translate-x-1/2 bg-gradient-to-r from-black/10 via-transparent to-black/10 pointer-events-none z-10" />
+              {/* Right page */}
+              <div className="flex-1 bg-card overflow-hidden">
+                {renderPage(currentSpread[1], "right")}
+              </div>
+              {/* Close button */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm rounded-full"
+                className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm rounded-full z-20"
                 onClick={() => onOpenChange(false)}
               >
                 <X className="w-4 h-4" />
               </Button>
             </div>
 
-            {/* Text (for story pages) */}
-            {!isPhotoGallery && !isGalleryTitle && page.textContent && (
-              <div className="p-8 text-center">
-                <p className="font-display text-lg leading-relaxed text-foreground">
-                  {page.textContent}
-                </p>
-              </div>
-            )}
-
             {/* Navigation */}
-            <div className="flex items-center justify-between px-6 pb-6">
+            <div className="flex items-center justify-between px-6 py-4">
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={current === 0}
-                onClick={() => setCurrent(c => c - 1)}
+                disabled={spreadIdx === 0}
+                onClick={() => setSpreadIdx(s => s - 1)}
               >
                 <ChevronLeft className="w-4 h-4 mr-1" /> Previous
               </Button>
               <span className="text-sm text-muted-foreground font-body">
-                {current + 1} / {pages.length}
+                {spreadIdx + 1} / {totalSpreads}
               </span>
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={current >= pages.length - 1}
-                onClick={() => setCurrent(c => c + 1)}
+                disabled={spreadIdx >= totalSpreads - 1}
+                onClick={() => setSpreadIdx(s => s + 1)}
               >
                 Next <ChevronRight className="w-4 h-4 ml-1" />
               </Button>

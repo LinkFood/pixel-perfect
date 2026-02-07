@@ -1,15 +1,25 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, BookOpen, ImageIcon, RefreshCw, AlertTriangle, SkipForward } from "lucide-react";
+import { Sparkles, BookOpen, ImageIcon, RefreshCw, AlertTriangle, SkipForward, Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 import { useProject, useUpdateProjectStatus } from "@/hooks/useProject";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/landing/Navbar";
 import { toast } from "sonner";
 
 type Phase = "loading" | "story" | "illustrations" | "done" | "failed";
+
+type PageData = {
+  id: string;
+  page_number: number;
+  page_type: string;
+  text_content: string | null;
+  illustration_prompt: string | null;
+  is_approved: boolean;
+};
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -30,29 +40,69 @@ const ProjectGenerating = () => {
   const startedRef = useRef(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
-  // Listen for realtime page inserts (phase 1)
-  useEffect(() => {
+  // Live page data
+  const [livePages, setLivePages] = useState<PageData[]>([]);
+  const [liveIllustrations, setLiveIllustrations] = useState<Map<string, string>>(new Map());
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [skippedPageIds, setSkippedPageIds] = useState<Set<string>>(new Set());
+  const [redoQueue, setRedoQueue] = useState<Set<string>>(new Set());
+
+  // Fetch pages whenever they change
+  const fetchPages = useCallback(async () => {
     if (!id) return;
-    const channel = supabase
-      .channel(`pages-${id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "project_pages", filter: `project_id=eq.${id}` },
-        () => setPagesGenerated(prev => prev + 1)
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const { data } = await supabase
+      .from("project_pages")
+      .select("id, page_number, page_type, text_content, illustration_prompt, is_approved")
+      .eq("project_id", id)
+      .order("page_number");
+    if (data) {
+      setLivePages(data);
+      setTotalPages(data.length);
+    }
   }, [id]);
 
-  // Listen for realtime illustration inserts (phase 2)
+  // Fetch illustrations
+  const fetchIllustrations = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from("project_illustrations")
+      .select("page_id, storage_path")
+      .eq("project_id", id)
+      .eq("is_selected", true);
+    if (data) {
+      const map = new Map<string, string>();
+      data.forEach(ill => {
+        const { data: urlData } = supabase.storage.from("pet-photos").getPublicUrl(ill.storage_path);
+        map.set(ill.page_id, urlData.publicUrl);
+      });
+      setLiveIllustrations(map);
+      setIllustrationsGenerated(data.length);
+    }
+  }, [id]);
+
+  // Listen for realtime page inserts
   useEffect(() => {
     if (!id) return;
     const channel = supabase
-      .channel(`illustrations-${id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "project_illustrations", filter: `project_id=eq.${id}` },
-        () => setIllustrationsGenerated(prev => prev + 1)
+      .channel(`pages-live-${id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "project_pages", filter: `project_id=eq.${id}` },
+        () => { setPagesGenerated(prev => prev + 1); fetchPages(); }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [id]);
+  }, [id, fetchPages]);
+
+  // Listen for realtime illustration inserts
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`illustrations-live-${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "project_illustrations", filter: `project_id=eq.${id}` },
+        () => fetchIllustrations()
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, fetchIllustrations]);
 
   const generateMissingIllustrations = useCallback(async (projectId: string) => {
     // Get all pages
@@ -74,7 +124,7 @@ const ProjectGenerating = () => {
       .eq("project_id", projectId);
 
     const illustratedPageIds = new Set((existingIllustrations || []).map(i => i.page_id));
-    const missingPages = pages.filter(p => !illustratedPageIds.has(p.id));
+    const missingPages = pages.filter(p => !illustratedPageIds.has(p.id) && !skippedPageIds.has(p.id));
 
     setTotalPages(pages.length);
     setIllustrationsGenerated(pages.length - missingPages.length);
@@ -89,7 +139,8 @@ const ProjectGenerating = () => {
 
     let successes = 0;
     for (const page of missingPages) {
-      // Show which page is being illustrated
+      if (skippedPageIds.has(page.id)) continue;
+
       const label = page.page_type === "cover" ? "Cover"
         : page.page_type === "dedication" ? "Dedication"
         : page.page_type === "back_cover" ? "Back Cover"
@@ -98,7 +149,7 @@ const ProjectGenerating = () => {
       setCurrentPageLabel(label);
 
       try {
-        const { data, error } = await supabase.functions.invoke("generate-illustration", {
+        const { error } = await supabase.functions.invoke("generate-illustration", {
           body: { pageId: page.id, projectId },
         });
 
@@ -106,7 +157,6 @@ const ProjectGenerating = () => {
           successes++;
         } else {
           console.error(`Illustration error for ${label}:`, error);
-          // Show specific error messages
           const errorBody = typeof error === "object" && error.message ? error.message : String(error);
           if (errorBody.includes("402") || errorBody.includes("Credits")) {
             toast.error(`${label}: Credits low, trying lighter model...`);
@@ -118,13 +168,31 @@ const ProjectGenerating = () => {
         console.error(`Illustration failed for ${label}:`, e);
       }
 
-      // 1.5 second delay between requests to prevent 429 cascades
+      // 1.5 second delay between requests
       if (missingPages.indexOf(page) < missingPages.length - 1) {
         await sleep(1500);
       }
     }
 
     setCurrentPageLabel("");
+
+    // Process redo queue
+    if (redoQueue.size > 0) {
+      const redoPages = pages.filter(p => redoQueue.has(p.id));
+      for (const page of redoPages) {
+        try {
+          await supabase.from("project_illustrations").delete().eq("page_id", page.id).eq("project_id", projectId);
+          await supabase.functions.invoke("generate-illustration", {
+            body: { pageId: page.id, projectId },
+          });
+        } catch (e) {
+          console.error(`Redo failed for page ${page.id}:`, e);
+        }
+        await sleep(1500);
+      }
+      setRedoQueue(new Set());
+    }
+
     const remaining = missingPages.length - successes;
     if (remaining > 0) {
       setFailedCount(remaining);
@@ -133,9 +201,9 @@ const ProjectGenerating = () => {
       setPhase("done");
       updateStatus.mutate({ id: projectId, status: "review" });
     }
-  }, [updateStatus]);
+  }, [updateStatus, skippedPageIds, redoQueue]);
 
-  // Main generation pipeline with smart resume
+  // Main generation pipeline
   useEffect(() => {
     if (!id || startedRef.current) return;
     startedRef.current = true;
@@ -148,7 +216,8 @@ const ProjectGenerating = () => {
         .eq("project_id", id);
 
       if (existingPages && existingPages.length > 0) {
-        // Pages already exist — skip story, go straight to illustrations
+        await fetchPages();
+        await fetchIllustrations();
         await generateMissingIllustrations(id);
         return;
       }
@@ -162,12 +231,14 @@ const ProjectGenerating = () => {
         return;
       }
 
+      await fetchPages();
+
       // Phase 2: Generate illustrations
       await generateMissingIllustrations(id);
     };
 
     run();
-  }, [id, generateMissingIllustrations]);
+  }, [id, generateMissingIllustrations, fetchPages, fetchIllustrations]);
 
   const handleRetry = async () => {
     if (!id) return;
@@ -177,15 +248,29 @@ const ProjectGenerating = () => {
     setIsRetrying(false);
   };
 
-  const handleSkip = () => {
+  const handleContinueToReview = () => {
     if (!id) return;
     updateStatus.mutate({ id, status: "review" });
     navigate(`/project/${id}/review`);
   };
 
+  const handleApprove = async (pageId: string) => {
+    await supabase.from("project_pages").update({ is_approved: true }).eq("id", pageId);
+    setLivePages(prev => prev.map(p => p.id === pageId ? { ...p, is_approved: true } : p));
+  };
+
+  const handleReject = (pageId: string) => {
+    setRedoQueue(prev => { const next = new Set(prev); next.add(pageId); return next; });
+    toast.info("Queued for redo after first pass");
+  };
+
+  const handleSkip = (pageId: string) => {
+    setSkippedPageIds(prev => { const next = new Set(prev); next.add(pageId); return next; });
+  };
+
   const getProgress = () => {
     if (phase === "loading") return 0;
-    if (phase === "story") return Math.min(pagesGenerated * 2, 45); // grows gradually, caps at 45%
+    if (phase === "story") return Math.min(pagesGenerated * 2, 45);
     if (phase === "illustrations" || phase === "failed") {
       return totalPages > 0 ? 50 + (illustrationsGenerated / totalPages) * 50 : 50;
     }
@@ -203,65 +288,193 @@ const ProjectGenerating = () => {
     return "Your book is complete!";
   };
 
-  const PhaseIcon = phase === "failed" ? AlertTriangle : phase === "illustrations" ? ImageIcon : Sparkles;
+  const showThumbnails = livePages.length > 0 && (phase === "story" || phase === "illustrations" || phase === "done" || phase === "failed");
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="pt-24 pb-16 container mx-auto px-6 lg:px-12 max-w-lg">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-          <motion.div
-            animate={{ rotate: (phase === "done" || phase === "failed") ? 0 : 360 }}
-            transition={{ duration: 2, repeat: (phase === "done" || phase === "failed") ? 0 : Infinity, ease: "linear" }}
-            className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-8"
-          >
-            <PhaseIcon className="w-10 h-10 text-primary" />
-          </motion.div>
+      <main className="pt-24 pb-16 container mx-auto px-6 lg:px-12">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          {/* Header section */}
+          <div className="text-center mb-8">
+            <motion.div
+              animate={{ rotate: (phase === "done" || phase === "failed") ? 0 : 360 }}
+              transition={{ duration: 2, repeat: (phase === "done" || phase === "failed") ? 0 : Infinity, ease: "linear" }}
+              className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4"
+            >
+              {phase === "failed" ? (
+                <AlertTriangle className="w-8 h-8 text-primary" />
+              ) : phase === "illustrations" ? (
+                <ImageIcon className="w-8 h-8 text-primary" />
+              ) : (
+                <Sparkles className="w-8 h-8 text-primary" />
+              )}
+            </motion.div>
 
-          <h1 className="font-display text-3xl font-bold text-foreground mb-3">
-            {phase === "done" ? "Your Book is Ready!" : phase === "failed" ? "Some Illustrations Failed" : "Creating Your Book"}
-          </h1>
-          <p className="font-body text-muted-foreground mb-10">
-            {phase === "done"
-              ? `${project?.pet_name}'s story has been written and illustrated`
-              : phase === "failed"
-              ? "Don't worry — you can retry the failed illustrations or continue to review"
-              : `Crafting ${project?.pet_name || "your pet"}'s story...`}
-          </p>
+            <h1 className="font-display text-2xl font-bold text-foreground mb-2">
+              {phase === "done" ? "Your Book is Ready!" : phase === "failed" ? "Some Illustrations Failed" : "Creating Your Book"}
+            </h1>
 
-          <div className="space-y-3 mb-10">
-            <Progress value={getProgress()} className="h-3" />
-            <p className="font-body text-sm text-muted-foreground">{getStatusText()}</p>
+            <div className="max-w-md mx-auto space-y-2 mb-4">
+              <Progress value={getProgress()} className="h-2" />
+              <p className="font-body text-sm text-muted-foreground">{getStatusText()}</p>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-center gap-3">
+              {phase === "illustrations" && (
+                <Button variant="outline" size="sm" className="rounded-xl gap-2" onClick={handleContinueToReview}>
+                  <SkipForward className="w-4 h-4" /> Skip to Review
+                </Button>
+              )}
+              {phase === "failed" && (
+                <>
+                  <Button variant="hero" size="sm" className="rounded-xl gap-2" onClick={handleRetry} disabled={isRetrying}>
+                    <RefreshCw className={cn("w-4 h-4", isRetrying && "animate-spin")} />
+                    {isRetrying ? "Retrying..." : `Retry ${failedCount} Failed`}
+                  </Button>
+                  <Button variant="outline" size="sm" className="rounded-xl gap-2" onClick={handleContinueToReview}>
+                    <BookOpen className="w-4 h-4" /> Continue to Review
+                  </Button>
+                </>
+              )}
+              {phase === "done" && (
+                <Button variant="hero" size="sm" className="rounded-xl gap-2" onClick={handleContinueToReview}>
+                  <BookOpen className="w-4 h-4" /> Review Your Book
+                </Button>
+              )}
+            </div>
           </div>
 
-          {/* Skip button during illustration generation */}
-          {phase === "illustrations" && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 5 }} className="mb-6">
-              <Button variant="outline" size="lg" className="rounded-xl gap-2" onClick={handleSkip}>
-                <SkipForward className="w-5 h-5" /> Continue to Review (skip remaining)
-              </Button>
+          {/* Live page thumbnails grid */}
+          {showThumbnails && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3"
+            >
+              {livePages.map(page => {
+                const illUrl = liveIllustrations.get(page.id);
+                const isSkipped = skippedPageIds.has(page.id);
+                const isRedoQueued = redoQueue.has(page.id);
+                const label = page.page_type === "cover" ? "Cover"
+                  : page.page_type === "dedication" ? "Ded."
+                  : page.page_type === "back_cover" ? "Back"
+                  : page.page_type === "closing" ? "Close"
+                  : `P${page.page_number}`;
+
+                return (
+                  <motion.div
+                    key={page.id}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className={cn(
+                      "relative rounded-xl border-2 overflow-hidden bg-card cursor-pointer transition-all group",
+                      page.is_approved ? "border-green-400/60" : "border-border",
+                      isRedoQueued ? "border-amber-400/60" : "",
+                      isSkipped ? "opacity-40" : "",
+                      selectedPageId === page.id ? "ring-2 ring-primary shadow-lg" : ""
+                    )}
+                    onClick={() => setSelectedPageId(selectedPageId === page.id ? null : page.id)}
+                  >
+                    {/* Thumbnail illustration */}
+                    <div className="aspect-square bg-secondary/50 relative">
+                      {illUrl ? (
+                        <img src={illUrl} alt={label} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          {phase === "illustrations" && !isSkipped ? (
+                            <Loader2 className="w-5 h-5 text-muted-foreground/40 animate-spin" />
+                          ) : (
+                            <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
+                          )}
+                        </div>
+                      )}
+                      {/* Approved checkmark */}
+                      {page.is_approved && (
+                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                      {/* Redo badge */}
+                      {isRedoQueued && (
+                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                          <RefreshCw className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Label + text preview */}
+                    <div className="p-1.5">
+                      <p className="text-[10px] font-body font-medium text-muted-foreground">{label}</p>
+                      {page.text_content && (
+                        <p className="text-[9px] font-body text-muted-foreground/70 line-clamp-2 leading-tight">
+                          {page.text_content}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Hover actions */}
+                    {illUrl && !isSkipped && (
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                        {!page.is_approved && (
+                          <button
+                            className="w-7 h-7 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors"
+                            onClick={(e) => { e.stopPropagation(); handleApprove(page.id); }}
+                            title="Approve"
+                          >
+                            <Check className="w-4 h-4 text-white" />
+                          </button>
+                        )}
+                        <button
+                          className="w-7 h-7 rounded-full bg-amber-500 hover:bg-amber-600 flex items-center justify-center transition-colors"
+                          onClick={(e) => { e.stopPropagation(); handleReject(page.id); }}
+                          title="Redo"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-white" />
+                        </button>
+                      </div>
+                    )}
+                    {!illUrl && !isSkipped && phase === "illustrations" && (
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button
+                          className="w-7 h-7 rounded-full bg-gray-500 hover:bg-gray-600 flex items-center justify-center transition-colors"
+                          onClick={(e) => { e.stopPropagation(); handleSkip(page.id); }}
+                          title="Skip"
+                        >
+                          <X className="w-4 h-4 text-white" />
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
             </motion.div>
           )}
 
-          {phase === "failed" && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-3 items-center">
-              <Button variant="hero" size="lg" className="rounded-xl gap-2" onClick={handleRetry} disabled={isRetrying}>
-                <RefreshCw className={`w-5 h-5 ${isRetrying ? "animate-spin" : ""}`} />
-                {isRetrying ? "Retrying..." : `Retry ${failedCount} Failed`}
-              </Button>
-              <Button variant="outline" size="lg" className="rounded-xl gap-2" onClick={() => navigate(`/project/${id}/review`)}>
-                <BookOpen className="w-5 h-5" /> Continue to Review
-              </Button>
-            </motion.div>
-          )}
-
-          {phase === "done" && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-              <Button variant="hero" size="lg" className="rounded-xl gap-2" onClick={() => navigate(`/project/${id}/review`)}>
-                <BookOpen className="w-5 h-5" /> Review Your Book
-              </Button>
-            </motion.div>
-          )}
+          {/* Selected page detail */}
+          {selectedPageId && (() => {
+            const page = livePages.find(p => p.id === selectedPageId);
+            if (!page) return null;
+            const illUrl = liveIllustrations.get(page.id);
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 max-w-lg mx-auto bg-card rounded-2xl border border-border overflow-hidden"
+              >
+                {illUrl && (
+                  <img src={illUrl} alt={`Page ${page.page_number}`} className="w-full aspect-square object-cover" />
+                )}
+                <div className="p-4">
+                  <p className="font-display text-base leading-relaxed text-foreground">
+                    {page.text_content || "No text yet"}
+                  </p>
+                </div>
+              </motion.div>
+            );
+          })()}
         </motion.div>
       </main>
     </div>

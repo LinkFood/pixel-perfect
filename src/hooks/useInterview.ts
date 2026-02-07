@@ -3,6 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { linkInterviewSeed } from "@/data/linkInterviewSeed";
+import { catInterviewSeed } from "@/data/catInterviewSeed";
+import { shortInterviewSeed } from "@/data/shortInterviewSeed";
+
+export type SeedOption = "link" | "luna" | "max";
+
+const seedData: Record<SeedOption, { data: { role: string; content: string }[]; label: string; count: number }> = {
+  link: { data: linkInterviewSeed, label: "Link (full)", count: linkInterviewSeed.length },
+  luna: { data: catInterviewSeed, label: "Luna (cat)", count: catInterviewSeed.length },
+  max: { data: shortInterviewSeed, label: "Max (short)", count: shortInterviewSeed.length },
+};
 
 export type InterviewMessage = {
   id: string;
@@ -53,8 +63,10 @@ export const useClearInterview = (projectId: string | undefined) => {
 export const useAutoFillInterview = (projectId: string | undefined) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (seed: SeedOption = "link") => {
       if (!projectId) throw new Error("No project ID");
+      const { data: messages } = seedData[seed];
+
       // Clear existing messages
       const { error: delErr } = await supabase
         .from("project_interview")
@@ -64,8 +76,8 @@ export const useAutoFillInterview = (projectId: string | undefined) => {
 
       // Insert in batches of 20 with sequential timestamps
       const baseTime = new Date("2025-01-01T00:00:00Z").getTime();
-      for (let i = 0; i < linkInterviewSeed.length; i += 20) {
-        const batch = linkInterviewSeed.slice(i, i + 20).map((msg, j) => ({
+      for (let i = 0; i < messages.length; i += 20) {
+        const batch = messages.slice(i, i + 20).map((msg, j) => ({
           project_id: projectId,
           role: msg.role,
           content: msg.content,
@@ -74,10 +86,13 @@ export const useAutoFillInterview = (projectId: string | undefined) => {
         const { error } = await supabase.from("project_interview").insert(batch);
         if (error) throw error;
       }
+
+      return seed;
     },
-    onSuccess: () => {
+    onSuccess: (seed) => {
       queryClient.invalidateQueries({ queryKey: ["interview", projectId] });
-      toast.success("Link's interview restored! (165 messages)");
+      const info = seedData[seed || "link"];
+      toast.success(`${info.label} interview restored! (${info.count} messages)`);
     },
     onError: () => {
       toast.error("Failed to auto-fill interview");

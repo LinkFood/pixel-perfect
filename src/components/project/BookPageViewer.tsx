@@ -2,6 +2,11 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ImageIcon, Camera, AlertTriangle } from "lucide-react";
 
+type GalleryGridPhoto = {
+  photoUrl: string;
+  caption: string | null;
+};
+
 interface BookPageViewerProps {
   pageNumber: number;
   pageType: string;
@@ -13,9 +18,13 @@ interface BookPageViewerProps {
   // Photo gallery props
   photoUrl?: string | null;
   photoCaption?: string | null;
+  // Gallery grid props
+  galleryPhotos?: GalleryGridPhoto[];
+  // Layout mode
+  size?: "full" | "spread-half";
 }
 
-const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt, illustrationUrl, isApproved, onImageError, photoUrl, photoCaption }: BookPageViewerProps) => {
+const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt, illustrationUrl, isApproved, onImageError, photoUrl, photoCaption, galleryPhotos, size = "full" }: BookPageViewerProps) => {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
@@ -26,6 +35,8 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
 
   const isPhotoGallery = pageType === "photo_gallery";
   const isGalleryTitle = pageType === "photo_gallery_title";
+  const isGalleryGrid = pageType === "photo_gallery_grid";
+  const isHalf = size === "spread-half";
 
   // Gallery title page
   if (isGalleryTitle) {
@@ -33,8 +44,8 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
       <div className="rounded-2xl border-2 overflow-hidden bg-card border-primary/20">
         <div className="aspect-square flex items-center justify-center bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
           <div className="text-center space-y-4 p-8">
-            <Camera className="w-16 h-16 text-primary/60 mx-auto" />
-            <h2 className="font-display text-2xl font-bold text-foreground">
+            <Camera className={cn("text-primary/60 mx-auto", isHalf ? "w-10 h-10" : "w-16 h-16")} />
+            <h2 className={cn("font-display font-bold text-foreground", isHalf ? "text-lg" : "text-2xl")}>
               {textContent}
             </h2>
           </div>
@@ -43,7 +54,44 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
     );
   }
 
-  // Photo gallery page — real uploaded photo with caption
+  // Gallery grid page — 2x3 grid of photos
+  if (isGalleryGrid && galleryPhotos) {
+    return (
+      <div className="rounded-2xl border-2 overflow-hidden bg-card border-primary/20">
+        <div className="aspect-square bg-gradient-to-b from-amber-50/50 to-white dark:from-amber-950/20 dark:to-card p-3">
+          <div className="grid grid-cols-2 grid-rows-3 gap-2 h-full">
+            {galleryPhotos.map((photo, i) => (
+              <div key={i} className="relative rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm border border-border/50 flex flex-col">
+                <div className="flex-1 min-h-0">
+                  <img
+                    src={photo.photoUrl}
+                    alt={photo.caption || `Photo ${i + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                {photo.caption && (
+                  <p className={cn(
+                    "font-body text-center text-muted-foreground px-1 py-0.5 truncate",
+                    isHalf ? "text-[8px]" : "text-[10px]"
+                  )}>
+                    {photo.caption}
+                  </p>
+                )}
+              </div>
+            ))}
+            {/* Fill empty slots if fewer than 6 */}
+            {Array.from({ length: Math.max(0, 6 - galleryPhotos.length) }).map((_, i) => (
+              <div key={`empty-${i}`} className="rounded-lg bg-secondary/30 border border-border/30 flex items-center justify-center">
+                <Camera className="w-6 h-6 text-muted-foreground/20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Photo gallery page — real uploaded photo with caption (legacy single)
   if (isPhotoGallery) {
     return (
       <div className="rounded-2xl border-2 overflow-hidden bg-card border-primary/20">
@@ -124,8 +172,8 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
         </div>
       </div>
       {/* Text content */}
-      <div className="p-6">
-        <p className="font-display text-base leading-relaxed text-foreground">
+      <div className={cn("p-6", isHalf && "p-3")}>
+        <p className={cn("font-display leading-relaxed text-foreground", isHalf ? "text-sm" : "text-base")}>
           {textContent || "Text will appear here after generation..."}
         </p>
       </div>

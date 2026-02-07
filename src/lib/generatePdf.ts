@@ -180,38 +180,45 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
     doc.setTextColor(120, 110, 100);
     doc.text("Just as they really were", PAGE_SIZE / 2, PAGE_SIZE / 2 + 20, { align: "center" });
 
-    // Individual photo pages
-    for (const photo of galleryPhotos) {
+    // Photo grid pages — 4 photos per page (2x2)
+    for (let i = 0; i < galleryPhotos.length; i += 4) {
       doc.addPage([PAGE_SIZE, PAGE_SIZE]);
-      doc.setFillColor(255, 252, 248); // very light warm white
+      doc.setFillColor(255, 252, 248);
       doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
 
-      const imgData = await loadImageAsDataUrl(photo.photoUrl);
-      if (imgData) {
-        // Photo centered with frame effect
-        const photoMargin = 60;
-        const photoSize = PAGE_SIZE - 2 * photoMargin;
-        const photoTop = photo.caption ? 50 : (PAGE_SIZE - photoSize) / 2;
+      const batch = galleryPhotos.slice(i, i + 4);
+      const gridMargin = 40;
+      const gridGap = 16;
+      const cellSize = (PAGE_SIZE - 2 * gridMargin - gridGap) / 2;
 
-        // Shadow/frame effect
-        doc.setFillColor(230, 225, 218);
-        doc.roundedRect(photoMargin - 4, photoTop - 4, photoSize + 8, photoSize + 8, 4, 4, "F");
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(photoMargin - 2, photoTop - 2, photoSize + 4, photoSize + 4, 3, 3, "F");
+      for (let j = 0; j < batch.length; j++) {
+        const photo = batch[j];
+        const col = j % 2;
+        const row = Math.floor(j / 2);
+        const x = gridMargin + col * (cellSize + gridGap);
+        const y = gridMargin + row * (cellSize + gridGap + 30); // 30pt for caption space
 
-        doc.addImage(imgData, "JPEG", photoMargin, photoTop, photoSize, photoSize);
-      }
+        const imgData = await loadImageAsDataUrl(photo.photoUrl);
+        if (imgData) {
+          // Shadow/frame effect
+          doc.setFillColor(230, 225, 218);
+          doc.roundedRect(x - 3, y - 3, cellSize + 6, cellSize + 6, 3, 3, "F");
+          doc.setFillColor(255, 255, 255);
+          doc.roundedRect(x - 1, y - 1, cellSize + 2, cellSize + 2, 2, 2, "F");
 
-      // Caption below photo
-      if (photo.caption) {
-        doc.setFont("helvetica", "italic");
-        doc.setFontSize(12);
-        doc.setTextColor(100, 90, 80);
-        const lines = wrapText(doc, photo.caption, textArea - 40);
-        const captionY = PAGE_SIZE - 60;
-        lines.forEach((line, i) => {
-          doc.text(line, PAGE_SIZE / 2, captionY + i * 18, { align: "center" });
-        });
+          doc.addImage(imgData, "JPEG", x, y, cellSize, cellSize);
+        }
+
+        // Caption below each photo
+        if (photo.caption) {
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(9);
+          doc.setTextColor(100, 90, 80);
+          const captionLines = wrapText(doc, photo.caption, cellSize - 10);
+          captionLines.slice(0, 2).forEach((line, k) => {
+            doc.text(line, x + cellSize / 2, y + cellSize + 14 + k * 12, { align: "center" });
+          });
+        }
       }
     }
   }

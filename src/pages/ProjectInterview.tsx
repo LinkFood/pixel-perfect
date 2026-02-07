@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Send, CheckCircle, RotateCcw, PartyPopper, Zap, ArrowLeft } from "lucide-react";
+import { Send, CheckCircle, RotateCcw, PartyPopper, Zap, ArrowLeft, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import ChatMessage from "@/components/project/ChatMessage";
 import { useProject, useUpdateProjectStatus } from "@/hooks/useProject";
-import { useInterviewMessages, useInterviewChat, useClearInterview, useAutoFillInterview } from "@/hooks/useInterview";
+import { useInterviewMessages, useInterviewChat, useClearInterview, useAutoFillInterview, SeedOption } from "@/hooks/useInterview";
 import { usePhotos } from "@/hooks/usePhotos";
 import Navbar from "@/components/landing/Navbar";
 
@@ -74,15 +74,33 @@ const ProjectInterview = () => {
             </h1>
             <div className="flex items-center gap-2">
               {import.meta.env.DEV && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
-                  onClick={() => autoFill.mutate()}
-                  disabled={isStreaming || autoFill.isPending}
-                >
-                  <Zap className="w-3.5 h-3.5" /> {autoFill.isPending ? "Filling..." : "Dev: Auto-Fill"}
-                </Button>
+                <div className="relative group">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+                    disabled={isStreaming || autoFill.isPending}
+                  >
+                    <Zap className="w-3.5 h-3.5" /> {autoFill.isPending ? "Filling..." : "Dev: Auto-Fill"}
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                  <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[160px] hidden group-hover:block z-50">
+                    {([
+                      { key: "link" as SeedOption, label: "Link (full, 165)" },
+                      { key: "luna" as SeedOption, label: "Luna (cat, 40)" },
+                      { key: "max" as SeedOption, label: "Max (short, 15)" },
+                    ]).map(opt => (
+                      <button
+                        key={opt.key}
+                        className="w-full text-left px-3 py-1.5 text-sm font-body text-foreground hover:bg-secondary/60 transition-colors"
+                        onClick={() => autoFill.mutate(opt.key)}
+                        disabled={autoFill.isPending}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
               {userMsgCount > 0 && (
                 <Button
