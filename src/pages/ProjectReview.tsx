@@ -13,7 +13,7 @@ import { usePhotos, getPhotoUrl } from "@/hooks/usePhotos";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import Navbar from "@/components/landing/Navbar";
+import MinimalNav from "@/components/workspace/MinimalNav";
 // generatePdf is dynamically imported when user clicks Download
 
 type Page = {
@@ -417,7 +417,7 @@ const ProjectReview = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <MinimalNav />
       <main className="pt-24 pb-16 container mx-auto px-6 lg:px-12">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           {/* Header */}

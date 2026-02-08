@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import ProjectStatusBadge from "@/components/project/ProjectStatusBadge";
 import { useProjects, useDeleteProject, type Project } from "@/hooks/useProject";
-import Navbar from "@/components/landing/Navbar";
+import MinimalNav from "@/components/workspace/MinimalNav";
 
 const petIcons: Record<string, React.ElementType> = { dog: Dog, cat: Cat, bird: Bird, fish: Fish };
 
@@ -38,7 +38,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <MinimalNav />
       <main className="pt-24 pb-16 container mx-auto px-6 lg:px-12">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-end justify-between mb-10">
           <div>

@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { useProject, useUpdateProjectStatus } from "@/hooks/useProject";
 import { supabase } from "@/integrations/supabase/client";
-import Navbar from "@/components/landing/Navbar";
+import MinimalNav from "@/components/workspace/MinimalNav";
 import PageEditor from "@/components/project/PageEditor";
 import { toast } from "sonner";
 
@@ -443,7 +443,7 @@ const ProjectGenerating = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <MinimalNav />
       <main className="pt-24 pb-16 container mx-auto px-6 lg:px-12">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           {/* Header section */}
