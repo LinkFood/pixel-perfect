@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Camera, ArrowRight, ImagePlus, Sparkles } from "lucide-react";
+import { Camera, ArrowRight, ImagePlus, Sparkles, ArrowLeft, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import UploadZone from "@/components/project/UploadZone";
@@ -40,6 +40,13 @@ const ProjectNew = () => {
   const threshold = count === 0 ? "zero" : count < 5 ? "low" : count < 20 ? "good" : "excellent";
   const msg = thresholdMessages[threshold];
   const canContinue = count >= 5 && analyzedCount >= 5 && !isBatchUploading;
+  const isResuming = projectId !== null && count > 0;
+
+  const handleStartFresh = () => {
+    sessionStorage.removeItem(STORAGE_KEY);
+    setProjectId(null);
+    creatingRef.current = false;
+  };
 
   const ensureProject = useCallback(async (): Promise<string | null> => {
     if (projectId) return projectId;
@@ -81,12 +88,26 @@ const ProjectNew = () => {
       <Navbar />
       <main className="pt-24 pb-16 container mx-auto px-6 lg:px-12 max-w-4xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center justify-between mb-6">
+            <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground font-body transition-colors">
+              <ArrowLeft className="w-4 h-4" /> Dashboard
+            </Link>
+            {isResuming && (
+              <button
+                onClick={handleStartFresh}
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground font-body transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Start Fresh
+              </button>
+            )}
+          </div>
+
           <div className="text-center mb-10">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5">
               <ImagePlus className="w-8 h-8 text-primary" />
             </div>
             <h1 className="font-display text-3xl font-bold text-foreground">
-              Drop your photos — we'll take it from here
+              {isResuming ? "Welcome back — keep uploading" : "Drop your photos — we'll take it from here"}
             </h1>
             <p className="font-body text-muted-foreground mt-2">
               Our AI reads every detail so your creation feels genuinely personal

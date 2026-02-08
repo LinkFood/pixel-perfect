@@ -9,7 +9,7 @@ const tiers = [
     description: "Your real photos, beautifully curated",
     features: [
       "Curated photo book from your uploads",
-      "Captions from your memories",
+      "AI-written captions from your stories",
       "Organized narrative timeline",
       "Print-ready digital PDF",
     ],
@@ -24,7 +24,7 @@ const tiers = [
     features: [
       "Everything in both books",
       "Priority AI generation",
-      "Custom LoRA-trained illustrations",
+      "Custom-trained illustrations",
       "Two print-ready PDFs",
       "Best value",
     ],
@@ -33,10 +33,10 @@ const tiers = [
   {
     name: "Illustrated Storybook",
     price: "$29.99",
-    description: "A children's book starring YOUR pet",
+    description: "An illustrated book from YOUR memories",
     features: [
-      "24-page illustrated children's book",
-      "AI illustrations of YOUR pet",
+      "Fully illustrated storybook",
+      "AI illustrations that match your photos",
       "Written from your real memories",
       "Print-ready digital PDF",
     ],

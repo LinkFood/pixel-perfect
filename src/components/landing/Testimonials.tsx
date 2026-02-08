@@ -33,9 +33,9 @@ const Testimonials = () => {
           transition={{ duration: 0.6 }}
           className="text-center mb-16 lg:mb-20"
         >
-          <p className="text-sm font-body uppercase tracking-[0.2em] text-muted-foreground mb-3">Stories from families</p>
+          <p className="text-sm font-body uppercase tracking-[0.2em] text-muted-foreground mb-3">From our community</p>
           <h2 className="text-3xl lg:text-4xl font-display font-semibold text-foreground">
-            Every book tells a love story
+            Every creation tells a love story
           </h2>
         </motion.div>
 
