@@ -140,7 +140,6 @@ export type Database = {
       }
       project_photos: {
         Row: {
-          ai_analysis: Json | null
           caption: string | null
           created_at: string
           id: string
@@ -150,7 +149,6 @@ export type Database = {
           storage_path: string
         }
         Insert: {
-          ai_analysis?: Json | null
           caption?: string | null
           created_at?: string
           id?: string
@@ -160,7 +158,6 @@ export type Database = {
           storage_path: string
         }
         Update: {
-          ai_analysis?: Json | null
           caption?: string | null
           created_at?: string
           id?: string
@@ -187,7 +184,6 @@ export type Database = {
           pet_breed: string | null
           pet_name: string
           pet_type: string
-          photo_context_brief: string | null
           status: string
           updated_at: string
         }
@@ -198,7 +194,6 @@ export type Database = {
           pet_breed?: string | null
           pet_name: string
           pet_type?: string
-          photo_context_brief?: string | null
           status?: string
           updated_at?: string
         }
@@ -209,7 +204,6 @@ export type Database = {
           pet_breed?: string | null
           pet_name?: string
           pet_type?: string
-          photo_context_brief?: string | null
           status?: string
           updated_at?: string
         }
