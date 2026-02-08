@@ -9,6 +9,7 @@ import ChatMessage from "@/components/workspace/ChatMessage";
 import MinimalNav from "@/components/workspace/MinimalNav";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { enableDevMode } from "@/lib/devMode";
 
 // ─── Intent detection ───────────────────────────────────────
 function detectIntent(text: string): "pet" | "person" | "how" | "price" | "example" | "general" {
@@ -359,6 +360,12 @@ const Landing = () => {
             <span>&copy; {new Date().getFullYear()}</span>
             <a href="#" className="hover:underline">Privacy</a>
             <a href="#" className="hover:underline">Terms</a>
+            <button
+              onClick={() => { enableDevMode(); window.location.reload(); }}
+              className="hover:underline opacity-30 hover:opacity-100 transition-opacity"
+            >
+              Dev
+            </button>
           </div>
         </footer>
       </div>
