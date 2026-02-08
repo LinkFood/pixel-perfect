@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, BookOpen, Image, PartyPopper, Smile, Lock, Eye, MapPin, Users, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Image, PartyPopper, Smile, Lock, Eye, MapPin, Sparkles, Loader2, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQueryClient } from "@tanstack/react-query";
 import { useProject, useUpdateProject, useUpdateProjectStatus } from "@/hooks/useProject";
 import { usePhotos, getPhotoUrl } from "@/hooks/usePhotos";
 import Navbar from "@/components/landing/Navbar";
@@ -54,10 +55,20 @@ const subjectTypes = [
 const ProjectContext = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: project, isLoading: projectLoading } = useProject(id);
   const { data: photos = [] } = usePhotos(id);
   const updateProject = useUpdateProject();
   const updateStatus = useUpdateProjectStatus();
+
+  // Poll for context brief while it's building
+  useEffect(() => {
+    if (project?.photo_context_brief || projectLoading) return;
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["project", id] });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [project?.photo_context_brief, projectLoading, id, queryClient]);
 
   const [selectedProduct, setSelectedProduct] = useState("storybook");
   const [subjectName, setSubjectName] = useState("");
@@ -95,13 +106,21 @@ const ProjectContext = () => {
       <Navbar />
       <main className="pt-24 pb-16 container mx-auto px-6 lg:px-12 max-w-3xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <Link to="/project/new" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 font-body transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Back to Photos
+          <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 font-body transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
           </Link>
 
           {/* Section 1: What We Found */}
           <section className="mb-12">
-            <h2 className="font-display text-2xl font-bold text-foreground mb-2">What We Found</h2>
+            <div className="flex items-end justify-between mb-2">
+              <h2 className="font-display text-2xl font-bold text-foreground">What We Found</h2>
+              <Link
+                to={`/project/${id}/upload`}
+                className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-body transition-colors"
+              >
+                <Camera className="w-3.5 h-3.5" /> Add More Photos
+              </Link>
+            </div>
             <p className="font-body text-muted-foreground mb-6">
               Our AI studied your photos. Here's what it sees.
             </p>

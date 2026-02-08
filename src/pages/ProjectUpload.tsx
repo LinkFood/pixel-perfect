@@ -45,8 +45,8 @@ const ProjectUpload = () => {
       if (error) console.error("Appearance profile build failed:", error);
       else console.log("Appearance profile built successfully");
     });
-    // Navigate immediately
-    navigate(`/project/${id}/interview`);
+    // Navigate to context page
+    navigate(`/project/${id}/context`);
   };
 
   const uploadPercent = uploadProgress.total > 0
@@ -60,8 +60,8 @@ const ProjectUpload = () => {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex items-end justify-between mb-8">
             <div>
-              <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3 font-body transition-colors">
-                <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+              <Link to={`/project/${id}/context`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3 font-body transition-colors">
+                <ArrowLeft className="w-4 h-4" /> Back
               </Link>
               <h1 className="font-display text-3xl font-bold text-foreground">
                 {project ? `${project.pet_name}'s Photos` : "Upload Photos"}
