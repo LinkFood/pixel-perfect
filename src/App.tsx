@@ -17,6 +17,9 @@ const RabbitDemo = lazy(() => import("./pages/RabbitDemo"));
 const Workspace = lazy(() => import("./components/workspace/Workspace"));
 const ProjectReview = lazy(() => import("./pages/ProjectReview"));
 
+// Public shared book viewer
+const SharedBookViewer = lazy(() => import("./pages/SharedBookViewer"));
+
 // Legacy routes redirect to new flow (keep for backwards compat)
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ProjectGenerating = lazy(() => import("./pages/ProjectGenerating"));
@@ -50,6 +53,9 @@ const App = () => (
             <Route path="/project/:id/upload" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
             <Route path="/project/:id/interview" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
             <Route path="/project/:id/generating" element={<ProtectedRoute><ProjectGenerating /></ProtectedRoute>} />
+
+            {/* Public shared book */}
+            <Route path="/book/:shareToken" element={<SharedBookViewer />} />
 
             {/* Dev */}
             <Route path="/rabbit-demo" element={<RabbitDemo />} />

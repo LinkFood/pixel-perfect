@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace, Share2, Copy, Check } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -59,6 +59,9 @@ const ProjectReview = () => {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isRebuildingProfile, setIsRebuildingProfile] = useState(false);
   const [brokenImagePageIds, setBrokenImagePageIds] = useState<Set<string>>(new Set());
+  const [isCreatingShare, setIsCreatingShare] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const handleImageError = useCallback((pageId: string) => {
     setBrokenImagePageIds(prev => {
@@ -338,6 +341,36 @@ const ProjectReview = () => {
     }
   };
 
+  const handleShare = async () => {
+    if (!id) return;
+    setIsCreatingShare(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-share-link", {
+        body: { projectId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const url = `${window.location.origin}/book/${data.shareToken}`;
+      setShareUrl(url);
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      toast.success("Share link copied to clipboard!");
+      setTimeout(() => setShareCopied(false), 3000);
+    } catch {
+      toast.error("Failed to create share link");
+    } finally {
+      setIsCreatingShare(false);
+    }
+  };
+
+  const handleCopyShare = async () => {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setShareCopied(true);
+    toast.success("Link copied!");
+    setTimeout(() => setShareCopied(false), 3000);
+  };
+
   const handleRebuildProfile = async () => {
     if (!id) return;
     setIsRebuildingProfile(true);
@@ -422,6 +455,31 @@ const ProjectReview = () => {
                     <ImageIcon className="w-4 h-4" />
                   )}
                   {isGeneratingMissing ? "Generating..." : `Generate ${missingCount} Missing`}
+                </Button>
+              )}
+              {shareUrl ? (
+                <Button
+                  variant="outline"
+                  className="rounded-xl gap-2"
+                  onClick={handleCopyShare}
+                  style={{ borderColor: "#C4956A" }}
+                >
+                  {shareCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {shareCopied ? "Copied!" : "Copy Link"}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="rounded-xl gap-2"
+                  onClick={handleShare}
+                  disabled={isCreatingShare}
+                >
+                  {isCreatingShare ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Share2 className="w-4 h-4" />
+                  )}
+                  {isCreatingShare ? "Creating..." : "Share"}
                 </Button>
               )}
               <Button variant="outline" className="rounded-xl gap-2" onClick={() => setPreviewOpen(true)}>

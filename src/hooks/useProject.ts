@@ -12,6 +12,7 @@ export type Project = {
   pet_appearance_profile: string | null;
   photo_context_brief: string | null;
   product_type: string | null;
+  share_token: string | null;
   user_id: string | null;
   status: string;
   created_at: string;
