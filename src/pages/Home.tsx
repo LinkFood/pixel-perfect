@@ -2,9 +2,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import Workspace from "@/components/workspace/Workspace";
 import Landing from "./Landing";
+import { isDevMode } from "@/lib/devMode";
 
 const Home = () => {
   const { user, loading } = useAuth();
+
+  // Dev mode bypass — go straight to workspace
+  if (isDevMode()) return <Workspace />;
 
   if (loading) {
     return (

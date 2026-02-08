@@ -1,9 +1,13 @@
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import { isDevMode } from "@/lib/devMode";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
+
+  // Dev mode bypass
+  if (isDevMode()) return <>{children}</>;
 
   if (loading) {
     return (
