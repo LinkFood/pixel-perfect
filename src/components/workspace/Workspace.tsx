@@ -42,9 +42,9 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const [rabbitState, setRabbitState] = useState<RabbitState>("idle");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(resolvedId || null);
-  const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
+  const projectCreatedRef = useRef(false);
 
   // Derive view from project status
   const view: WorkspaceView = !activeProjectId || !project
@@ -61,47 +61,45 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     }, 100);
   }, []);
 
-  // Initialize with greeting
-  useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-
-    if (!resolvedId) {
-      setRabbitState("idle");
-      if (projects.length > 0) {
-        setChatMessages([{
-          role: "rabbit",
-          content: `Welcome back! Pick up where you left off, or start something new.`,
-        }]);
-      } else {
-        setChatMessages([{
-          role: "rabbit",
-          content: `Hey! I'm Rabbit. Drop some photos and tell me what you want to make — a book, a card, anything.`,
-        }]);
-      }
-    }
-  }, [resolvedId, projects.length]);
-
   // Update rabbit state based on view
   useEffect(() => {
     if (view === "generating") setRabbitState("painting");
     else if (view === "interview") setRabbitState("listening");
-    else if (view === "upload" && photos.length > 0) setRabbitState("excited");
+    else if ((view === "upload" || view === "home") && photos.length > 0) setRabbitState("excited");
     else if (view === "review") setRabbitState("presenting");
     else setRabbitState("idle");
   }, [view, photos.length]);
+
+  // Auto-create project when first photos are dropped (home view)
+  const handlePhotoUpload = async (files: File[]) => {
+    let pid = activeProjectId;
+
+    // If no project yet, create one
+    if (!pid && !projectCreatedRef.current) {
+      projectCreatedRef.current = true;
+      try {
+        const newProject = await createProject.mutateAsync();
+        pid = newProject.id;
+        setActiveProjectId(pid);
+        navigate(`/project/${pid}`);
+      } catch {
+        projectCreatedRef.current = false;
+        return;
+      }
+    }
+
+    if (!pid) return;
+    uploadBatch(pid, files);
+    setRabbitState("excited");
+  };
 
   const handleNewProject = async () => {
     try {
       const project = await createProject.mutateAsync();
       setActiveProjectId(project.id);
       navigate(`/project/${project.id}`);
-      setChatMessages(prev => [...prev, {
-        role: "rabbit",
-        content: "Great! Drop some photos of whoever this is about — the more the better.",
-      }]);
-      setShowPhotoUpload(true);
-      setRabbitState("excited");
+      setChatMessages([]);
+      setRabbitState("idle");
     } catch {
       // handled by mutation
     }
@@ -112,15 +110,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     navigate(`/project/${id}`);
   };
 
-  const handlePhotoUpload = (files: File[]) => {
-    if (!activeProjectId) return;
-    uploadBatch(activeProjectId, files);
-    setRabbitState("excited");
-    if (files.length > 3) {
-      setChatMessages(prev => [...prev, { role: "rabbit", content: "Ooh, lots of photos! I'm going to study every one." }]);
-    }
-  };
-
+  // ─── Interview chat ─────────────────────────────────────────
   const handleSend = () => {
     const text = input.trim();
     if (!text) return;
@@ -130,16 +120,9 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     scrollToBottom();
 
     if (view === "interview" && project) {
-      // Wire to real interview
       const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
       sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type);
       setRabbitState("thinking");
-    } else if (view === "home" && !activeProjectId) {
-      // Pre-project: create and start
-      handleNewProject();
-    } else if (view === "upload") {
-      // During upload, treat as a note
-      setChatMessages(prev => [...prev, { role: "rabbit", content: "Got it! Keep dropping photos when you're ready." }]);
     }
   };
 
@@ -155,7 +138,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   // Show interview messages from DB (on reload/resume)
   useEffect(() => {
     if (view !== "interview" || interviewMessages.length === 0) return;
-    // Only populate if our local chat is empty for this view
     if (chatMessages.some(m => m.role === "user")) return;
     const restored = interviewMessages.map(m => ({
       role: (m.role === "assistant" ? "rabbit" : "user") as "rabbit" | "user",
@@ -171,9 +153,9 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
       body: { projectId: activeProjectId },
     });
     updateStatus.mutate({ id: activeProjectId, status: "interview" });
-    setChatMessages(prev => [...prev, {
+    setChatMessages([{
       role: "rabbit",
-      content: `Beautiful photos! Now let me ask you some questions so I can write the story. Tell me about ${project?.pet_name || "them"}...`,
+      content: `I've studied all your photos — I can see ${project?.pet_name || "them"} so clearly! Now tell me the stories behind the pictures. What should I know?`,
     }]);
     setRabbitState("listening");
     scrollToBottom();
@@ -197,7 +179,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const canFinish = userInterviewCount >= 8;
   const canContinueToInterview = photos.length >= 5 && !isBatchUploading;
 
-  // ─── Render ───────────────────────────────────────────────
+  // ─── Generating view ────────────────────────────────────────
   if (view === "generating") {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
@@ -219,12 +201,86 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     );
   }
 
+  // ─── Review redirect ────────────────────────────────────────
   if (view === "review") {
-    // For review, navigate to the full review page (too complex for inline)
     navigate(`/project/${activeProjectId}/review`);
     return null;
   }
 
+  // ─── Home / Upload views: PHOTOS FIRST, no chat ─────────────
+  if (view === "home" || view === "upload") {
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
+        <MinimalNav />
+
+        <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto overflow-hidden">
+          {/* Rabbit */}
+          <div className="flex justify-center py-6 shrink-0">
+            <RabbitCharacter state={rabbitState} size={160} />
+          </div>
+
+          {/* Upload-focused content */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-0 space-y-4 pb-4">
+            {/* Rabbit greeting */}
+            <ChatMessage
+              role="rabbit"
+              content={
+                photos.length === 0
+                  ? "Drop your photos here — I'll study every detail so we can make something amazing."
+                  : photos.length < 5
+                  ? `${photos.length} photo${photos.length !== 1 ? "s" : ""} so far — a few more will really help me tell the story.`
+                  : isBatchUploading
+                  ? "I'm studying your photos right now..."
+                  : `${photos.length} photos! I can already picture the book. Ready when you are.`
+              }
+            />
+
+            {/* Photo upload zone + grid */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="py-2"
+            >
+              <PhotoUploadInline
+                photos={photos}
+                isUploading={isBatchUploading}
+                uploadProgress={isBatchUploading ? uploadProgress : undefined}
+                onUpload={handlePhotoUpload}
+                onToggleFavorite={activeProjectId ? (id, cur) => updatePhoto.mutate({ id, projectId: activeProjectId, is_favorite: !cur }) : undefined}
+                onDelete={activeProjectId ? (id, path) => deletePhoto.mutate({ id, projectId: activeProjectId, storagePath: path }) : undefined}
+              />
+
+              {canContinueToInterview && (
+                <div className="mt-6 text-center">
+                  <Button
+                    size="lg"
+                    className="rounded-xl gap-2 px-8"
+                    style={{ background: "#C4956A", color: "white" }}
+                    onClick={handleContinueToInterview}
+                  >
+                    That's all my photos — let's go!
+                  </Button>
+                  <p className="font-body text-xs mt-2" style={{ color: "#9B8E7F" }}>
+                    Or keep adding more photos
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        </div>
+
+        {/* Project shelf */}
+        <ProjectShelf
+          projects={projects}
+          activeProjectId={activeProjectId}
+          onSelect={handleSelectProject}
+          onNew={handleNewProject}
+        />
+      </div>
+    );
+  }
+
+  // ─── Interview view: NOW the chat opens ─────────────────────
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
       <MinimalNav />
@@ -232,7 +288,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
       <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto overflow-hidden">
         {/* Rabbit */}
         <div className="flex justify-center py-4 shrink-0">
-          <RabbitCharacter state={rabbitState} size={160} />
+          <RabbitCharacter state={rabbitState} size={140} />
         </div>
 
         {/* Chat area */}
@@ -253,39 +309,8 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
             <ChatMessage role="rabbit" content={streamingContent} isStreaming />
           )}
 
-          {/* Inline photo upload */}
-          {(view === "upload" || showPhotoUpload) && activeProjectId && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="py-2"
-            >
-              <PhotoUploadInline
-                photos={photos}
-                isUploading={isBatchUploading}
-                uploadProgress={isBatchUploading ? uploadProgress : undefined}
-                onUpload={handlePhotoUpload}
-                onToggleFavorite={(id, cur) => updatePhoto.mutate({ id, projectId: activeProjectId, is_favorite: !cur })}
-                onDelete={(id, path) => deletePhoto.mutate({ id, projectId: activeProjectId, storagePath: path })}
-              />
-
-              {canContinueToInterview && (
-                <div className="mt-4 text-center">
-                  <Button
-                    size="sm"
-                    className="rounded-xl gap-2"
-                    style={{ background: "#C4956A", color: "white" }}
-                    onClick={handleContinueToInterview}
-                  >
-                    That's all my photos — let's go!
-                  </Button>
-                </div>
-              )}
-            </motion.div>
-          )}
-
           {/* Finish interview button */}
-          {view === "interview" && canFinish && (
+          {canFinish && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -303,21 +328,14 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
           )}
         </div>
 
-        {/* Input */}
+        {/* Chat input — ONLY during interview */}
         <ChatInput
           value={input}
           onChange={setInput}
           onSend={handleSend}
-          onPhotos={activeProjectId ? handlePhotoUpload : undefined}
           disabled={isStreaming}
-          placeholder={
-            view === "interview"
-              ? "Share a memory..."
-              : view === "upload"
-              ? "Tell Rabbit about these photos..."
-              : "Tell Rabbit what you're making..."
-          }
-          showPhotoButton={view !== "interview"}
+          placeholder="Share a memory..."
+          showPhotoButton={false}
         />
       </div>
 
