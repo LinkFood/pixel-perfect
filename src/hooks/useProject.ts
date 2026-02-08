@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export type Project = {
   id: string;
@@ -11,6 +12,7 @@ export type Project = {
   pet_appearance_profile: string | null;
   photo_context_brief: string | null;
   product_type: string | null;
+  user_id: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -53,9 +55,11 @@ export const useCreateProject = () => {
 
   return useMutation({
     mutationFn: async (values: { pet_name: string; pet_type: string; pet_breed?: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("projects")
-        .insert({ pet_name: values.pet_name, pet_type: values.pet_type, pet_breed: values.pet_breed || null })
+        .insert({ pet_name: values.pet_name, pet_type: values.pet_type, pet_breed: values.pet_breed || null, user_id: user.id } as any)
         .select()
         .single();
       if (error) throw error;
@@ -78,9 +82,11 @@ export const useCreateMinimalProject = () => {
 
   return useMutation({
     mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("projects")
-        .insert({ pet_name: "New Project", pet_type: "unknown" })
+        .insert({ pet_name: "New Project", pet_type: "unknown", user_id: user.id } as any)
         .select()
         .single();
       if (error) throw error;

@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      credit_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          id: string
+          project_id: string | null
+          stripe_session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description: string
+          id?: string
+          project_id?: string | null
+          stripe_session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          id?: string
+          project_id?: string | null
+          stripe_session_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       project_illustrations: {
         Row: {
           created_at: string
@@ -140,6 +170,7 @@ export type Database = {
       }
       project_photos: {
         Row: {
+          ai_analysis: Json | null
           caption: string | null
           created_at: string
           id: string
@@ -149,6 +180,7 @@ export type Database = {
           storage_path: string
         }
         Insert: {
+          ai_analysis?: Json | null
           caption?: string | null
           created_at?: string
           id?: string
@@ -158,6 +190,7 @@ export type Database = {
           storage_path: string
         }
         Update: {
+          ai_analysis?: Json | null
           caption?: string | null
           created_at?: string
           id?: string
@@ -184,8 +217,11 @@ export type Database = {
           pet_breed: string | null
           pet_name: string
           pet_type: string
+          photo_context_brief: string | null
+          product_type: string | null
           status: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -194,8 +230,11 @@ export type Database = {
           pet_breed?: string | null
           pet_name: string
           pet_type?: string
+          photo_context_brief?: string | null
+          product_type?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -204,8 +243,35 @@ export type Database = {
           pet_breed?: string | null
           pet_name?: string
           pet_type?: string
+          photo_context_brief?: string | null
+          product_type?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_credits: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -214,7 +280,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      deduct_credit: {
+        Args: { p_description: string; p_project_id: string; p_user_id: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

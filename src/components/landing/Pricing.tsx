@@ -1,44 +1,50 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 
 const tiers = [
   {
-    name: "Photo Memory Book",
-    price: "$19.99",
-    description: "Your real photos, beautifully curated",
+    name: "Starter",
+    credits: 15,
+    price: "$4.99",
+    perCredit: "$0.33",
+    description: "Try it out, make a few illustrations",
     features: [
-      "Curated photo book from your uploads",
-      "AI-written captions from your stories",
-      "Organized narrative timeline",
-      "Print-ready digital PDF",
+      "15 illustration credits",
+      "Generate or regenerate any page",
+      "Full PDF download",
+      "No expiration",
     ],
     featured: false,
   },
   {
-    name: "The Complete Bundle",
-    price: "$39.99",
-    originalPrice: "$49.98",
-    badge: "Save $10",
-    description: "Both books + priority generation",
+    name: "Standard",
+    credits: 40,
+    price: "$9.99",
+    perCredit: "$0.25",
+    badge: "Most Popular",
+    description: "Enough for one book with tweaking",
     features: [
-      "Everything in both books",
-      "Priority AI generation",
-      "Custom-trained illustrations",
-      "Two print-ready PDFs",
-      "Best value",
+      "40 illustration credits",
+      "~3 variants per page for a 13-page book",
+      "Full PDF download",
+      "No expiration",
+      "Best per-credit value",
     ],
     featured: true,
   },
   {
-    name: "Illustrated Storybook",
-    price: "$29.99",
-    description: "An illustrated book from YOUR memories",
+    name: "Pro",
+    credits: 100,
+    price: "$19.99",
+    perCredit: "$0.20",
+    description: "Heavy iteration or multiple books",
     features: [
-      "Fully illustrated storybook",
-      "AI illustrations that match your photos",
-      "Written from your real memories",
-      "Print-ready digital PDF",
+      "100 illustration credits",
+      "Perfect for multiple projects",
+      "Full PDF download",
+      "No expiration",
+      "Lowest per-credit cost",
     ],
     featured: false,
   },
@@ -57,10 +63,11 @@ const Pricing = () => {
         >
           <p className="text-sm font-body uppercase tracking-[0.2em] text-muted-foreground mb-3">Pricing</p>
           <h2 className="text-3xl lg:text-4xl font-display font-semibold text-foreground">
-            Choose your keepsake
+            Pay for what you create
           </h2>
           <p className="text-muted-foreground font-body mt-4 max-w-lg mx-auto">
-            Hardcover print add-ons available at checkout starting at $24.99
+            Every new account starts with <span className="font-semibold text-primary">3 free credits</span>. 
+            Upload photos, chat, and write your story for free — credits are only used for illustrations.
           </p>
         </motion.div>
 
@@ -90,12 +97,12 @@ const Pricing = () => {
               <p className={`text-sm font-body mb-5 ${tier.featured ? "opacity-70" : "text-muted-foreground"}`}>
                 {tier.description}
               </p>
-              <div className="flex items-baseline gap-2 mb-6">
+              <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-3xl font-display font-bold">{tier.price}</span>
-                {tier.originalPrice && (
-                  <span className="text-sm line-through opacity-50">{tier.originalPrice}</span>
-                )}
               </div>
+              <p className={`text-xs font-body mb-6 ${tier.featured ? "opacity-50" : "text-muted-foreground"}`}>
+                {tier.perCredit} per credit · {tier.credits} credits
+              </p>
               <ul className="space-y-3 mb-8">
                 {tier.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-3 text-sm font-body">
@@ -109,12 +116,28 @@ const Pricing = () => {
                 className={`w-full rounded-xl py-5 ${
                   tier.featured ? "bg-background text-foreground hover:bg-background/90" : ""
                 }`}
+                asChild
               >
-                Get Started
+                <a href="/auth">Get Started</a>
               </Button>
             </motion.div>
           ))}
         </div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="text-center mt-12"
+        >
+          <div className="inline-flex items-center gap-2 bg-secondary/60 rounded-full px-5 py-2.5">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <span className="font-body text-sm text-foreground">
+              Uploading photos, chatting, and story writing are always <strong>free</strong>
+            </span>
+          </div>
+        </motion.div>
       </div>
     </section>
   );

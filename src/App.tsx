@@ -7,8 +7,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import ProtectedRoute from "./components/ProtectedRoute";
 
-// Lazy-load all pages except landing and 404
+const Auth = lazy(() => import("./pages/Auth"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ProjectNew = lazy(() => import("./pages/ProjectNew"));
 const ProjectContext = lazy(() => import("./pages/ProjectContext"));
@@ -34,13 +35,14 @@ const App = () => (
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/project/new" element={<ProjectNew />} />
-            <Route path="/project/:id/context" element={<ProjectContext />} />
-            <Route path="/project/:id/upload" element={<ProjectUpload />} />
-            <Route path="/project/:id/interview" element={<ProjectInterview />} />
-            <Route path="/project/:id/generating" element={<ProjectGenerating />} />
-            <Route path="/project/:id/review" element={<ProjectReview />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/project/new" element={<ProtectedRoute><ProjectNew /></ProtectedRoute>} />
+            <Route path="/project/:id/context" element={<ProtectedRoute><ProjectContext /></ProtectedRoute>} />
+            <Route path="/project/:id/upload" element={<ProtectedRoute><ProjectUpload /></ProtectedRoute>} />
+            <Route path="/project/:id/interview" element={<ProtectedRoute><ProjectInterview /></ProtectedRoute>} />
+            <Route path="/project/:id/generating" element={<ProtectedRoute><ProjectGenerating /></ProtectedRoute>} />
+            <Route path="/project/:id/review" element={<ProtectedRoute><ProjectReview /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
