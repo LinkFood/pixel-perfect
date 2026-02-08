@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Camera, ArrowRight, ImagePlus } from "lucide-react";
+import { Camera, ArrowRight, ImagePlus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import UploadZone from "@/components/project/UploadZone";
 import PhotoGrid from "@/components/project/PhotoGrid";
 import { useCreateMinimalProject } from "@/hooks/useProject";
@@ -17,10 +18,14 @@ const thresholdMessages: Record<string, { text: string; color: string }> = {
   excellent: { text: "Amazing! Plenty of material to work with", color: "text-primary" },
 };
 
+const STORAGE_KEY = "photorabbit_new_project_id";
+
 const ProjectNew = () => {
   const navigate = useNavigate();
   const createProject = useCreateMinimalProject();
-  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(() => {
+    return sessionStorage.getItem(STORAGE_KEY);
+  });
   const creatingRef = useRef(false);
 
   const { data: photos = [] } = usePhotos(projectId ?? undefined);
@@ -30,6 +35,8 @@ const ProjectNew = () => {
 
   const count = photos.length;
   const analyzedCount = photos.filter(p => p.caption || p.ai_analysis).length;
+  const isAnalyzingPhotos = captioningIds.size > 0;
+  const analysisPercent = count > 0 ? Math.round((analyzedCount / count) * 100) : 0;
   const threshold = count === 0 ? "zero" : count < 5 ? "low" : count < 20 ? "good" : "excellent";
   const msg = thresholdMessages[threshold];
   const canContinue = count >= 5 && analyzedCount >= 5 && !isBatchUploading;
@@ -41,6 +48,7 @@ const ProjectNew = () => {
     try {
       const project = await createProject.mutateAsync();
       setProjectId(project.id);
+      sessionStorage.setItem(STORAGE_KEY, project.id);
       return project.id;
     } catch {
       creatingRef.current = false;
@@ -56,6 +64,8 @@ const ProjectNew = () => {
 
   const handleContinue = () => {
     if (!projectId) return;
+    // Clear session storage — this project is moving forward
+    sessionStorage.removeItem(STORAGE_KEY);
     // Fire appearance profile build in background
     supabase.functions.invoke("build-appearance-profile", {
       body: { projectId },
@@ -91,22 +101,34 @@ const ProjectNew = () => {
             />
 
             {count > 0 && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 bg-card rounded-full px-4 py-2 border border-border">
-                    <Camera className="w-4 h-4 text-primary" />
-                    <span className="font-body text-sm font-medium text-foreground">{count}</span>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 bg-card rounded-full px-4 py-2 border border-border">
+                      <Camera className="w-4 h-4 text-primary" />
+                      <span className="font-body text-sm font-medium text-foreground">{count}</span>
+                    </div>
+                    <p className={`font-body text-sm ${msg.color}`}>{msg.text}</p>
                   </div>
-                  <p className={`font-body text-sm ${msg.color}`}>{msg.text}</p>
+                  <Button
+                    variant="hero"
+                    className="rounded-xl gap-2"
+                    disabled={!canContinue}
+                    onClick={handleContinue}
+                  >
+                    Continue <ArrowRight className="w-4 h-4" />
+                  </Button>
                 </div>
-                <Button
-                  variant="hero"
-                  className="rounded-xl gap-2"
-                  disabled={!canContinue}
-                  onClick={handleContinue}
-                >
-                  Continue <ArrowRight className="w-4 h-4" />
-                </Button>
+
+                {(isAnalyzingPhotos || (analyzedCount > 0 && analyzedCount < count)) && (
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="w-4 h-4 text-primary animate-pulse shrink-0" />
+                    <Progress value={analysisPercent} className="h-1.5 flex-1" />
+                    <span className="font-body text-xs text-muted-foreground whitespace-nowrap">
+                      {analyzedCount}/{count} analyzed
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 

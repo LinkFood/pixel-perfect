@@ -75,6 +75,19 @@ const ProjectContext = () => {
   const [subjectType, setSubjectType] = useState("dog");
   const [breed, setBreed] = useState("");
   const [detailsSaved, setDetailsSaved] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  // Pre-populate form from project data when it loads
+  useEffect(() => {
+    if (!project || initialized) return;
+    const hasRealName = project.pet_name && project.pet_name !== "New Project";
+    if (hasRealName) setSubjectName(project.pet_name);
+    if (project.pet_type && project.pet_type !== "unknown") setSubjectType(project.pet_type);
+    if (project.pet_breed) setBreed(project.pet_breed);
+    if (project.product_type) setSelectedProduct(project.product_type);
+    if (hasRealName) setDetailsSaved(true);
+    setInitialized(true);
+  }, [project, initialized]);
 
   // Derive analysis state
   const contextBrief = project?.photo_context_brief;

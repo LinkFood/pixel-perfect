@@ -6,7 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function buildSystemPrompt(petName: string, appearanceProfile: string | null) {
+function buildSystemPrompt(petName: string, appearanceProfile: string | null, productType?: string) {
+  const product = productType || "storybook";
   const characterBlock = appearanceProfile
     ? `\n\nCHARACTER APPEARANCE (use in EVERY illustration_prompt):\n${appearanceProfile}\n\nCRITICAL: Every illustration_prompt you write MUST include ${petName}'s full physical description so the illustrator draws the pet consistently on every single page. Copy the key details (breed, coat colors, markings, size) into each illustration_prompt.`
     : "";
@@ -93,9 +94,9 @@ serve(async (req) => {
 
     const captions = (photos || []).filter(p => p.caption).map(p => p.caption).join(", ");
 
-    console.log(`Generating story for ${project.pet_name}, ${interview?.length || 0} interview messages, ${photos?.length || 0} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
+    console.log(`Generating ${project.product_type || "storybook"} for ${project.pet_name}, ${interview?.length || 0} interview messages, ${photos?.length || 0} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
 
-    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile);
+    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, project.product_type);
 
     const userPrompt = `Create a children's storybook about ${project.pet_name}, a ${project.pet_breed || ""} ${project.pet_type}. Use as many pages as the story naturally needs — don't cut short, include every meaningful memory.
 
