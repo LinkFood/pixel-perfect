@@ -53,16 +53,18 @@ const ProjectGenerating = () => {
   const [currentlyRenderingIds, setCurrentlyRenderingIds] = useState<Set<string>>(new Set());
   const [failedPageIds, setFailedPageIds] = useState<Set<string>>(new Set());
 
-  // Animated story-phase status messages
+  const petName = project?.pet_name || "your pet";
+
+  // Animated story-phase status messages — pet-name-aware
   const storyMessages = [
-    "Reading your interview responses...",
-    "Getting to know your pet's personality...",
-    "Crafting the narrative arc...",
-    "Weaving your memories into prose...",
-    "Writing page by page...",
-    "Choosing the perfect words...",
-    "Building emotional moments...",
-    "Polishing the story...",
+    `Reading everything you shared about ${petName}...`,
+    `Getting to know ${petName}'s personality...`,
+    `Crafting the narrative arc of ${petName}'s story...`,
+    `Weaving your memories of ${petName} into prose...`,
+    `Writing ${petName}'s story page by page...`,
+    `Choosing the perfect words for ${petName}...`,
+    `Building the emotional heart of ${petName}'s book...`,
+    `Polishing ${petName}'s story...`,
   ];
   const [storyMsgIdx, setStoryMsgIdx] = useState(0);
   const [storyElapsed, setStoryElapsed] = useState(0);
@@ -182,10 +184,36 @@ const ProjectGenerating = () => {
     const illustratedPageIds = new Set((existingIllustrations || []).map(i => i.page_id));
     const missingPages = pages.filter(p => !illustratedPageIds.has(p.id) && !skippedPageIds.has(p.id));
 
-    setTotalPages(pages.length);
-    setIllustrationsGenerated(pages.length - missingPages.length);
+    // Count existing variants per page to know how many more to generate
+    const { data: allExistingIllustrations } = await supabase
+      .from("project_illustrations")
+      .select("page_id")
+      .eq("project_id", projectId);
+    const existingCountByPage = new Map<string, number>();
+    (allExistingIllustrations || []).forEach(i => {
+      existingCountByPage.set(i.page_id, (existingCountByPage.get(i.page_id) || 0) + 1);
+    });
 
-    if (missingPages.length === 0) {
+    const VARIANTS_PER_PAGE = 3;
+
+    // Build work items: each page needs (VARIANTS_PER_PAGE - existing) illustrations
+    type WorkItem = { page: typeof pages[0]; isVariant: boolean };
+    const workItems: WorkItem[] = [];
+    for (const page of pages) {
+      if (skippedPageIds.has(page.id)) continue;
+      const existing = existingCountByPage.get(page.id) || 0;
+      const needed = Math.max(0, VARIANTS_PER_PAGE - existing);
+      if (needed === 0) continue;
+      for (let v = 0; v < needed; v++) {
+        workItems.push({ page, isVariant: v > 0 || existing > 0 });
+      }
+    }
+
+    setTotalPages(pages.length);
+    const completedPages = pages.filter(p => (existingCountByPage.get(p.id) || 0) >= VARIANTS_PER_PAGE).length;
+    setIllustrationsGenerated(completedPages);
+
+    if (workItems.length === 0) {
       setPhase("done");
       updateStatus.mutate({ id: projectId, status: "review" });
       return;
@@ -194,8 +222,7 @@ const ProjectGenerating = () => {
     setPhase("illustrations");
 
     let successes = 0;
-    let batchDelay = 1000; // Start at 1s, increase on 429
-    const CONCURRENCY = 2; // 2 illustrations at a time
+    let batchDelay = 1500; // Start at 1.5s, increase on 429
 
     const getLabel = (page: { page_type: string; page_number: number }) =>
       page.page_type === "cover" ? "Cover"
@@ -204,64 +231,53 @@ const ProjectGenerating = () => {
         : page.page_type === "closing" ? "Closing"
         : `Page ${page.page_number}`;
 
-    // Process in batches of CONCURRENCY
-    for (let i = 0; i < missingPages.length; i += CONCURRENCY) {
+    // Process one at a time to stay under rate limits with 3x volume
+    for (let i = 0; i < workItems.length; i++) {
       if (cancelRef.current) break;
 
-      const batch = missingPages.slice(i, i + CONCURRENCY).filter(p => !skippedPageIds.has(p.id));
-      if (batch.length === 0) continue;
+      const { page, isVariant } = workItems[i];
+      if (skippedPageIds.has(page.id)) continue;
 
-      // Mark all pages in batch as rendering
-      const batchIds = new Set(batch.map(p => p.id));
-      setCurrentlyRenderingIds(batchIds);
-      setCurrentPageLabel(batch.map(getLabel).join(" & "));
+      setCurrentlyRenderingIds(new Set([page.id]));
+      setCurrentPageLabel(`${getLabel(page)}${isVariant ? " (variant)" : ""}`);
 
-      // Fire all requests in batch simultaneously
-      const results = await Promise.allSettled(
-        batch.map(async (page) => {
-          const { error } = await supabase.functions.invoke("generate-illustration", {
-            body: { pageId: page.id, projectId },
-          });
-          return { page, error };
-        })
-      );
-
-      // Process results
       let gotRateLimited = false;
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          const { page, error } = result.value;
-          if (!error) {
-            successes++;
-            setFailedPageIds(prev => { const next = new Set(prev); next.delete(page.id); return next; });
-          } else {
-            console.error(`Illustration error for ${getLabel(page)}:`, error);
-            setFailedPageIds(prev => { const next = new Set(prev); next.add(page.id); return next; });
-            const errorBody = typeof error === "object" && error.message ? error.message : String(error);
-            if (errorBody.includes("402") || errorBody.includes("Credits")) {
-              toast.error(`${getLabel(page)}: Credits low, trying lighter model...`);
-            } else if (errorBody.includes("429") || errorBody.includes("Rate")) {
-              gotRateLimited = true;
-            }
-          }
+      try {
+        const { error } = await supabase.functions.invoke("generate-illustration", {
+          body: { pageId: page.id, projectId, variant: isVariant },
+        });
+        if (!error) {
+          successes++;
+          setFailedPageIds(prev => { const next = new Set(prev); next.delete(page.id); return next; });
+          // Update progress: count completed pages (all variants done)
+          existingCountByPage.set(page.id, (existingCountByPage.get(page.id) || 0) + 1);
+          const newCompleted = pages.filter(p => (existingCountByPage.get(p.id) || 0) >= VARIANTS_PER_PAGE).length;
+          setIllustrationsGenerated(newCompleted);
         } else {
-          // Promise rejected
-          const page = batch[results.indexOf(result)];
-          console.error(`Illustration failed for ${getLabel(page)}:`, result.reason);
+          console.error(`Illustration error for ${getLabel(page)}:`, error);
           setFailedPageIds(prev => { const next = new Set(prev); next.add(page.id); return next; });
+          const errorBody = typeof error === "object" && error.message ? error.message : String(error);
+          if (errorBody.includes("402") || errorBody.includes("Credits")) {
+            toast.error(`${getLabel(page)}: Credits low, trying lighter model...`);
+          } else if (errorBody.includes("429") || errorBody.includes("Rate")) {
+            gotRateLimited = true;
+          }
         }
+      } catch (e) {
+        console.error(`Illustration failed for ${getLabel(page)}:`, e);
+        setFailedPageIds(prev => { const next = new Set(prev); next.add(page.id); return next; });
       }
 
-      // Adaptive delay: back off on 429, recover when clear
+      // Adaptive delay
       if (gotRateLimited) {
-        batchDelay = Math.min(batchDelay * 2, 5000);
-        toast.error(`Rate limited — slowing down (${batchDelay / 1000}s between batches)`);
-      } else if (batchDelay > 1000) {
-        batchDelay = Math.max(batchDelay - 500, 1000);
+        batchDelay = Math.min(batchDelay * 2, 6000);
+        toast.error(`Rate limited — slowing down (${batchDelay / 1000}s between requests)`);
+      } else if (batchDelay > 1500) {
+        batchDelay = Math.max(batchDelay - 500, 1500);
       }
 
-      // Delay before next batch
-      if (i + CONCURRENCY < missingPages.length) {
+      // Delay before next request
+      if (i + 1 < workItems.length) {
         await sleep(batchDelay);
       }
     }
@@ -286,7 +302,7 @@ const ProjectGenerating = () => {
       setRedoQueue(new Set());
     }
 
-    const remaining = missingPages.length - successes;
+    const remaining = workItems.length - successes;
     if (remaining > 0) {
       setFailedCount(remaining);
       setPhase("failed");
@@ -415,12 +431,12 @@ const ProjectGenerating = () => {
       return storyMessages[storyMsgIdx];
     }
     if (phase === "illustrations") {
-      const base = `Creating illustrations... ${illustrationsGenerated} of ${totalPages}`;
+      const base = `Illustrating ${petName}'s story... ${illustrationsGenerated} of ${totalPages}`;
       return currentPageLabel ? `${base} — Drawing ${currentPageLabel}` : base;
     }
     if (phase === "failed" && livePages.length === 0) return "Story generation failed — tap Retry to try again";
     if (phase === "failed") return `${failedCount} illustration${failedCount !== 1 ? "s" : ""} failed to generate`;
-    return "Your book is complete!";
+    return `${petName}'s book is complete!`;
   };
 
   const showThumbnails = livePages.length > 0 && (phase === "story" || phase === "illustrations" || phase === "done" || phase === "failed");
@@ -432,22 +448,39 @@ const ProjectGenerating = () => {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           {/* Header section */}
           <div className="text-center mb-8">
-            <motion.div
-              animate={{ rotate: (phase === "done" || phase === "failed") ? 0 : 360 }}
-              transition={{ duration: 2, repeat: (phase === "done" || phase === "failed") ? 0 : Infinity, ease: "linear" }}
-              className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4"
-            >
-              {phase === "failed" ? (
-                <AlertTriangle className="w-8 h-8 text-primary" />
-              ) : phase === "illustrations" ? (
-                <ImageIcon className="w-8 h-8 text-primary" />
-              ) : (
-                <Sparkles className="w-8 h-8 text-primary" />
-              )}
-            </motion.div>
+            {phase === "done" ? (
+              <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 260, damping: 15 }}
+                className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4"
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 12 }}
+                >
+                  <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
+                </motion.div>
+              </motion.div>
+            ) : (
+              <motion.div
+                animate={{ rotate: phase === "failed" ? 0 : 360 }}
+                transition={{ duration: 2, repeat: phase === "failed" ? 0 : Infinity, ease: "linear" }}
+                className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4"
+              >
+                {phase === "failed" ? (
+                  <AlertTriangle className="w-8 h-8 text-primary" />
+                ) : phase === "illustrations" ? (
+                  <ImageIcon className="w-8 h-8 text-primary" />
+                ) : (
+                  <Sparkles className="w-8 h-8 text-primary" />
+                )}
+              </motion.div>
+            )}
 
             <h1 className="font-display text-2xl font-bold text-foreground mb-2">
-              {phase === "done" ? "Your Book is Ready!" : phase === "failed" ? "Some Illustrations Failed" : "Creating Your Book"}
+              {phase === "done" ? `${petName}'s Book is Ready!` : phase === "failed" ? "Some Illustrations Failed" : phase === "illustrations" ? `Illustrating ${petName}'s Story` : `Creating ${petName}'s Book`}
             </h1>
 
             <div className="max-w-md mx-auto space-y-2 mb-4">
@@ -734,7 +767,15 @@ const ProjectGenerating = () => {
                     {/* Thumbnail illustration */}
                     <div className="aspect-square bg-secondary/50 relative">
                       {illUrl ? (
-                        <img src={illUrl} alt={label} className="w-full h-full object-cover" loading="lazy" />
+                        <motion.img
+                          src={illUrl}
+                          alt={label}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          initial={{ opacity: 0, scale: 1.08, filter: "blur(8px)" }}
+                          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                          transition={{ duration: 0.6, ease: "easeOut" }}
+                        />
                       ) : isRendering ? (
                         <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-blue-50/50 dark:bg-blue-950/20">
                           <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />

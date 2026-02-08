@@ -6,19 +6,19 @@ const steps = [
     icon: Camera,
     number: "01",
     title: "Upload Photos",
-    description: "Share your favorite photos. The more, the better — we use them to create illustrations that actually look like YOUR pet.",
+    description: "Share your favorite photos. Our AI analyzes every detail — setting, mood, who's there — so your book captures real moments, not generic ones.",
   },
   {
     icon: MessageCircleHeart,
     number: "02",
     title: "Tell Their Story",
-    description: "Our AI interviewer asks the right questions. You share the real memories. We turn them into a narrative your family will treasure.",
+    description: "Our interviewer already knows your photos. It asks about the people, places, and moments it saw — drawing out the stories behind each one.",
   },
   {
     icon: BookOpen,
     number: "03",
     title: "Get Your Book",
-    description: "We generate a fully illustrated storybook and a photo memory book. Review, edit, approve — then we print and ship.",
+    description: "We generate a fully illustrated storybook with multiple art options per page, plus a photo memory book. Review, pick your favorites, and download.",
   },
 ];
 

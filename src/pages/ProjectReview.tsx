@@ -87,11 +87,26 @@ const ProjectReview = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("project_illustrations")
-        .select("id, page_id, storage_path")
+        .select("id, page_id, storage_path, is_selected")
         .eq("project_id", id!)
         .eq("is_selected", true);
       if (error) throw error;
-      return data as Illustration[];
+      return data as (Illustration & { is_selected: boolean })[];
+    },
+    enabled: !!id,
+  });
+
+  // All illustrations (including non-selected variants) for the picker
+  const { data: allIllustrations = [] } = useQuery({
+    queryKey: ["all-illustrations", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("project_illustrations")
+        .select("id, page_id, storage_path, is_selected")
+        .eq("project_id", id!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as (Illustration & { is_selected: boolean })[];
     },
     enabled: !!id,
   });
@@ -108,6 +123,65 @@ const ProjectReview = () => {
     });
     return map;
   }, [illustrations]);
+
+  // Build URL map for ALL illustrations (variants included)
+  const allIllustrationUrlMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allIllustrations.forEach(ill => {
+      const { data } = supabase.storage.from("pet-photos").getPublicUrl(ill.storage_path);
+      map.set(ill.id, data.publicUrl);
+    });
+    return map;
+  }, [allIllustrations]);
+
+  // Group all illustrations by page_id
+  const illustrationsByPage = useMemo(() => {
+    const map = new Map<string, (Illustration & { is_selected: boolean })[]>();
+    allIllustrations.forEach(ill => {
+      const list = map.get(ill.page_id) || [];
+      list.push(ill);
+      map.set(ill.page_id, list);
+    });
+    return map;
+  }, [allIllustrations]);
+
+  const [isSelectingIllustration, setIsSelectingIllustration] = useState(false);
+
+  const handleSelectIllustration = async (pageId: string, illustrationId: string) => {
+    if (!id) return;
+    setIsSelectingIllustration(true);
+    try {
+      // Deselect all for this page
+      await supabase
+        .from("project_illustrations")
+        .update({ is_selected: false })
+        .eq("page_id", pageId)
+        .eq("project_id", id);
+      // Select the chosen one
+      await supabase
+        .from("project_illustrations")
+        .update({ is_selected: true })
+        .eq("id", illustrationId);
+      queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
+      queryClient.invalidateQueries({ queryKey: ["all-illustrations", id] });
+    } catch {
+      toast.error("Failed to select illustration");
+    } finally {
+      setIsSelectingIllustration(false);
+    }
+  };
+
+  const handleTryAnother = async (pageId: string) => {
+    if (!id) return;
+    toast.info("Generating another variant...");
+    const { error } = await supabase.functions.invoke("generate-illustration", {
+      body: { pageId, projectId: id, variant: true },
+    });
+    if (error) { toast.error("Failed to generate variant"); return; }
+    queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
+    queryClient.invalidateQueries({ queryKey: ["all-illustrations", id] });
+    toast.success("New variant generated!");
+  };
 
   const getIllustrationUrl = useCallback((pageId: string) => {
     return illustrationUrlMap.get(pageId) || null;
@@ -442,16 +516,49 @@ const ProjectReview = () => {
               {/* Editor panel below spread (full width) */}
               <div className="max-w-2xl mx-auto">
                 {storyPage ? (
-                  <PageEditor
-                    pageId={storyPage.id}
-                    textContent={storyPage.text_content}
-                    illustrationPrompt={storyPage.illustration_prompt}
-                    isApproved={storyPage.is_approved}
-                    onUpdateText={(text) => updatePage(storyPage.id, { text_content: text })}
-                    onToggleApprove={(approved) => updatePage(storyPage.id, { is_approved: approved })}
-                    onRegenerateText={() => handleRegenerateText(storyPage.id)}
-                    onRegenerateIllustration={() => handleRegenerateIllustration(storyPage.id)}
-                  />
+                  <>
+                    {/* Illustration variant picker */}
+                    {(() => {
+                      const variants = illustrationsByPage.get(storyPage.id) || [];
+                      if (variants.length <= 1) return null;
+                      return (
+                        <div className="mb-6">
+                          <p className="text-xs font-body text-muted-foreground mb-2">
+                            Choose illustration ({variants.length} options)
+                          </p>
+                          <div className="flex gap-2 overflow-x-auto pb-2">
+                            {variants.map(v => {
+                              const url = allIllustrationUrlMap.get(v.id);
+                              return (
+                                <button
+                                  key={v.id}
+                                  className={cn(
+                                    "w-20 h-20 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all",
+                                    v.is_selected ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/40"
+                                  )}
+                                  onClick={() => handleSelectIllustration(storyPage.id, v.id)}
+                                  disabled={isSelectingIllustration}
+                                >
+                                  {url && <img src={url} alt="Variant" className="w-full h-full object-cover" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <PageEditor
+                      pageId={storyPage.id}
+                      textContent={storyPage.text_content}
+                      illustrationPrompt={storyPage.illustration_prompt}
+                      isApproved={storyPage.is_approved}
+                      onUpdateText={(text) => updatePage(storyPage.id, { text_content: text })}
+                      onToggleApprove={(approved) => updatePage(storyPage.id, { is_approved: approved })}
+                      onRegenerateText={() => handleRegenerateText(storyPage.id)}
+                      onRegenerateIllustration={() => handleRegenerateIllustration(storyPage.id)}
+                      onTryAnother={() => handleTryAnother(storyPage.id)}
+                    />
+                  </>
                 ) : selectedVirtual ? (
                   <div className="bg-card rounded-2xl border border-border p-8 text-center">
                     <p className="font-body text-muted-foreground">

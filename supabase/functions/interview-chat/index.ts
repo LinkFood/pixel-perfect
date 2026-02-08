@@ -25,10 +25,14 @@ Guidelines:
 - Keep responses concise (2-4 sentences) to maintain conversational flow.
 - Never use generic language. Make every response specific to what they've shared.`;
 
-function buildSystemPrompt(petName: string, petType: string, userMessageCount: number, photoCaptions?: string[]): string {
+function buildSystemPrompt(petName: string, petType: string, userMessageCount: number, photoCaptions?: string[], photoContextBrief?: string): string {
   let prompt = `${SYSTEM_PROMPT}\n\nThe pet's name is "${petName}" and they are a ${petType}. Use their name naturally in conversation.`;
 
-  if (photoCaptions && photoCaptions.length > 0) {
+  if (photoContextBrief) {
+    // Rich photo context — reference specific scenes, people, moods, and settings
+    prompt += `\n\nYou have DEEPLY analyzed the owner's photos of ${petName}. Here is what you saw in each photo:\n\n${photoContextBrief}\n\nUse this knowledge naturally and specifically in conversation. Reference particular scenes, settings, people, and moments you noticed. Show the owner you truly looked at and understood their photos. Ask about the stories behind specific moments you observed. This creates a "wow, it actually looked at my photos" moment.`;
+  } else if (photoCaptions && photoCaptions.length > 0) {
+    // Fallback to basic captions if brief not available
     prompt += `\n\nThe owner has uploaded photos of ${petName}. Here are AI-generated descriptions of what's in them:\n${photoCaptions.map((c, i) => `- Photo ${i + 1}: ${c}`).join("\n")}\nReference specific photos naturally in your conversation to show you've seen them. Ask about the moments captured in the photos.`;
   }
 
@@ -62,13 +66,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, petName, petType, userMessageCount = 0, photoCaptions } = await req.json();
+    const { messages, petName, petType, userMessageCount = 0, photoCaptions, photoContextBrief } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    console.log(`Interview chat for ${petName} (${petType}), ${messages.length} messages, ${userMessageCount} user msgs`);
+    console.log(`Interview chat for ${petName} (${petType}), ${messages.length} messages, ${userMessageCount} user msgs${photoContextBrief ? " [rich context]" : ""}`);
 
-    const systemContent = buildSystemPrompt(petName, petType, userMessageCount, photoCaptions);
+    const systemContent = buildSystemPrompt(petName, petType, userMessageCount, photoCaptions, photoContextBrief);
     const windowedMessages = windowMessages(messages);
 
     console.log(`Windowed to ${windowedMessages.length} messages (from ${messages.length})`);

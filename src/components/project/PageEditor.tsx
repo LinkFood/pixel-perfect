@@ -3,7 +3,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ImageIcon, Loader2 } from "lucide-react";
+import { RefreshCw, ImageIcon, Loader2, Shuffle } from "lucide-react";
 
 interface PageEditorProps {
   pageId: string;
@@ -14,15 +14,17 @@ interface PageEditorProps {
   onToggleApprove: (approved: boolean) => void;
   onRegenerateText?: () => Promise<void>;
   onRegenerateIllustration?: () => Promise<void>;
+  onTryAnother?: () => Promise<void>;
 }
 
 const PageEditor = ({
   textContent, illustrationPrompt, isApproved,
-  onUpdateText, onToggleApprove, onRegenerateText, onRegenerateIllustration,
+  onUpdateText, onToggleApprove, onRegenerateText, onRegenerateIllustration, onTryAnother,
 }: PageEditorProps) => {
   const [text, setText] = useState(textContent || "");
   const [regenTextLoading, setRegenTextLoading] = useState(false);
   const [regenIllLoading, setRegenIllLoading] = useState(false);
+  const [tryAnotherLoading, setTryAnotherLoading] = useState(false);
 
   useEffect(() => { setText(textContent || ""); }, [textContent]);
 
@@ -40,6 +42,12 @@ const PageEditor = ({
     if (!onRegenerateIllustration) return;
     setRegenIllLoading(true);
     try { await onRegenerateIllustration(); } finally { setRegenIllLoading(false); }
+  };
+
+  const handleTryAnother = async () => {
+    if (!onTryAnother) return;
+    setTryAnotherLoading(true);
+    try { await onTryAnother(); } finally { setTryAnotherLoading(false); }
   };
 
   return (
@@ -68,12 +76,20 @@ const PageEditor = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label className="font-display text-sm">Illustration Prompt</Label>
-            {onRegenerateIllustration && (
-              <Button variant="ghost" size="sm" onClick={handleRegenIll} disabled={regenIllLoading} className="gap-1.5 text-xs">
-                {regenIllLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImageIcon className="w-3 h-3" />}
-                Regenerate Image
-              </Button>
-            )}
+            <div className="flex items-center gap-1">
+              {onTryAnother && (
+                <Button variant="ghost" size="sm" onClick={handleTryAnother} disabled={tryAnotherLoading} className="gap-1.5 text-xs">
+                  {tryAnotherLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shuffle className="w-3 h-3" />}
+                  Try Another
+                </Button>
+              )}
+              {onRegenerateIllustration && (
+                <Button variant="ghost" size="sm" onClick={handleRegenIll} disabled={regenIllLoading} className="gap-1.5 text-xs">
+                  {regenIllLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImageIcon className="w-3 h-3" />}
+                  Regenerate Image
+                </Button>
+              )}
+            </div>
           </div>
           <p className="text-xs text-muted-foreground font-body bg-secondary/50 rounded-xl p-3">
             {illustrationPrompt}

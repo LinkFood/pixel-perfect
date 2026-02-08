@@ -29,10 +29,10 @@ serve(async (req) => {
       .single();
     if (projErr || !project) throw new Error("Project not found");
 
-    // Get photos (up to 10, favorites first)
+    // Get photos (up to 10, favorites first) — include ai_analysis for context brief
     const { data: photos } = await supabase
       .from("project_photos")
-      .select("storage_path, caption")
+      .select("storage_path, caption, ai_analysis")
       .eq("project_id", projectId)
       .order("is_favorite", { ascending: false })
       .order("sort_order", { ascending: true })
@@ -56,6 +56,15 @@ serve(async (req) => {
       .map(p => p.caption)
       .join(". ");
 
+    // Gather structured analyses for richer context
+    const analyses = photos
+      .filter(p => p.ai_analysis && typeof p.ai_analysis === "object")
+      .map((p, i) => {
+        const a = p.ai_analysis as Record<string, unknown>;
+        return `Photo ${i + 1}: ${a.scene_summary || p.caption || ""}${a.pet_appearance_notes ? ` | Appearance: ${a.pet_appearance_notes}` : ""}`;
+      })
+      .join("\n");
+
     // Get interview mentions of physical traits (first 40 messages)
     const { data: interview } = await supabase
       .from("project_interview")
@@ -77,8 +86,10 @@ serve(async (req) => {
         type: "text",
         text: `Create a visual character reference for a children's book illustrator. Analyze these ${photos.length} photos of a pet named ${project.pet_name} (a ${project.pet_breed || ""} ${project.pet_type}).
 
-${captions ? `Photo descriptions: ${captions}` : ""}
+${analyses ? `Photo analyses:\n${analyses}` : captions ? `Photo descriptions: ${captions}` : ""}
 ${physicalMentions ? `Owner's description: ${physicalMentions.slice(0, 2000)}` : ""}
+
+Focus ONLY on physical appearance synthesis — do not re-describe scenes or activities.
 
 Describe this pet's exact appearance in a single detailed paragraph starting with "${project.pet_name} is a..." Include:
 - Exact breed, size, and build
@@ -141,19 +152,38 @@ Be extremely specific — an illustrator should be able to draw this pet identic
 
     console.log(`Appearance profile for ${project.pet_name}: ${profile.slice(0, 100)}...`);
 
-    // Save profile to projects table
+    // Compile photo_context_brief from all ai_analysis data (no extra API call)
+    const briefParts: string[] = [];
+    photos.forEach((p, i) => {
+      const a = p.ai_analysis as Record<string, unknown> | null;
+      if (!a) return;
+      const parts: string[] = [];
+      if (a.scene_summary) parts.push(a.scene_summary as string);
+      if (a.setting) parts.push(`Setting: ${a.setting}`);
+      if (Array.isArray(a.activities) && a.activities.length > 0) parts.push(`Activities: ${(a.activities as string[]).join(", ")}`);
+      if (Array.isArray(a.people_present) && a.people_present.length > 0) parts.push(`People: ${(a.people_present as string[]).join(", ")}`);
+      if (a.pet_mood) parts.push(`Mood: ${a.pet_mood}`);
+      if (Array.isArray(a.potential_story_hooks) && a.potential_story_hooks.length > 0) parts.push(`Story hooks: ${(a.potential_story_hooks as string[]).join("; ")}`);
+      if (parts.length > 0) briefParts.push(`Photo ${i + 1}: ${parts.join(". ")}`);
+    });
+    const photoContextBrief = briefParts.length > 0 ? briefParts.join("\n\n") : null;
+
+    // Save profile and context brief to projects table
     const { error: updateErr } = await supabase
       .from("projects")
-      .update({ pet_appearance_profile: profile })
+      .update({
+        pet_appearance_profile: profile,
+        ...(photoContextBrief ? { photo_context_brief: photoContextBrief } : {}),
+      })
       .eq("id", projectId);
 
     if (updateErr) {
       console.error("Failed to save appearance profile:", updateErr);
     } else {
-      console.log(`Appearance profile saved for ${project.pet_name}`);
+      console.log(`Appearance profile saved for ${project.pet_name}${photoContextBrief ? " (with photo context brief)" : ""}`);
     }
 
-    return new Response(JSON.stringify({ success: true, profile }), {
+    return new Response(JSON.stringify({ success: true, profile, photoContextBrief }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

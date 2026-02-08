@@ -34,7 +34,7 @@ const Hero = () => {
               Every pet has a story worth keeping.
             </h1>
             <p className="text-lg lg:text-xl font-body text-muted-foreground leading-relaxed mb-10 text-balance">
-              Turn your pet's real memories into a beautifully illustrated children's book — so the ones you love will always know them.
+              Upload your photos, share your memories, and we'll create a beautifully illustrated children's book that looks like YOUR pet — so the ones you love will always know them.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button variant="hero" size="lg" className="px-8 py-6 text-base rounded-xl">

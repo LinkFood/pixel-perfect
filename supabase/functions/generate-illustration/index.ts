@@ -75,7 +75,8 @@ async function tryGenerate(
   apiKey: string,
   model: string,
   prompt: string,
-  maxAttempts: number
+  maxAttempts: number,
+  temperature = 0.8
 ): Promise<{ base64: string | null; contentType: string; error: string | null; retryable: boolean }> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -89,7 +90,7 @@ async function tryGenerate(
           model,
           modalities: ["text", "image"],
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.8,
+          temperature,
         }),
       });
 
@@ -147,7 +148,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { pageId, projectId } = await req.json();
+    const { pageId, projectId, variant = false } = await req.json();
     if (!pageId || !projectId) throw new Error("pageId and projectId are required");
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -217,15 +218,22 @@ STYLE RULES:
 - No text or words in the image
 - Children's picture book quality, suitable for printing`;
 
-    console.log(`Generating illustration for page ${page.page_number} (${page.page_type}): ${scenePrompt.slice(0, 80)}...`);
+    // For variants: add prompt suffix for different composition, bump temperature
+    const variantSuffix = variant
+      ? "\n\nIMPORTANT: Create a DIFFERENT composition and camera angle from other versions of this scene. Try a fresh perspective — closer, further, different angle, or different moment in the action."
+      : "";
+    const finalPrompt = fullPrompt + variantSuffix;
+    const temperature = variant ? 0.95 : 0.8;
+
+    console.log(`Generating illustration${variant ? " (variant)" : ""} for page ${page.page_number} (${page.page_type}): ${scenePrompt.slice(0, 80)}...`);
 
     // Try primary model (3 attempts)
-    let result = await tryGenerate(LOVABLE_API_KEY, PRIMARY_MODEL, fullPrompt, 3);
+    let result = await tryGenerate(LOVABLE_API_KEY, PRIMARY_MODEL, finalPrompt, 3, temperature);
 
     // If primary failed with credits issue, try fallback
     if (!result.base64 && result.error === "Credits exhausted") {
       console.log("Primary model credits exhausted, trying fallback model");
-      result = await tryGenerate(LOVABLE_API_KEY, FALLBACK_MODEL, fullPrompt, 2);
+      result = await tryGenerate(LOVABLE_API_KEY, FALLBACK_MODEL, finalPrompt, 2, temperature);
     }
 
     if (!result.base64) {
@@ -277,7 +285,9 @@ STYLE RULES:
     else if (isWebP) detectedContentType = "image/webp";
 
     const ext = detectedContentType === "image/jpeg" ? "jpg" : detectedContentType === "image/webp" ? "webp" : "png";
-    const storagePath = `illustrations/${projectId}/${pageId}.${ext}`;
+    // Use timestamped path for variants to avoid overwrites
+    const timestamp = variant ? `-${Date.now()}` : "";
+    const storagePath = `illustrations/${projectId}/${pageId}${timestamp}.${ext}`;
 
     console.log(`Uploading as ${detectedContentType} to ${storagePath} (${bytes.length} bytes)`);
 
@@ -290,12 +300,21 @@ STYLE RULES:
       });
     if (uploadErr) throw new Error(`Upload failed: ${uploadErr.message}`);
 
-    // Delete previous illustration record for this page
-    await supabase
-      .from("project_illustrations")
-      .delete()
-      .eq("page_id", pageId)
-      .eq("project_id", projectId);
+    if (variant) {
+      // For variants: deselect existing illustrations, insert new as selected
+      await supabase
+        .from("project_illustrations")
+        .update({ is_selected: false })
+        .eq("page_id", pageId)
+        .eq("project_id", projectId);
+    } else {
+      // For non-variant: delete previous illustration records for this page
+      await supabase
+        .from("project_illustrations")
+        .delete()
+        .eq("page_id", pageId)
+        .eq("project_id", projectId);
+    }
 
     // Insert new record
     const { error: insertErr } = await supabase

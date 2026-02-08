@@ -10,7 +10,7 @@ const features = [
   {
     icon: Palette,
     title: "AI illustrations of YOUR pet",
-    description: "Our AI is trained on YOUR pet's actual photos — every illustration looks like YOUR pet on every page.",
+    description: "We build a visual profile from your photos so every illustration matches YOUR pet's exact breed, markings, and personality — on every page.",
   },
   {
     icon: BookMarked,

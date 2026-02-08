@@ -47,7 +47,7 @@ serve(async (req) => {
 
     console.log(`Describing photo ${photoId}: ${imageUrl}`);
 
-    // Call Gemini 2.5 Flash with vision
+    // Call Gemini 2.5 Flash with vision — structured JSON analysis
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -62,7 +62,19 @@ serve(async (req) => {
             content: [
               {
                 type: "text",
-                text: "Describe this photo of a pet in 1-2 detailed sentences. Focus on the pet's appearance, expression, activity, setting, and any notable objects or people. Be specific and vivid.",
+                text: `Analyze this photo of a pet and return a JSON object with these fields:
+{
+  "scene_summary": "1-2 vivid sentences describing the overall scene",
+  "setting": "where this takes place (e.g. backyard, living room, beach, park trail)",
+  "activities": ["what the pet and any people are doing"],
+  "people_present": ["descriptions of any people visible, e.g. 'young girl in red jacket', 'older man sitting on bench'"],
+  "pet_mood": "the pet's apparent mood or expression (e.g. playful, sleepy, alert, content)",
+  "pet_appearance_notes": "specific appearance details visible in THIS photo (coat condition, accessories, posture)",
+  "notable_details": ["any interesting objects, toys, decorations, or environmental details"],
+  "potential_story_hooks": ["1-2 ideas for story moments inspired by this scene"]
+}
+
+Be specific and vivid. Return ONLY valid JSON, no markdown fences.`,
               },
               {
                 type: "image_url",
@@ -71,7 +83,7 @@ serve(async (req) => {
             ],
           },
         ],
-        max_completion_tokens: 200,
+        max_completion_tokens: 400,
         temperature: 0.3,
       }),
     });
@@ -93,20 +105,35 @@ serve(async (req) => {
     }
 
     const result = await response.json();
-    const caption = result.choices?.[0]?.message?.content?.trim();
+    const rawContent = result.choices?.[0]?.message?.content?.trim();
 
-    if (!caption) throw new Error("No caption generated");
+    if (!rawContent) throw new Error("No analysis generated");
 
-    console.log(`Caption for ${photoId}: ${caption}`);
+    // Parse structured JSON analysis with fallback
+    let aiAnalysis: Record<string, unknown>;
+    let caption: string;
 
-    // Save caption to database
+    try {
+      // Strip markdown code fences if present
+      const cleaned = rawContent.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+      aiAnalysis = JSON.parse(cleaned);
+      caption = (aiAnalysis.scene_summary as string) || rawContent.slice(0, 200);
+    } catch {
+      console.warn(`JSON parse failed for photo ${photoId}, using raw text as fallback`);
+      aiAnalysis = { scene_summary: rawContent };
+      caption = rawContent.slice(0, 200);
+    }
+
+    console.log(`Analysis for ${photoId}: ${caption}`);
+
+    // Save both caption (backward compat) and structured ai_analysis
     const { error: updateErr } = await supabase
       .from("project_photos")
-      .update({ caption })
+      .update({ caption, ai_analysis: aiAnalysis })
       .eq("id", photoId);
     if (updateErr) throw updateErr;
 
-    return new Response(JSON.stringify({ caption }), {
+    return new Response(JSON.stringify({ caption, ai_analysis: aiAnalysis }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

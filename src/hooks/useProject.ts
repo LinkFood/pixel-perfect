@@ -9,6 +9,7 @@ export type Project = {
   pet_type: string;
   pet_breed: string | null;
   pet_appearance_profile: string | null;
+  photo_context_brief: string | null;
   status: string;
   created_at: string;
   updated_at: string;

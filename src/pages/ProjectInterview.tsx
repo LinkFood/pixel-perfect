@@ -36,16 +36,18 @@ const ProjectInterview = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streamingContent]);
 
+  const photoContextBrief = project?.photo_context_brief;
+
   // Auto-start interview
   useEffect(() => {
     if (messages.length === 0 && project && !isStreaming) {
-      sendMessage("Hi! I'd love to start sharing about my pet.", messages, project.pet_name, project.pet_type, photoCaptions);
+      sendMessage("Hi! I'd love to start sharing about my pet.", messages, project.pet_name, project.pet_type, photoCaptions, photoContextBrief);
     }
   }, [messages.length, project]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = () => {
     if (!input.trim() || isStreaming || !project) return;
-    sendMessage(input.trim(), messages, project.pet_name, project.pet_type, photoCaptions);
+    sendMessage(input.trim(), messages, project.pet_name, project.pet_type, photoCaptions, photoContextBrief);
     setInput("");
   };
 
