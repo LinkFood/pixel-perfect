@@ -17,6 +17,7 @@ const ProjectUpload = lazy(() => import("./pages/ProjectUpload"));
 const ProjectInterview = lazy(() => import("./pages/ProjectInterview"));
 const ProjectGenerating = lazy(() => import("./pages/ProjectGenerating"));
 const ProjectReview = lazy(() => import("./pages/ProjectReview"));
+const RabbitDemo = lazy(() => import("./pages/RabbitDemo"));
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/project/:id/interview" element={<ProtectedRoute><ProjectInterview /></ProtectedRoute>} />
             <Route path="/project/:id/generating" element={<ProtectedRoute><ProjectGenerating /></ProtectedRoute>} />
             <Route path="/project/:id/review" element={<ProtectedRoute><ProjectReview /></ProtectedRoute>} />
+            <Route path="/rabbit-demo" element={<RabbitDemo />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
