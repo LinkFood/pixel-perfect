@@ -30,10 +30,6 @@ const Navbar = () => {
 
         {/* Desktop */}
         <div className="hidden md:flex items-center gap-8">
-          <a href="#how" className="font-body text-sm text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
-          <a href="#pricing" className="font-body text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
-          <a href="#stories" className="font-body text-sm text-muted-foreground hover:text-foreground transition-colors">Stories</a>
-          
           {!loading && user ? (
             <div className="flex items-center gap-4">
               {credits !== null && (
@@ -69,9 +65,6 @@ const Navbar = () => {
       {/* Mobile menu */}
       {open && (
         <div className="md:hidden bg-background border-b border-border px-6 pb-6 space-y-4">
-          <a href="#how" className="block font-body text-sm text-muted-foreground" onClick={() => setOpen(false)}>How It Works</a>
-          <a href="#pricing" className="block font-body text-sm text-muted-foreground" onClick={() => setOpen(false)}>Pricing</a>
-          <a href="#stories" className="block font-body text-sm text-muted-foreground" onClick={() => setOpen(false)}>Stories</a>
           {!loading && user ? (
             <>
               {credits !== null && (

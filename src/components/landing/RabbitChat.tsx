@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Paperclip, ArrowRight } from "lucide-react";
@@ -16,6 +16,9 @@ type ChatMessage = {
 
 type ConversationState = "greeting" | "waiting_for_input" | "responded" | "ready_for_auth" | "auth_shown";
 
+export type RabbitChatHandle = {
+  setInput: (text: string) => void;
+};
 // Simple intent detection
 function detectIntent(text: string): "pet" | "person" | "how" | "price" | "example" | "general" {
   const lower = text.toLowerCase();
@@ -116,7 +119,7 @@ interface RabbitChatProps {
   onBookTypeClick?: (type: string) => void;
 }
 
-const RabbitChat = ({ onBookTypeClick }: RabbitChatProps) => {
+const RabbitChat = forwardRef<RabbitChatHandle, RabbitChatProps>(({ onBookTypeClick }, ref) => {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -128,7 +131,15 @@ const RabbitChat = ({ onBookTypeClick }: RabbitChatProps) => {
   const [authLoading, setAuthLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
+
+  useImperativeHandle(ref, () => ({
+    setInput: (text: string) => {
+      setInput(text);
+      setTimeout(() => chatInputRef.current?.focus(), 50);
+    },
+  }));
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -405,6 +416,7 @@ const RabbitChat = ({ onBookTypeClick }: RabbitChatProps) => {
               <Paperclip className="w-5 h-5" />
             </button>
             <input
+              ref={chatInputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Tell Rabbit what you're making..."
@@ -425,6 +437,8 @@ const RabbitChat = ({ onBookTypeClick }: RabbitChatProps) => {
       )}
     </div>
   );
-};
+});
+
+RabbitChat.displayName = "RabbitChat";
 
 export default RabbitChat;

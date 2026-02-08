@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import RabbitChat from "@/components/landing/RabbitChat";
+import RabbitChat, { type RabbitChatHandle } from "@/components/landing/RabbitChat";
 
 const bookTypes = [
   { label: "Pet Memorial", angle: -6, top: "15%", left: "-60px", color: "#D4A574" },
@@ -31,6 +31,17 @@ const faqs = [
 
 const Index = () => {
   const [hoveredBook, setHoveredBook] = useState<string | null>(null);
+  const chatRef = useRef<RabbitChatHandle>(null);
+
+  const handleBookClick = (label: string) => {
+    const typeMessages: Record<string, string> = {
+      "Pet Memorial": "I want to make a pet memorial book",
+      "Kid's Adventure": "I want to make a kid's adventure book",
+      "Grandparent Book": "I want to make a book for my grandparents",
+      "Roast Book": "I want to make a funny roast book",
+    };
+    chatRef.current?.setInput(typeMessages[label] || `I want to make a ${label}`);
+  };
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
@@ -68,6 +79,7 @@ const Index = () => {
               }}
               onMouseEnter={() => setHoveredBook(book.label)}
               onMouseLeave={() => setHoveredBook(null)}
+              onClick={() => handleBookClick(book.label)}
               whileHover={{ scale: 1.05 }}
             >
               <div
@@ -82,7 +94,7 @@ const Index = () => {
           ))}
         </div>
 
-        <RabbitChat />
+        <RabbitChat ref={chatRef} />
       </div>
 
       {/* Below the fold — minimal */}
@@ -95,16 +107,16 @@ const Index = () => {
             </p>
             <div className="space-y-4">
               <p className="font-body text-sm italic" style={{ color: "#6B5D4F" }}>
-                "I thought no one could capture what Max meant to us. Then I saw the book and cried — in the best way."
+                "I thought no one could capture what Max meant to us. Then I saw the book and cried — in the best way. My daughter reads it every night."
                 <span className="not-italic font-medium"> — Sarah M.</span>
               </p>
               <p className="font-body text-sm italic" style={{ color: "#6B5D4F" }}>
-                "The AI interview felt like talking to a friend who truly cared. Every detail I shared ended up in the story."
-                <span className="not-italic font-medium"> — James R.</span>
+                "We made a birthday book for my daughter's 5th. The AI pulled out stories I'd forgotten — her first word, the park incident. She carries it everywhere."
+                <span className="not-italic font-medium"> — David K.</span>
               </p>
               <p className="font-body text-sm italic" style={{ color: "#6B5D4F" }}>
-                "My son never got to meet Buddy. Now he has a book that tells Buddy's real story with illustrations that look exactly like him."
-                <span className="not-italic font-medium"> — Maria T.</span>
+                "Our friend group made a roast book for Jake's 30th. Everyone uploaded photos and did the interview. He ugly-cried at the party. Best $10 we ever split."
+                <span className="not-italic font-medium"> — Priya N.</span>
               </p>
             </div>
           </div>
