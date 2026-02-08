@@ -27,13 +27,11 @@ const Landing = () => {
   const handleFileDrop = useCallback((files: File[]) => {
     const images = files.filter(f => f.type.startsWith("image/"));
     if (images.length === 0) return;
-    // Show previews so they can see their photos were accepted
+    // Show previews — files will be lost after redirect, but previews
+    // give confidence that it's working. After auth, user re-uploads in Workspace.
     const urls = images.map(f => URL.createObjectURL(f));
     setPreviewUrls(prev => [...prev, ...urls]);
-    // Store filenames in localStorage so post-auth we remember they wanted to upload
-    const existing = JSON.parse(localStorage.getItem("photorabbit_pending_photos") || "[]");
-    localStorage.setItem("photorabbit_pending_photos", JSON.stringify([...existing, ...images.map(f => f.name)]));
-    // Prompt auth
+    // Show auth form
     setShowAuth(true);
   }, []);
 
@@ -113,42 +111,47 @@ const Landing = () => {
             </motion.div>
           )}
 
-          {/* Upload zone or Auth form */}
-          {!showAuth ? (
-            <div
-              onDragOver={e => e.preventDefault()}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-2xl border-2 border-dashed p-8 cursor-pointer transition-all hover:border-[#C4956A]/60 hover:shadow-md mx-auto max-w-md"
-              style={{ borderColor: "#D4B896", background: "#FEFCF9" }}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="sr-only"
-                accept="image/*"
-                multiple
-                onChange={handleFileInput}
-              />
-              <Upload className="w-8 h-8 mx-auto mb-3" style={{ color: "#C4956A" }} />
-              <p className="font-display text-lg font-semibold mb-1" style={{ color: "#2C2417" }}>
-                Drop your photos here
-              </p>
-              <p className="font-body text-sm" style={{ color: "#9B8E7F" }}>
-                Or click to browse. The more photos, the better the book.
-              </p>
-            </div>
-          ) : (
+          {/* Upload zone — always visible so user can keep adding */}
+          <div
+            onDragOver={e => e.preventDefault()}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-2xl border-2 border-dashed p-6 cursor-pointer transition-all hover:border-[#C4956A]/60 hover:shadow-md mx-auto max-w-md"
+            style={{ borderColor: "#D4B896", background: "#FEFCF9" }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => (e.key === "Enter" || e.key === " ") && fileInputRef.current?.click()}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="sr-only"
+              accept="image/*"
+              multiple
+              onChange={handleFileInput}
+              aria-label="Upload photos"
+            />
+            <Upload className="w-7 h-7 mx-auto mb-2" style={{ color: "#C4956A" }} />
+            <p className="font-display text-base font-semibold mb-0.5" style={{ color: "#2C2417" }}>
+              {previewUrls.length > 0 ? "Drop more photos" : "Drop your photos here"}
+            </p>
+            <p className="font-body text-sm" style={{ color: "#9B8E7F" }}>
+              {previewUrls.length > 0 ? `${previewUrls.length} selected — keep adding!` : "Or click to browse. The more photos, the better the book."}
+            </p>
+          </div>
+
+          {/* Auth form — appears after first photo drop */}
+          {showAuth && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl p-6 space-y-4 mx-auto max-w-md"
+              className="rounded-2xl p-6 space-y-4 mx-auto max-w-md mt-4"
               style={{ background: "#F5EDE4", border: "1px solid #E8D5C0" }}
             >
               <div className="flex items-center gap-2 mb-1">
                 <Camera className="w-5 h-5" style={{ color: "#C4956A" }} />
                 <p className="font-body text-sm font-medium" style={{ color: "#2C2417" }}>
-                  {previewUrls.length} photo{previewUrls.length !== 1 ? "s" : ""} ready — sign in to continue
+                  Sign in to start — you'll re-upload after
                 </p>
               </div>
               <div className="flex gap-2">
@@ -189,6 +192,7 @@ const Landing = () => {
           )}
         </motion.div>
       </div>
+
 
       {/* Below the fold */}
       <div style={{ background: "#FDF8F0" }}>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
 import ChatMessage from "./ChatMessage";
@@ -10,12 +10,12 @@ import PhotoUploadInline from "./PhotoUploadInline";
 import ProjectShelf from "./ProjectShelf";
 import GenerationView from "./GenerationView";
 import MinimalNav from "./MinimalNav";
-import { useProject, useProjects, useCreateMinimalProject, useUpdateProject, useUpdateProjectStatus } from "@/hooks/useProject";
+import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus } from "@/hooks/useProject";
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto } from "@/hooks/usePhotos";
 import { useInterviewMessages, useInterviewChat } from "@/hooks/useInterview";
 import { supabase } from "@/integrations/supabase/client";
 
-type WorkspaceView = "home" | "upload" | "interview" | "generating" | "review";
+type WorkspaceView = "loading" | "home" | "upload" | "interview" | "generating" | "review";
 
 interface WorkspaceProps {
   projectId?: string;
@@ -27,14 +27,13 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const resolvedId = propProjectId || paramId;
 
   const { data: projects = [] } = useProjects();
-  const { data: project } = useProject(resolvedId);
+  const { data: project, isLoading: projectLoading } = useProject(resolvedId);
   const { data: photos = [] } = usePhotos(resolvedId);
   const { data: interviewMessages = [] } = useInterviewMessages(resolvedId);
   const { sendMessage, isStreaming, streamingContent } = useInterviewChat(resolvedId);
   const createProject = useCreateMinimalProject();
-  const updateProject = useUpdateProject();
   const updateStatus = useUpdateProjectStatus();
-  const { uploadBatch, captioningIds, uploadProgress, isBatchUploading } = useUploadPhoto();
+  const { uploadBatch, uploadProgress, isBatchUploading } = useUploadPhoto();
   const updatePhoto = useUpdatePhoto();
   const deletePhoto = useDeletePhoto();
 
@@ -43,11 +42,19 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(resolvedId || null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const initializedRef = useRef(false);
   const projectCreatedRef = useRef(false);
 
-  // Derive view from project status
-  const view: WorkspaceView = !activeProjectId || !project
+  // FIX #1: Sync activeProjectId with URL params (back button, external nav)
+  useEffect(() => {
+    setActiveProjectId(resolvedId || null);
+    // Reset creation guard when navigating to a different project or home
+    projectCreatedRef.current = false;
+  }, [resolvedId]);
+
+  // FIX #2: Add "loading" view to prevent flash of wrong content
+  const view: WorkspaceView = resolvedId && projectLoading
+    ? "loading"
+    : !activeProjectId || !project
     ? "home"
     : project.status === "upload" ? "upload"
     : project.status === "interview" ? "interview"
@@ -61,13 +68,20 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     }, 100);
   }, []);
 
+  // FIX #3: Review redirect via useEffect instead of during render
+  useEffect(() => {
+    if (view === "review" && activeProjectId) {
+      navigate(`/project/${activeProjectId}/review`);
+    }
+  }, [view, activeProjectId, navigate]);
+
   // Update rabbit state based on view
   useEffect(() => {
     if (view === "generating") setRabbitState("painting");
     else if (view === "interview") setRabbitState("listening");
     else if ((view === "upload" || view === "home") && photos.length > 0) setRabbitState("excited");
     else if (view === "review") setRabbitState("presenting");
-    else setRabbitState("idle");
+    else if (view !== "loading") setRabbitState("idle");
   }, [view, photos.length]);
 
   // Auto-create project when first photos are dropped (home view)
@@ -95,9 +109,9 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
 
   const handleNewProject = async () => {
     try {
-      const project = await createProject.mutateAsync();
-      setActiveProjectId(project.id);
-      navigate(`/project/${project.id}`);
+      const newProj = await createProject.mutateAsync();
+      setActiveProjectId(newProj.id);
+      navigate(`/project/${newProj.id}`);
       setChatMessages([]);
       setRabbitState("idle");
     } catch {
@@ -135,10 +149,11 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     }
   }, [isStreaming]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Show interview messages from DB (on reload/resume)
+  // FIX #4: Only restore DB messages on fresh load (no local greeting yet)
   useEffect(() => {
     if (view !== "interview" || interviewMessages.length === 0) return;
-    if (chatMessages.some(m => m.role === "user")) return;
+    // Only populate if our local chat is completely empty (fresh page load)
+    if (chatMessages.length > 0) return;
     const restored = interviewMessages.map(m => ({
       role: (m.role === "assistant" ? "rabbit" : "user") as "rabbit" | "user",
       content: m.content,
@@ -179,6 +194,24 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const canFinish = userInterviewCount >= 8;
   const canContinueToInterview = photos.length >= 5 && !isBatchUploading;
 
+  // ─── Loading state (prevents flash of wrong view) ────────────
+  if (view === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FDF8F0" }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#C4956A" }} />
+      </div>
+    );
+  }
+
+  // ─── Review: handled by useEffect redirect above ─────────────
+  if (view === "review") {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FDF8F0" }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#C4956A" }} />
+      </div>
+    );
+  }
+
   // ─── Generating view ────────────────────────────────────────
   if (view === "generating") {
     return (
@@ -199,12 +232,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
         />
       </div>
     );
-  }
-
-  // ─── Review redirect ────────────────────────────────────────
-  if (view === "review") {
-    navigate(`/project/${activeProjectId}/review`);
-    return null;
   }
 
   // ─── Home / Upload views: PHOTOS FIRST, no chat ─────────────
