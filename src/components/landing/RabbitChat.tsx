@@ -47,7 +47,7 @@ function getRabbitResponse(userText: string, hasPhotos: boolean, state: Conversa
 
   if (intent === "price") {
     return {
-      text: "Books start at $29.99 for digital, and you can add a printed hardcover for $24.99. But honestly, just start — you don't pay until you love what I've made. Want to try?",
+      text: "Uploading photos, chatting, and writing the story is completely free. You only pay for illustration credits — starting at $4.99. Every new account gets 3 free credits to try it out. Want to give it a shot?",
       nextState: "responded",
     };
   }

@@ -21,7 +21,7 @@ const faqs = [
   },
   {
     q: "How much does it cost?",
-    a: "Digital books start at $29.99, and you can add a printed hardcover for $24.99. You don't pay until you love what we've made.",
+    a: "Uploading photos, chatting, and story writing are free. You only pay for illustration credits — starting at $4.99 for 15 credits. Every new account gets 3 free credits to try it out.",
   },
   {
     q: "Is this AI-generated?",
