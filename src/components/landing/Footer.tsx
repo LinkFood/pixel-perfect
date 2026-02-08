@@ -7,7 +7,7 @@ const Footer = () => {
           <div className="md:col-span-2">
             <h3 className="font-display text-xl font-semibold text-background mb-3">PhotoRabbit</h3>
             <p className="font-body text-sm leading-relaxed max-w-sm text-background/60">
-              Founded by a pet owner who lost his dog Link after 10 years — and built the product he wished existed. Every story deserves to be told beautifully.
+              Born from the loss of a dog named Link — and the wish for a better way to preserve memories. Now we help people turn any cherished photos into illustrated keepsakes.
             </p>
           </div>
 
@@ -37,7 +37,7 @@ const Footer = () => {
             &copy; {new Date().getFullYear()} PhotoRabbit. All rights reserved.
           </p>
           <p className="font-body text-sm text-background/50">
-            Made with 🐾 by PhotoRabbit
+            Made with ❤️ by PhotoRabbit
           </p>
         </div>
       </div>

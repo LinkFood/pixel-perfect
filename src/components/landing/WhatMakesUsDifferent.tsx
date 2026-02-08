@@ -5,7 +5,7 @@ const features = [
   {
     icon: Sparkles,
     title: "Not a template",
-    description: "Not Mad Libs with your dog's name. YOUR real story, drawn from a warm AI interview about your actual memories.",
+    description: "Not Mad Libs with a name swapped in. YOUR real story, drawn from a warm AI interview about your actual memories.",
   },
   {
     icon: Palette,
@@ -20,7 +20,7 @@ const features = [
   {
     icon: Heart,
     title: "Built from love",
-    description: "Founded by a pet owner who lost his dog and built what he wished existed. We understand because we've been there.",
+    description: "Founded by someone who lost his dog Link and built what he wished existed. Now we make keepsakes for pets, people, and every memory worth preserving.",
   },
 ];
 

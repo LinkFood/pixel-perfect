@@ -5,19 +5,19 @@ const testimonials = [
   {
     quote: "I thought no one could capture what Max meant to us. Then I saw the book and cried — in the best way. My daughter reads it every night.",
     author: "Sarah M.",
-    pet: "Max, Golden Retriever",
+    subject: "Max, Golden Retriever",
     stars: 5,
   },
   {
-    quote: "The AI interview felt like talking to a friend who truly cared. Every detail I shared ended up in the story. It wasn't generic — it was OUR Luna.",
-    author: "James R.",
-    pet: "Luna, Tabby Cat",
+    quote: "We made a birthday book for my daughter's 5th. The AI interview pulled out stories I'd forgotten — her first word, the park incident. She carries it everywhere.",
+    author: "David K.",
+    subject: "Lily's 5th Birthday Book",
     stars: 5,
   },
   {
-    quote: "My son never got to meet Buddy. Now he has a book that tells Buddy's real story with illustrations that look exactly like him. Priceless.",
-    author: "Maria T.",
-    pet: "Buddy, Beagle",
+    quote: "Our friend group made a roast book for Jake's 30th. Everyone uploaded photos and did the interview. He ugly-cried at the party. Best $10 we ever split.",
+    author: "Priya N.",
+    subject: "Jake's 30th Birthday Roast",
     stars: 5,
   },
 ];
@@ -60,7 +60,7 @@ const Testimonials = () => {
               </blockquote>
               <div>
                 <p className="font-display font-semibold text-foreground text-sm">{t.author}</p>
-                <p className="text-muted-foreground text-xs font-body">{t.pet}</p>
+                <p className="text-muted-foreground text-xs font-body">{t.subject}</p>
               </div>
             </motion.div>
           ))}
