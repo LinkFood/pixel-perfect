@@ -112,6 +112,7 @@ export const useInterviewChat = (projectId: string | undefined) => {
     petType: string,
     photoCaptions?: string[],
     photoContextBrief?: string | null,
+    productType?: string | null,
   ) => {
     if (!projectId) return;
     setIsStreaming(true);
@@ -149,6 +150,7 @@ export const useInterviewChat = (projectId: string | undefined) => {
           userMessageCount,
           photoCaptions,
           ...(photoContextBrief ? { photoContextBrief } : {}),
+          ...(productType ? { productType } : {}),
         }),
       });
 

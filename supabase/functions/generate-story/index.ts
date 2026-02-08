@@ -11,7 +11,7 @@ function buildSystemPrompt(petName: string, appearanceProfile: string | null) {
     ? `\n\nCHARACTER APPEARANCE (use in EVERY illustration_prompt):\n${appearanceProfile}\n\nCRITICAL: Every illustration_prompt you write MUST include ${petName}'s full physical description so the illustrator draws the pet consistently on every single page. Copy the key details (breed, coat colors, markings, size) into each illustration_prompt.`
     : "";
 
-  return `You are a master children's book author for PetPage Studios. You write picture books about real pets that make families cry happy tears.
+  return `You are a master children's book author for PhotoRabbit. You write picture books about real pets that make families cry happy tears.
 ${characterBlock}
 
 Your task: Turn the interview transcript into a children's storybook that feels deeply personal — not generic. Every page should make the reader think "that's MY pet."

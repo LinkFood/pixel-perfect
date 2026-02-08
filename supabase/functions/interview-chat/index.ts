@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are a warm, empathetic interviewer for PetPage Studios — a service that creates personalized children's storybooks about beloved pets.
+const SYSTEM_PROMPT = `You are a warm, empathetic interviewer for PhotoRabbit — a service that turns real photos and memories into personalized illustrated creations.
 
 Your job is to have a natural, heartfelt conversation that draws out the real memories, personality quirks, and special moments that make this pet unique. These details will be woven into a beautiful 24-page children's book.
 
@@ -25,8 +25,9 @@ Guidelines:
 - Keep responses concise (2-4 sentences) to maintain conversational flow.
 - Never use generic language. Make every response specific to what they've shared.`;
 
-function buildSystemPrompt(petName: string, petType: string, userMessageCount: number, photoCaptions?: string[], photoContextBrief?: string): string {
-  let prompt = `${SYSTEM_PROMPT}\n\nThe pet's name is "${petName}" and they are a ${petType}. Use their name naturally in conversation.`;
+function buildSystemPrompt(petName: string, petType: string, userMessageCount: number, photoCaptions?: string[], photoContextBrief?: string, productType?: string): string {
+  const product = productType || "storybook";
+  let prompt = `${SYSTEM_PROMPT}\n\nThe subject's name is "${petName}" and they are a ${petType}. Use their name naturally in conversation. You are helping create a ${product} based on their photos and stories.`;
 
   if (photoContextBrief) {
     // Rich photo context — reference specific scenes, people, moods, and settings
@@ -66,13 +67,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, petName, petType, userMessageCount = 0, photoCaptions, photoContextBrief } = await req.json();
+    const { messages, petName, petType, userMessageCount = 0, photoCaptions, photoContextBrief, productType } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     console.log(`Interview chat for ${petName} (${petType}), ${messages.length} messages, ${userMessageCount} user msgs${photoContextBrief ? " [rich context]" : ""}`);
 
-    const systemContent = buildSystemPrompt(petName, petType, userMessageCount, photoCaptions, photoContextBrief);
+    const systemContent = buildSystemPrompt(petName, petType, userMessageCount, photoCaptions, photoContextBrief, productType);
     const windowedMessages = windowMessages(messages);
 
     console.log(`Windowed to ${windowedMessages.length} messages (from ${messages.length})`);

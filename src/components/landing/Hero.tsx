@@ -28,21 +28,25 @@ const Hero = () => {
               transition={{ delay: 0.2, duration: 0.6 }}
               className="text-sm font-body uppercase tracking-[0.2em] text-muted-foreground mb-4"
             >
-              PetPage Studios
+              PhotoRabbit
             </motion.p>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-display font-semibold leading-[1.15] text-foreground mb-6 text-balance">
-              Every pet has a story worth keeping.
+              Your photos already tell the story. We just illustrate it.
             </h1>
             <p className="text-lg lg:text-xl font-body text-muted-foreground leading-relaxed mb-10 text-balance">
-              Upload your photos, share your memories, and we'll create a beautifully illustrated children's book that looks like YOUR pet — so the ones you love will always know them.
+              Upload photos of anyone you love. Our AI reads every detail — then turns your real memories into a beautifully illustrated book.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button variant="hero" size="lg" className="px-8 py-6 text-base rounded-xl">
-                Start Your Pet's Story
-              </Button>
-              <Button variant="hero-outline" size="lg" className="px-8 py-6 text-base rounded-xl">
-                See How It Works
-              </Button>
+              <a href="/project/new">
+                <Button variant="hero" size="lg" className="px-8 py-6 text-base rounded-xl">
+                  Start With Your Photos
+                </Button>
+              </a>
+              <a href="#how">
+                <Button variant="hero-outline" size="lg" className="px-8 py-6 text-base rounded-xl">
+                  See How It Works
+                </Button>
+              </a>
             </div>
           </motion.div>
 

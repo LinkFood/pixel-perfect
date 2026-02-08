@@ -9,13 +9,13 @@ const features = [
   },
   {
     icon: Palette,
-    title: "AI illustrations of YOUR pet",
-    description: "We build a visual profile from your photos so every illustration matches YOUR pet's exact breed, markings, and personality — on every page.",
+    title: "AI that actually looked",
+    description: "Our AI studies your photos before the conversation starts. It knows the people, places, and moments — so nothing feels generic.",
   },
   {
     icon: BookMarked,
-    title: "Two books in one",
-    description: "Get both an illustrated children's storybook AND a photo memory book with your real photos and captions.",
+    title: "Multiple options",
+    description: "Get 3 illustrated versions of every page. Pick your favorite or generate more.",
   },
   {
     icon: Heart,
@@ -35,7 +35,7 @@ const WhatMakesUsDifferent = () => {
           transition={{ duration: 0.6 }}
           className="text-center mb-16 lg:mb-20"
         >
-          <p className="text-sm font-body uppercase tracking-[0.2em] text-muted-foreground mb-3">Why PetPage</p>
+          <p className="text-sm font-body uppercase tracking-[0.2em] text-muted-foreground mb-3">Why PhotoRabbit</p>
           <h2 className="text-3xl lg:text-4xl font-display font-semibold text-foreground text-balance">
             Because their story deserves more than a template
           </h2>

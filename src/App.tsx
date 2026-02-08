@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 // Lazy-load all pages except landing and 404
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ProjectNew = lazy(() => import("./pages/ProjectNew"));
+const ProjectContext = lazy(() => import("./pages/ProjectContext"));
 const ProjectUpload = lazy(() => import("./pages/ProjectUpload"));
 const ProjectInterview = lazy(() => import("./pages/ProjectInterview"));
 const ProjectGenerating = lazy(() => import("./pages/ProjectGenerating"));
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/project/new" element={<ProjectNew />} />
+            <Route path="/project/:id/context" element={<ProjectContext />} />
             <Route path="/project/:id/upload" element={<ProjectUpload />} />
             <Route path="/project/:id/interview" element={<ProjectInterview />} />
             <Route path="/project/:id/generating" element={<ProjectGenerating />} />

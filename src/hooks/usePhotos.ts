@@ -8,6 +8,7 @@ export type ProjectPhoto = {
   project_id: string;
   storage_path: string;
   caption: string | null;
+  ai_analysis: Record<string, unknown> | null;
   is_favorite: boolean;
   sort_order: number;
   created_at: string;

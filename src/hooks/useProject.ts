@@ -10,6 +10,7 @@ export type Project = {
   pet_breed: string | null;
   pet_appearance_profile: string | null;
   photo_context_brief: string | null;
+  product_type: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -67,6 +68,51 @@ export const useCreateProject = () => {
     },
     onError: (error) => {
       toast.error("Failed to create project");
+      console.error(error);
+    },
+  });
+};
+
+export const useCreateMinimalProject = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .insert({ pet_name: "New Project", pet_type: "unknown" })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as Project;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: (error) => {
+      toast.error("Failed to create project");
+      console.error(error);
+    },
+  });
+};
+
+export const useUpdateProject = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; pet_name?: string; pet_type?: string; pet_breed?: string | null; product_type?: string }) => {
+      const { error } = await supabase
+        .from("projects")
+        .update(updates)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["project", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: (error) => {
+      toast.error("Failed to update project");
       console.error(error);
     },
   });

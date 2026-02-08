@@ -37,17 +37,18 @@ const ProjectInterview = () => {
   }, [messages, streamingContent]);
 
   const photoContextBrief = project?.photo_context_brief;
+  const productType = project?.product_type;
 
   // Auto-start interview
   useEffect(() => {
     if (messages.length === 0 && project && !isStreaming) {
-      sendMessage("Hi! I'd love to start sharing about my pet.", messages, project.pet_name, project.pet_type, photoCaptions, photoContextBrief);
+      sendMessage("Hi! I'd love to start sharing about my pet.", messages, project.pet_name, project.pet_type, photoCaptions, photoContextBrief, productType);
     }
   }, [messages.length, project]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = () => {
     if (!input.trim() || isStreaming || !project) return;
-    sendMessage(input.trim(), messages, project.pet_name, project.pet_type, photoCaptions, photoContextBrief);
+    sendMessage(input.trim(), messages, project.pet_name, project.pet_type, photoCaptions, photoContextBrief, productType);
     setInput("");
   };
 
@@ -68,8 +69,8 @@ const ProjectInterview = () => {
       <main className="flex-1 flex flex-col pt-16 max-w-2xl mx-auto w-full">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border">
-          <Link to={`/project/${id}/upload`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-body transition-colors mb-2">
-            <ArrowLeft className="w-3 h-3" /> Back to Photos
+          <Link to={`/project/${id}/context`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-body transition-colors mb-2">
+            <ArrowLeft className="w-3 h-3" /> Back
           </Link>
           <div className="flex items-center justify-between mb-2">
             <h1 className="font-display text-xl font-semibold text-foreground">

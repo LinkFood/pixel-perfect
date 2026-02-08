@@ -9,7 +9,7 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-6 lg:px-12 flex items-center justify-between h-16">
         <a href="/" className="font-display text-lg font-semibold text-foreground tracking-tight">
-          PetPage Studios
+          PhotoRabbit
         </a>
 
         {/* Desktop */}
@@ -19,7 +19,7 @@ const Navbar = () => {
           <a href="#stories" className="font-body text-sm text-muted-foreground hover:text-foreground transition-colors">Stories</a>
           <a href="/dashboard">
             <Button variant="hero" size="sm" className="rounded-lg px-5">
-              Start Your Book
+              Get Started
             </Button>
           </a>
         </div>
@@ -36,7 +36,7 @@ const Navbar = () => {
           <a href="#how" className="block font-body text-sm text-muted-foreground" onClick={() => setOpen(false)}>How It Works</a>
           <a href="#pricing" className="block font-body text-sm text-muted-foreground" onClick={() => setOpen(false)}>Pricing</a>
           <a href="#stories" className="block font-body text-sm text-muted-foreground" onClick={() => setOpen(false)}>Stories</a>
-          <a href="/dashboard"><Button variant="hero" size="sm" className="w-full rounded-lg">Start Your Book</Button></a>
+          <a href="/dashboard"><Button variant="hero" size="sm" className="w-full rounded-lg">Get Started</Button></a>
         </div>
       )}
     </nav>

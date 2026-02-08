@@ -6,25 +6,25 @@ const steps = [
     icon: Camera,
     number: "01",
     title: "Upload Photos",
-    description: "Share your favorite photos. Our AI analyzes every detail — setting, mood, who's there — so your book captures real moments, not generic ones.",
+    description: "Drop your photos. Our AI reads every detail — the setting, the mood, the people, the moments worth remembering.",
   },
   {
     icon: MessageCircleHeart,
     number: "02",
-    title: "Tell Their Story",
-    description: "Our interviewer already knows your photos. It asks about the people, places, and moments it saw — drawing out the stories behind each one.",
+    title: "Have a Conversation",
+    description: "Our AI already knows what it saw. It asks the right questions to draw out the real stories behind each photo.",
   },
   {
     icon: BookOpen,
     number: "03",
-    title: "Get Your Book",
-    description: "We generate a fully illustrated storybook with multiple art options per page, plus a photo memory book. Review, pick your favorites, and download.",
+    title: "Get Your Creation",
+    description: "Choose from multiple illustrated options per page. Download a print-ready book, card, or poster — genuinely yours.",
   },
 ];
 
 const HowItWorks = () => {
   return (
-    <section className="py-24 lg:py-32 bg-background">
+    <section id="how" className="py-24 lg:py-32 bg-background">
       <div className="container mx-auto px-6 lg:px-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
