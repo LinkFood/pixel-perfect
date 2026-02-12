@@ -83,7 +83,7 @@ Be specific and vivid. Return ONLY valid JSON, no markdown fences.`,
             ],
           },
         ],
-        max_completion_tokens: 400,
+        max_completion_tokens: 800,
         temperature: 0.3,
       }),
     });
@@ -99,6 +99,14 @@ Be specific and vivid. Return ONLY valid JSON, no markdown fences.`,
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "Payment required" }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 400) {
+        console.warn(`AI rejected photo ${photoId} (400), saving fallback caption`);
+        const fallbackCaption = "Photo uploaded (could not be analyzed automatically)";
+        await supabase.from("project_photos").update({ caption: fallbackCaption }).eq("id", photoId);
+        return new Response(JSON.stringify({ caption: fallbackCaption }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       throw new Error(`AI error: ${response.status}`);
