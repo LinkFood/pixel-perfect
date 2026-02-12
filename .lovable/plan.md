@@ -1,30 +1,46 @@
 
 
-# Generate a PhotoRabbit Logo
+# Fix Photo Upload in Dev Mode
 
-Create a simple edge function to generate a watercolor rabbit logo on demand, matching the illustration style used in the storybooks.
+## Problem
 
-## What I'll Do
+Dev mode bypasses the login screen, but when you drop photos, the app tries to create a project via `useCreateMinimalProject` which calls `supabase.auth.getUser()`. Since there's no real auth session, it throws **"Not authenticated"** and the upload fails.
 
-1. **Create a `generate-logo` edge function** that calls the same AI image gateway (`google/gemini-3-pro-image-preview`) with a prompt specifically crafted for a logo-friendly watercolor rabbit
-2. **Return the image directly** as a base64 data URL so you can download it right away
+## Solution
 
-## The Prompt
+Make `useCreateMinimalProject` work without authentication when dev mode is active by inserting the project row with `user_id` set to a fixed dev placeholder UUID instead of requiring a real user.
 
-```
-A single adorable rabbit sitting upright, facing slightly left, in soft 
-watercolor style with gentle ink outlines. Warm golden lighting, 
-amber/cream palette. Simple, clean composition on a pure white 
-background with no other elements. No text, no words, no letters. 
-Suitable as a brand mascot/logo. Square 1:1 composition.
-```
+## Changes
 
-## Technical Details
+### 1. `src/hooks/useProject.ts` -- Update `useCreateMinimalProject`
 
-- New file: `supabase/functions/generate-logo/index.ts`
-- Uses `LOVABLE_API_KEY` (already configured) with `google/gemini-3-pro-image-preview`
-- Same `extractImageData` + magic byte validation logic from the existing illustration function
-- Public endpoint (no auth needed, it's a one-off tool for you)
-- Update `supabase/config.toml` to include the new function
-- After deploying, I'll call it and show you the result so you can grab it
+- Import `isDevMode` from `@/lib/devMode`
+- In the `mutationFn`, if `isDevMode()` is true, skip the `supabase.auth.getUser()` call and use a hardcoded dev UUID (e.g., `"00000000-0000-0000-0000-000000000000"`) as the `user_id`
+- This allows project creation and photo uploads to work in dev mode without a real session
+
+### 2. `src/hooks/usePhotos.ts` -- Check if upload also requires auth
+
+- Review the upload function; if it also calls `getUser()`, apply the same dev mode bypass so photo storage uploads succeed
+- Supabase Storage RLS may block anonymous uploads -- if so, the upload bucket policy may need a tweak for the dev user ID
+
+### 3. Database consideration
+
+- The `projects` table likely has RLS policies requiring `auth.uid()`. In dev mode, queries will also fail since there's no session.
+- Add a simple RLS policy (or adjust existing ones) to allow the dev UUID to read/write, **or** use the Supabase service role in dev mode edge cases.
+- Alternatively, the simplest fix: use `supabase.auth.signInWithPassword` with a pre-seeded dev account automatically when dev mode activates, giving a real session without the user needing to type credentials.
+
+## Recommended Approach: Auto-sign-in for Dev Mode
+
+The cleanest fix is to **auto-sign-in a dev test account** when dev mode is activated. This gives a real Supabase session so all existing code (RLS, storage, edge functions) works without any changes.
+
+1. **Create a dev test account** in the database (email: `dev@photorabbit.test`, password: `devmode123`)
+2. **Update `src/pages/Home.tsx`** -- when `isDevMode()` is true and `user` is null, auto-call `signIn("dev@photorabbit.test", "devmode123")` before rendering the Workspace
+3. Everything else (project creation, photo upload, interview, generation) works as-is because there's now a real auth session
+
+## Technical Steps
+
+1. Create a migration to seed a dev user (or just sign up once manually via the auth API)
+2. In `Home.tsx`, add a `useEffect` that detects dev mode + no user and calls `supabase.auth.signInWithPassword` with the dev credentials
+3. Show a brief loading spinner while the auto-sign-in completes
+4. Once signed in, `Workspace` renders normally with full database access
 
