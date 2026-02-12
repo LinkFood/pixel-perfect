@@ -50,14 +50,12 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
   const [failedCount, setFailedCount] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [latestIllustration, setLatestIllustration] = useState<string | null>(null);
-  const [showSpotlight, setShowSpotlight] = useState(false);
   const startedRef = useRef(false);
   const cancelRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number>();
   const prevIllCountRef = useRef(0);
   const spotlightActiveRef = useRef(false);
-  const spotlightTimeoutRef = useRef<number>();
   const variantCountRef = useRef(0);
 
   // Derived step from phase
@@ -169,19 +167,13 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
           setCompletedIllustrations(urls);
           setIllustrationsGenerated(data.length);
 
-          // Spotlight: new illustration arrived
+          // New illustration arrived — set as persistent hero
           if (data.length > prevIllCountRef.current && urls.length > 0) {
-            const newUrl = urls[urls.length - 1];
-            setLatestIllustration(newUrl);
-            setShowSpotlight(true);
+            setLatestIllustration(urls[urls.length - 1]);
             spotlightActiveRef.current = true;
             setRabbitState("presenting");
-
-            if (spotlightTimeoutRef.current) clearTimeout(spotlightTimeoutRef.current);
-            spotlightTimeoutRef.current = window.setTimeout(() => {
-              setShowSpotlight(false);
-              spotlightActiveRef.current = false;
-            }, 3000);
+            // Let rabbit cycle resume after a beat
+            setTimeout(() => { spotlightActiveRef.current = false; }, 4000);
           }
           prevIllCountRef.current = data.length;
         }
@@ -190,7 +182,6 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
 
     return () => {
       supabase.removeChannel(channel);
-      if (spotlightTimeoutRef.current) clearTimeout(spotlightTimeoutRef.current);
     };
   }, [projectId]);
 
@@ -433,46 +424,57 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
           <ChatMessage key={`${i}-${msg.slice(0, 20)}`} role="rabbit" content={msg} />
         ))}
 
-        {/* Illustration Spotlight */}
-        <AnimatePresence>
-          {showSpotlight && latestIllustration && (
+        {/* Latest illustration — persistent hero */}
+        <AnimatePresence mode="wait">
+          {latestIllustration && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 260, damping: 20 }}
-              className="flex justify-center py-2"
+              key={latestIllustration}
+              initial={{ opacity: 0, scale: 0.9, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ type: "spring", stiffness: 220, damping: 22 }}
+              className="flex justify-center py-3"
             >
               <div
-                className="rounded-2xl overflow-hidden shadow-lg border-2"
-                style={{ borderColor: "#C4956A", maxWidth: 320 }}
+                className="rounded-2xl overflow-hidden shadow-lg border-2 w-full"
+                style={{ borderColor: "#C4956A", maxWidth: 380 }}
               >
                 <img
                   src={latestIllustration}
-                  alt="New illustration"
+                  alt="Latest illustration"
                   className="w-full h-auto object-cover"
-                  style={{ maxHeight: 320 }}
                 />
+                <div
+                  className="px-3 py-2 flex items-center justify-between"
+                  style={{ background: "#FAF4ED" }}
+                >
+                  <span className="font-body text-xs font-medium" style={{ color: "#C4956A" }}>
+                    Page {illustrationsGenerated} of {totalPages}
+                  </span>
+                  <span className="font-body text-xs" style={{ color: "#9B8E7F" }}>
+                    Just painted
+                  </span>
+                </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Completed illustrations shelf (smaller thumbnails) */}
-        {completedIllustrations.length > 0 && (
-          <div className="py-3">
+        {/* Previous illustrations — medium gallery row */}
+        {completedIllustrations.length > 1 && (
+          <div className="py-2">
             <p className="font-body text-xs mb-2" style={{ color: "#9B8E7F" }}>
-              {illustrationsGenerated} of {totalPages} pages illustrated
+              Completed pages
             </p>
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
               <AnimatePresence>
-                {completedIllustrations.map((url, i) => (
+                {completedIllustrations.slice(0, -1).map((url, i) => (
                   <motion.div
                     key={url}
                     initial={{ opacity: 0, scale: 0.8, y: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="shrink-0 w-14 h-14 rounded-xl overflow-hidden border"
+                    transition={{ delay: i * 0.03 }}
+                    className="shrink-0 w-20 h-20 rounded-xl overflow-hidden border"
                     style={{ borderColor: "#E8D5C0" }}
                   >
                     <img src={url} alt={`Page ${i + 1}`} className="w-full h-full object-cover" />
