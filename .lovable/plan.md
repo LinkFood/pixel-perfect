@@ -1,23 +1,23 @@
 
-# Restore Auto-Fill Dev Tools in Workspace
 
-## What Happened
+# Show All Photos with Scroll (Instead of Capping at 12)
 
-The auto-fill interview feature (the dropdown that let you pick Link/Luna/Max seed data to skip the chat) was removed when the Workspace component was refactored. The backend hooks (`useAutoFillInterview`, `useClearInterview`) still exist in `useInterview.ts` -- they just aren't wired up to any UI anymore.
+## Problem
 
-## Fix
+The `PhotoUploadInline` component hard-caps the photo grid at 12 items (`photos.slice(0, 12)`) and shows a "+67" badge for the rest. You can't see, favorite, or delete the hidden photos.
 
-Add a dev-only toolbar to the interview view in `Workspace.tsx` that shows when `isDevMode()` is true.
+## Solution
 
-### Changes to `src/components/workspace/Workspace.tsx`
+Remove the `slice(0, 12)` limit and render all photos in a scrollable grid. Add a max-height container with overflow scroll so the grid doesn't take over the whole page.
 
-1. Import `isDevMode` from `@/lib/devMode`
-2. Import `useAutoFillInterview`, `useClearInterview`, and `SeedOption` from `@/hooks/useInterview`
-3. Add state for the seed dropdown (`seedMenuOpen`)
-4. Wire up the auto-fill and clear mutations with `resolvedId`
-5. In the interview view, render a small dev toolbar (only when `isDevMode()`) above the chat input with:
-   - A dropdown button to pick a seed (Link full / Luna cat / Max short)
-   - A "Clear" button to reset the interview
-   - After auto-fill completes, also update `chatMessages` local state from the DB so the filled messages appear immediately
+## Changes
 
-The toolbar will be styled subtly (small text, muted colors) so it doesn't interfere with the main UI but is easy to use during testing.
+### File: `src/components/workspace/PhotoUploadInline.tsx`
+
+1. **Remove the `.slice(0, 12)`** on line 79 -- render all photos instead of just the first 12
+2. **Remove the "+N" overflow badge** (the block at lines 120-129 that shows "+67")
+3. **Wrap the grid in a scrollable container** with `max-h-[400px] overflow-y-auto` so that when there are many photos, the grid scrolls instead of pushing everything else off screen
+4. Optionally bump grid to 5 columns on larger screens for better density (`grid-cols-4 sm:grid-cols-5 lg:grid-cols-6`)
+
+This way you can see every photo, hover to delete or favorite any of them, and the upload zone + "let's go" button remain accessible above/below the scrollable area.
+
