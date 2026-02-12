@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle, Loader2 } from "lucide-react";
+import { CheckCircle, Loader2, ChevronDown, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
 import ChatMessage from "./ChatMessage";
@@ -12,7 +12,8 @@ import ProjectShelf from "./ProjectShelf";
 import GenerationView from "./GenerationView";
 import MinimalNav from "./MinimalNav";
 import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus } from "@/hooks/useProject";
-import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto } from "@/hooks/usePhotos";
+import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto, getPhotoUrl } from "@/hooks/usePhotos";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
 import { isDevMode } from "@/lib/devMode";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +41,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const deletePhoto = useDeletePhoto();
 
   const [input, setInput] = useState("");
+  const [photoStripOpen, setPhotoStripOpen] = useState(false);
   const [seedMenuOpen, setSeedMenuOpen] = useState(false);
   const autoFill = useAutoFillInterview(resolvedId);
   const clearInterview = useClearInterview(resolvedId);
@@ -329,6 +331,62 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
         <div className="flex justify-center py-4 shrink-0">
           <RabbitCharacter state={rabbitState} size={140} />
         </div>
+
+        {/* Photo strip */}
+        {photos.length > 0 && (
+          <Collapsible open={photoStripOpen} onOpenChange={setPhotoStripOpen} className="px-4 md:px-0 shrink-0">
+            <CollapsibleTrigger className="flex items-center gap-2 w-full py-1.5 group cursor-pointer">
+              <div className="flex -space-x-2">
+                {photos.slice(0, 6).map((p) => (
+                  <div
+                    key={p.id}
+                    className="w-8 h-8 rounded-full overflow-hidden border-2 shrink-0"
+                    style={{ borderColor: "#FDF8F0" }}
+                  >
+                    <img
+                      src={getPhotoUrl(p.storage_path)}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+              <span className="font-body text-xs flex items-center gap-1" style={{ color: "#9B8E7F" }}>
+                <Camera className="w-3 h-3" />
+                {photos.length} photo{photos.length !== 1 ? "s" : ""}
+              </span>
+              <ChevronDown
+                className="w-3.5 h-3.5 ml-auto transition-transform duration-200"
+                style={{ color: "#9B8E7F", transform: photoStripOpen ? "rotate(180deg)" : undefined }}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="flex gap-2 overflow-x-auto pb-2 pt-1 scrollbar-hide">
+                {photos.slice(0, 12).map((p) => (
+                  <div
+                    key={p.id}
+                    className="shrink-0 w-16 h-16 rounded-lg overflow-hidden border"
+                    style={{ borderColor: "#E8D5C0" }}
+                  >
+                    <img
+                      src={getPhotoUrl(p.storage_path)}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+                {photos.length > 12 && (
+                  <div
+                    className="shrink-0 w-16 h-16 rounded-lg flex items-center justify-center font-body text-xs"
+                    style={{ background: "#F5EDE4", color: "#9B8E7F" }}
+                  >
+                    +{photos.length - 12} more
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {/* Chat area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-0 space-y-4 pb-4">

@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, RefreshCw, SkipForward, StopCircle } from "lucide-react";
+import { RefreshCw, SkipForward, StopCircle, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
 import ChatMessage from "./ChatMessage";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +21,24 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+const variantPersonalityMessages = [
+  "Getting the colors just right...",
+  "This one's going to be special...",
+  "A little more detail here...",
+  "The light in this scene is perfect...",
+  "Adding some extra magic...",
+];
+
+const illustrationCycleStates: RabbitState[] = [
+  "painting", "thinking", "excited", "painting", "listening", "painting",
+];
+
 const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps) => {
   const updateStatus = useUpdateProjectStatus();
   const [phase, setPhase] = useState<Phase>("loading");
@@ -29,9 +48,21 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
   const [totalPages, setTotalPages] = useState(0);
   const [illustrationsGenerated, setIllustrationsGenerated] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [latestIllustration, setLatestIllustration] = useState<string | null>(null);
+  const [showSpotlight, setShowSpotlight] = useState(false);
   const startedRef = useRef(false);
   const cancelRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<number>();
+  const prevIllCountRef = useRef(0);
+  const spotlightActiveRef = useRef(false);
+  const spotlightTimeoutRef = useRef<number>();
+  const variantCountRef = useRef(0);
+
+  // Derived step from phase
+  const currentStep = phase === "story" || phase === "loading" ? 1
+    : phase === "illustrations" ? 2 : 3;
 
   const addMessage = useCallback((msg: string) => {
     setRabbitMessages(prev => [...prev, msg]);
@@ -39,6 +70,55 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }, 100);
   }, []);
+
+  // ─── Elapsed timer ───────────────────────────────────────────
+  useEffect(() => {
+    if (phase === "story" || phase === "illustrations") {
+      if (!timerRef.current) {
+        timerRef.current = window.setInterval(() => {
+          setElapsedSeconds(prev => prev + 1);
+        }, 1000);
+      }
+    }
+    if (phase === "done" || phase === "failed") {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = undefined;
+      }
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = undefined;
+      }
+    };
+  }, [phase]);
+
+  // ─── Rabbit personality cycling during illustration phase ────
+  useEffect(() => {
+    if (phase !== "illustrations") return;
+    let idx = 0;
+    const timer = setInterval(() => {
+      if (spotlightActiveRef.current) return;
+      idx = (idx + 1) % illustrationCycleStates.length;
+      setRabbitState(illustrationCycleStates[idx]);
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [phase]);
+
+  // ─── Rabbit personality flashes during story phase ───────────
+  useEffect(() => {
+    if (phase !== "story") return;
+    const flash1 = setTimeout(() => {
+      setRabbitState("excited");
+      setTimeout(() => setRabbitState("thinking"), 2000);
+    }, 10000);
+    const flash2 = setTimeout(() => {
+      setRabbitState("painting");
+      setTimeout(() => setRabbitState("thinking"), 3000);
+    }, 25000);
+    return () => { clearTimeout(flash1); clearTimeout(flash2); };
+  }, [phase]);
 
   // Story phase rotating messages
   const storyMessages = [
@@ -65,7 +145,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
     return () => clearInterval(timer);
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Realtime: listen for new illustrations
+  // Realtime: listen for new illustrations + spotlight logic
   useEffect(() => {
     const channel = supabase
       .channel(`gen-illustrations-${projectId}`)
@@ -88,11 +168,30 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
           });
           setCompletedIllustrations(urls);
           setIllustrationsGenerated(data.length);
+
+          // Spotlight: new illustration arrived
+          if (data.length > prevIllCountRef.current && urls.length > 0) {
+            const newUrl = urls[urls.length - 1];
+            setLatestIllustration(newUrl);
+            setShowSpotlight(true);
+            spotlightActiveRef.current = true;
+            setRabbitState("presenting");
+
+            if (spotlightTimeoutRef.current) clearTimeout(spotlightTimeoutRef.current);
+            spotlightTimeoutRef.current = window.setTimeout(() => {
+              setShowSpotlight(false);
+              spotlightActiveRef.current = false;
+            }, 3000);
+          }
+          prevIllCountRef.current = data.length;
         }
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+      if (spotlightTimeoutRef.current) clearTimeout(spotlightTimeoutRef.current);
+    };
   }, [projectId]);
 
   // Generate missing illustrations
@@ -109,8 +208,6 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
       .from("project_illustrations")
       .select("page_id")
       .eq("project_id", projectId);
-
-    const illustratedIds = new Set((existing || []).map(i => i.page_id));
 
     // Count existing per page for variant tracking
     const { data: allExisting } = await supabase
@@ -148,6 +245,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
 
     let successes = 0;
     let batchDelay = 1500;
+    variantCountRef.current = 0;
 
     for (let i = 0; i < work.length; i++) {
       if (cancelRef.current) break;
@@ -159,6 +257,15 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
 
       if (!isVariant) {
         addMessage(`Painting ${label}...`);
+        variantCountRef.current = 0;
+      } else {
+        variantCountRef.current++;
+        if (variantCountRef.current % 5 === 0) {
+          const personalityMsg = variantPersonalityMessages[
+            Math.floor(Math.random() * variantPersonalityMessages.length)
+          ].replace("{petName}", petName);
+          addMessage(personalityMsg);
+        }
       }
 
       try {
@@ -255,11 +362,69 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
     toast.info("Stopping after current illustration...");
   };
 
+  // ─── Step tracker rendering ──────────────────────────────────
+  const steps = [
+    { label: "Writing Story", step: 1 },
+    { label: "Painting Illustrations", step: 2, count: phase === "illustrations" ? `(${illustrationsGenerated}/${totalPages})` : undefined },
+    { label: "Finishing Up", step: 3 },
+  ];
+
+  const progressPercent = totalPages > 0 ? (illustrationsGenerated / totalPages) * 100 : 0;
+
   return (
     <div className="flex flex-col h-full">
       {/* Rabbit at top */}
       <div className="flex justify-center py-4">
         <RabbitCharacter state={rabbitState} size={140} />
+      </div>
+
+      {/* Step tracker */}
+      <div className="px-4 md:px-0 pb-3 shrink-0">
+        <div className="flex items-center justify-center gap-0">
+          {steps.map((s, i) => {
+            const isActive = currentStep === s.step;
+            const isComplete = currentStep > s.step || phase === "done";
+            return (
+              <div key={s.step} className="flex items-center">
+                {i > 0 && (
+                  <div
+                    className="w-8 h-0.5 mx-1"
+                    style={{ background: isComplete || isActive ? "#C4956A" : "#E8D5C0" }}
+                  />
+                )}
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-body font-semibold shrink-0"
+                    style={{
+                      background: isComplete ? "#4CAF50" : isActive ? "#C4956A" : "#E8D5C0",
+                      color: isComplete || isActive ? "white" : "#9B8E7F",
+                    }}
+                  >
+                    {isComplete ? <Check className="w-3.5 h-3.5" /> : s.step}
+                  </div>
+                  <span
+                    className="font-body text-xs whitespace-nowrap"
+                    style={{ color: isActive ? "#C4956A" : isComplete ? "#4CAF50" : "#9B8E7F" }}
+                  >
+                    {s.label}
+                    {s.count && <span className="ml-0.5">{s.count}</span>}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Progress bar under step 2 */}
+        {phase === "illustrations" && totalPages > 0 && (
+          <div className="mt-2 max-w-xs mx-auto">
+            <Progress
+              value={progressPercent}
+              className="h-2 rounded-full"
+              style={{ background: "#F5EDE4" }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Narrated messages + illustration reveals */}
@@ -268,7 +433,32 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
           <ChatMessage key={`${i}-${msg.slice(0, 20)}`} role="rabbit" content={msg} />
         ))}
 
-        {/* Completed illustrations shelf */}
+        {/* Illustration Spotlight */}
+        <AnimatePresence>
+          {showSpotlight && latestIllustration && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+              className="flex justify-center py-2"
+            >
+              <div
+                className="rounded-2xl overflow-hidden shadow-lg border-2"
+                style={{ borderColor: "#C4956A", maxWidth: 320 }}
+              >
+                <img
+                  src={latestIllustration}
+                  alt="New illustration"
+                  className="w-full h-auto object-cover"
+                  style={{ maxHeight: 320 }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Completed illustrations shelf (smaller thumbnails) */}
         {completedIllustrations.length > 0 && (
           <div className="py-3">
             <p className="font-body text-xs mb-2" style={{ color: "#9B8E7F" }}>
@@ -282,7 +472,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
                     initial={{ opacity: 0, scale: 0.8, y: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="shrink-0 w-20 h-20 rounded-xl overflow-hidden border"
+                    className="shrink-0 w-14 h-14 rounded-xl overflow-hidden border"
                     style={{ borderColor: "#E8D5C0" }}
                   >
                     <img src={url} alt={`Page ${i + 1}`} className="w-full h-full object-cover" />
@@ -293,12 +483,20 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
           </div>
         )}
 
-        {/* Loading indicator */}
+        {/* Pulse indicator + timer (replaces old Loader2 spinner) */}
         {(phase === "story" || phase === "illustrations") && (
-          <div className="flex items-center gap-2 py-2">
-            <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#C4956A" }} />
+          <div className="flex items-center gap-3 py-2">
+            <motion.div
+              className="w-3 h-3 rounded-full shrink-0"
+              style={{ background: "#C4956A" }}
+              animate={{ scale: [1, 1.4, 1], opacity: [1, 0.5, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            />
             <span className="font-body text-xs" style={{ color: "#9B8E7F" }}>
-              {phase === "story" ? "Writing story..." : "Painting..."}
+              {phase === "story" ? "Writing story" : "Painting illustrations"}
+            </span>
+            <span className="font-body text-xs ml-auto" style={{ color: "#B8A99A" }}>
+              {formatElapsed(elapsedSeconds)}
             </span>
           </div>
         )}
