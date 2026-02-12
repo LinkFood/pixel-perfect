@@ -12,7 +12,8 @@ export type Project = {
   pet_appearance_profile: string | null;
   photo_context_brief: string | null;
   product_type: string | null;
-  
+  mood: string | null;
+
   user_id: string | null;
   status: string;
   created_at: string;
@@ -107,7 +108,7 @@ export const useUpdateProject = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; pet_name?: string; pet_type?: string; pet_breed?: string | null; product_type?: string }) => {
+    mutationFn: async ({ id, ...updates }: { id: string; pet_name?: string; pet_type?: string; pet_breed?: string | null; product_type?: string; mood?: string }) => {
       const { error } = await supabase
         .from("projects")
         .update(updates)

@@ -11,14 +11,15 @@ import PhotoUploadInline from "./PhotoUploadInline";
 import ProjectShelf from "./ProjectShelf";
 import GenerationView from "./GenerationView";
 import MinimalNav from "./MinimalNav";
-import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus } from "@/hooks/useProject";
+import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus, useUpdateProject } from "@/hooks/useProject";
+import MoodPicker from "./MoodPicker";
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto, getPhotoUrl } from "@/hooks/usePhotos";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
 import { isDevMode } from "@/lib/devMode";
 import { supabase } from "@/integrations/supabase/client";
 
-type WorkspaceView = "loading" | "home" | "upload" | "interview" | "generating" | "review";
+type WorkspaceView = "loading" | "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
 
 interface WorkspaceProps {
   projectId?: string;
@@ -36,6 +37,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const { sendMessage, isStreaming, streamingContent, lastFinishedContent } = useInterviewChat(resolvedId);
   const createProject = useCreateMinimalProject();
   const updateStatus = useUpdateProjectStatus();
+  const updateProject = useUpdateProject();
   const { uploadBatch, uploadProgress, isBatchUploading } = useUploadPhoto();
   const updatePhoto = useUpdatePhoto();
   const deletePhoto = useDeletePhoto();
@@ -48,6 +50,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const [rabbitState, setRabbitState] = useState<RabbitState>("idle");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(resolvedId || null);
+  const [showMoodPicker, setShowMoodPicker] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
 
@@ -63,6 +66,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     ? "loading"
     : !activeProjectId || !project
     ? "home"
+    : showMoodPicker ? "mood-picker"
     : project.status === "upload" ? "upload"
     : project.status === "interview" ? "interview"
     : project.status === "generating" ? "generating"
@@ -142,7 +146,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
 
     if (view === "interview" && project) {
       const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
-      sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type);
+      sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
       setRabbitState("thinking");
     }
   };
@@ -175,17 +179,40 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     setChatMessages(restored);
   }, [view, interviewMessages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const moodGreetings: Record<string, string> = {
+    funny: `I've studied all your photos — I can already tell ${project?.pet_name || "they"} is a character! What's the most ridiculous thing they've ever done?`,
+    heartfelt: `I've studied all your photos — I can see the bond you share with ${project?.pet_name || "them"}. Take your time — tell me about them.`,
+    adventure: `I've studied all your photos — ${project?.pet_name || "they"} looks like a real explorer! What's their greatest adventure?`,
+    memorial: `I've studied all your photos of ${project?.pet_name || "them"} — what a beautiful life. Take your time — tell me about them.`,
+  };
+
   const handleContinueToInterview = () => {
     if (!activeProjectId) return;
     // Fire appearance profile in background
     supabase.functions.invoke("build-appearance-profile", {
       body: { projectId: activeProjectId },
     });
+    // If no mood set yet, show mood picker first
+    if (!project?.mood) {
+      setShowMoodPicker(true);
+      return;
+    }
+    // Mood already set (re-entry) — go straight to interview
+    startInterview(project.mood);
+  };
+
+  const handleMoodSelect = (mood: string) => {
+    if (!activeProjectId) return;
+    updateProject.mutate({ id: activeProjectId, mood });
+    setShowMoodPicker(false);
+    startInterview(mood);
+  };
+
+  const startInterview = (mood: string) => {
+    if (!activeProjectId) return;
     updateStatus.mutate({ id: activeProjectId, status: "interview" });
-    setChatMessages([{
-      role: "rabbit",
-      content: `I've studied all your photos — I can see ${project?.pet_name || "them"} so clearly! Now tell me the stories behind the pictures. What should I know?`,
-    }]);
+    const greeting = moodGreetings[mood] || moodGreetings.heartfelt;
+    setChatMessages([{ role: "rabbit", content: greeting }]);
     setRabbitState("listening");
     scrollToBottom();
   };
@@ -205,7 +232,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   };
 
   const userInterviewCount = interviewMessages.filter(m => m.role === "user").length;
-  const canFinish = userInterviewCount >= 8;
+  const canFinish = userInterviewCount >= 2;
   const canContinueToInterview = photos.length >= 5 && !isBatchUploading;
 
   // ─── Loading state (prevents flash of wrong view) ────────────
@@ -311,6 +338,30 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
         </div>
 
         {/* Project shelf */}
+        <ProjectShelf
+          projects={projects}
+          activeProjectId={activeProjectId}
+          onSelect={handleSelectProject}
+          onNew={handleNewProject}
+        />
+      </div>
+    );
+  }
+
+  // ─── Mood Picker view ──────────────────────────────────────
+  if (view === "mood-picker") {
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
+        <MinimalNav />
+        <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto overflow-hidden">
+          <div className="flex justify-center py-6 shrink-0">
+            <RabbitCharacter state="excited" size={160} />
+          </div>
+          <MoodPicker
+            petName={project?.pet_name || "your pet"}
+            onSelect={handleMoodSelect}
+          />
+        </div>
         <ProjectShelf
           projects={projects}
           activeProjectId={activeProjectId}

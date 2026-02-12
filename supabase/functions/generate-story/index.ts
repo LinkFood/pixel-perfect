@@ -6,14 +6,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function buildSystemPrompt(petName: string, appearanceProfile: string | null, productType?: string) {
+const MOOD_TONE: Record<string, string> = {
+  funny: "Make readers laugh. Use playful language, comedic timing, and exaggerated-but-truthful descriptions. The humor should feel warm and loving, never mean. Lean into the absurdity of the pet's quirks.",
+  heartfelt: "Make readers cry happy tears. Use gentle, flowing language that captures the emotional bond. Focus on the quiet moments that speak volumes — the unspoken connection between pet and owner.",
+  adventure: "Grand expedition energy. Use dynamic, exciting language that turns the pet into a brave hero. Every outing is an adventure, every discovery is epic. The world is huge and the pet is fearless.",
+  memorial: "Celebrate their life, not their death. Use warmth and gentle joy. Past tense is okay and natural. The tone should feel like a loving tribute that leaves the reader smiling through tears. End with comfort and peace.",
+};
+
+function buildSystemPrompt(petName: string, appearanceProfile: string | null, productType?: string, mood?: string | null) {
   const product = productType || "storybook";
   const characterBlock = appearanceProfile
     ? `\n\nCHARACTER APPEARANCE (use in EVERY illustration_prompt):\n${appearanceProfile}\n\nCRITICAL: Every illustration_prompt you write MUST include ${petName}'s full physical description so the illustrator draws the pet consistently on every single page. Copy the key details (breed, coat colors, markings, size) into each illustration_prompt.`
     : "";
 
+  const moodGuidance = mood && MOOD_TONE[mood]
+    ? `\n\nTONE GUIDANCE (${mood.toUpperCase()} mood):\n${MOOD_TONE[mood]}`
+    : "";
+
   return `You are a master children's book author for PhotoRabbit. You write picture books about real pets that make families cry happy tears.
-${characterBlock}
+${characterBlock}${moodGuidance}
 
 Your task: Turn the interview transcript into a children's storybook that feels deeply personal — not generic. Every page should make the reader think "that's MY pet."
 
@@ -94,9 +105,9 @@ serve(async (req) => {
 
     const captions = (photos || []).filter(p => p.caption).map(p => p.caption).join(", ");
 
-    console.log(`Generating ${project.product_type || "storybook"} for ${project.pet_name}, ${interview?.length || 0} interview messages, ${photos?.length || 0} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
+    console.log(`Generating ${project.product_type || "storybook"} for ${project.pet_name}, mood=${project.mood || "none"}, ${interview?.length || 0} interview messages, ${photos?.length || 0} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
 
-    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, project.product_type);
+    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, project.product_type, project.mood);
 
     const userPrompt = `Create a children's storybook about ${project.pet_name}, a ${project.pet_breed || ""} ${project.pet_type}. Use as many pages as the story naturally needs — don't cut short, include every meaningful memory.
 

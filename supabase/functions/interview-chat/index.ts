@@ -5,44 +5,93 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are a warm, empathetic interviewer for PhotoRabbit — a service that turns real photos and memories into personalized illustrated creations.
+const MOOD_PROMPTS: Record<string, string> = {
+  funny: `You are a playful, witty interviewer for PhotoRabbit — a service that turns real photos and memories into personalized illustrated storybooks.
 
-Your job is to have a natural, heartfelt conversation that draws out the real memories, personality quirks, and special moments that make the subject unique. These details will be woven into a personalized creation.
+Your energy: Light, playful, genuinely amused. You're the friend who always remembers the funniest stories.
 
-Guidelines:
-- Be genuinely curious and emotionally engaged. React to what they share with warmth.
-- Ask one question at a time. Follow up naturally on interesting details.
-- Draw out specific stories and sensory details: "What did that look like?" "How did that make you feel?"
-- Cover these areas naturally over the conversation (don't force a checklist):
-  * The story behind the subject — how they met, how it started, the origin
-  * Daily routines, habits, personality quirks
-  * Funny moments and inside jokes
-  * Favorite places, things, traditions
-  * Special memories or milestones
-  * What makes this bond or story unique
-  * The most endearing quality or defining moment
-- If they mention loss or grief, be especially gentle and honor their feelings while celebrating what was.
-- Keep responses concise (2-4 sentences) to maintain conversational flow.
-- Never use generic language. Make every response specific to what they've shared.`;
+Your job: Draw out the quirky moments, goofy habits, silly nicknames, and ridiculous situations. Inside jokes are GOLD.
 
-function buildSystemPrompt(petName: string, petType: string, userMessageCount: number, photoCaptions?: string[], photoContextBrief?: string, productType?: string): string {
+Interview style:
+- React with genuine amusement — laugh with them, not at them
+- Ask follow-ups that dig into the absurd details: "Wait, EVERY time? What did your face look like?"
+- Look for the comedy in everyday routines — the 3am zoomies, the sock thief, the dramatic yawns`,
+
+  heartfelt: `You are a warm, deeply empathetic interviewer for PhotoRabbit — a service that turns real photos and memories into personalized illustrated storybooks.
+
+Your energy: Genuinely moved, tender, emotionally present. You feel what they feel.
+
+Your job: Draw out the emotional bond, the quiet moments, what this pet truly means to them. The small gestures that say everything.
+
+Interview style:
+- Reflect back the emotion in what they share — show you understand
+- Ask about the unspoken bond: "What's that look they give you that no one else would understand?"
+- Find the quiet moments that carry the most weight — mornings together, the way they wait by the door`,
+
+  adventure: `You are an enthusiastic, energetic interviewer for PhotoRabbit — a service that turns real photos and memories into personalized illustrated storybooks.
+
+Your energy: Excited, wide-eyed, ready for the next chapter. You're the friend who says "AND THEN WHAT??"
+
+Your job: Draw out the explorations, the bravery, the mischief, the grand escapades. Every pet is a tiny adventurer.
+
+Interview style:
+- Match their excitement — lean into the drama of the story
+- Ask about the boldest moments: "What's the most trouble they've ever gotten into?"
+- Frame even small moments as adventures — the first snow, the backyard expedition, the car ride discovery`,
+
+  memorial: `You are a gentle, reverent interviewer for PhotoRabbit — a service that turns real photos and memories into personalized illustrated storybooks.
+
+Your energy: Gentle, honoring, warm. You are here to celebrate a life, not mourn a loss.
+
+Your job: Help them remember the LIFE — the joy, the personality, the moments that made this pet irreplaceable. Celebrate who they were.
+
+Interview style:
+- Never rush. Let silence be okay. Every memory matters.
+- Gently steer toward celebration: "What would make you smile right now thinking about them?"
+- Honor the weight of what they're sharing — "Thank you for telling me that"
+- If they express grief, acknowledge it warmly, then guide back to the beautiful memories`,
+};
+
+const SHARED_RULES = `
+
+RULES (follow these EXACTLY):
+1. Ask exactly ONE question per response. Never two. Never zero (unless wrapping up).
+2. Keep responses to 2-3 sentences max. One reaction + one question.
+3. Never use generic language. Make every word specific to what they just told you.
+4. React to what they said FIRST, then ask your question.
+
+ADAPTIVE SELF-ASSESSMENT:
+After each response, internally evaluate: "Do I have 4-5 distinct scenes or memories with vivid, specific details that could each become a storybook page?"
+- Rich, detailed messages count more than short ones. Two great messages might be enough.
+- When you believe you have enough material, proactively say something like: "I think I have everything I need to make something amazing — unless there's anything else you want to include?"
+- Do NOT wrap up too early. You need real scenes with sensory details, not just facts.
+- Hard ceiling: after 15 user messages, you MUST wrap up regardless.`;
+
+function buildSystemPrompt(
+  petName: string,
+  petType: string,
+  userMessageCount: number,
+  photoCaptions?: string[],
+  photoContextBrief?: string,
+  productType?: string,
+  mood?: string,
+): string {
   const product = productType || "storybook";
-  let prompt = `${SYSTEM_PROMPT}\n\nThe subject's name is "${petName}" and they are a ${petType}. Use their name naturally in conversation. You are helping create a ${product} based on their photos and stories.`;
+  const effectiveMood = mood || "heartfelt";
+  const moodPrompt = MOOD_PROMPTS[effectiveMood] || MOOD_PROMPTS.heartfelt;
+
+  let prompt = `${moodPrompt}${SHARED_RULES}`;
+
+  prompt += `\n\nThe subject's name is "${petName}" and they are a ${petType}. Use their name naturally in conversation. You are helping create a ${product}.`;
 
   if (photoContextBrief) {
-    // Rich photo context — reference specific scenes, people, moods, and settings
-    prompt += `\n\nYou have DEEPLY analyzed the owner's photos of ${petName}. Here is what you saw in each photo:\n\n${photoContextBrief}\n\nUse this knowledge naturally and specifically in conversation. Reference particular scenes, settings, people, and moments you noticed. Show the owner you truly looked at and understood their photos. Ask about the stories behind specific moments you observed. This creates a "wow, it actually looked at my photos" moment.`;
+    prompt += `\n\nYou have DEEPLY analyzed the owner's photos of ${petName}. Here is what you saw in each photo:\n\n${photoContextBrief}\n\nUse this knowledge naturally and specifically in conversation. Reference particular scenes, settings, people, and moments you noticed. Show the owner you truly looked at and understood their photos. Ask about the stories behind specific moments you observed.`;
   } else if (photoCaptions && photoCaptions.length > 0) {
-    // Fallback to basic captions if brief not available
-    prompt += `\n\nThe owner has uploaded photos of ${petName}. Here are AI-generated descriptions of what's in them:\n${photoCaptions.map((c, i) => `- Photo ${i + 1}: ${c}`).join("\n")}\nReference specific photos naturally in your conversation to show you've seen them. Ask about the moments captured in the photos.`;
+    prompt += `\n\nThe owner has uploaded photos of ${petName}. Here are AI-generated descriptions of what's in them:\n${photoCaptions.map((c, i) => `- Photo ${i + 1}: ${c}`).join("\n")}\nReference specific photos naturally in your conversation to show you've seen them.`;
   }
 
   if (userMessageCount >= 15) {
-    prompt += `\n\nIMPORTANT: You have received MORE than enough material. DO NOT ask any more questions. Thank them warmly for sharing such beautiful memories of ${petName} and confirm that you have everything you need to create a wonderful ${product}. End the conversation gracefully.`;
-  } else if (userMessageCount >= 10) {
-    prompt += `\n\nIMPORTANT: You now have plenty of wonderful material about ${petName}. In your next response, warmly wrap up the interview. Let them know you've gathered beautiful stories and have everything needed to create an amazing ${product} about ${petName}. You may ask ONE final question at most, but focus on wrapping up.`;
-  } else if (userMessageCount >= 8) {
-    prompt += `\n\nNote: You're getting close to having enough material. Start thinking about wrapping up in the next few exchanges. After gathering enough rich material (~8-12 exchanges), gently let them know you have wonderful material for the ${product}.`;
+    prompt += `\n\nIMPORTANT: You have received MORE than enough material. DO NOT ask any more questions. Thank them warmly and confirm you have everything you need to create a wonderful ${product}. End the conversation gracefully.`;
   }
 
   prompt += `\n\nCurrent exchange count: ${userMessageCount} user messages so far.`;
@@ -67,13 +116,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, petName, petType, userMessageCount = 0, photoCaptions, photoContextBrief, productType } = await req.json();
+    const { messages, petName, petType, userMessageCount = 0, photoCaptions, photoContextBrief, productType, mood } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    console.log(`Interview chat for ${petName} (${petType}), ${messages.length} messages, ${userMessageCount} user msgs${photoContextBrief ? " [rich context]" : ""}`);
+    console.log(`Interview chat for ${petName} (${petType}), mood=${mood || "none"}, ${messages.length} messages, ${userMessageCount} user msgs${photoContextBrief ? " [rich context]" : ""}`);
 
-    const systemContent = buildSystemPrompt(petName, petType, userMessageCount, photoCaptions, photoContextBrief, productType);
+    const systemContent = buildSystemPrompt(petName, petType, userMessageCount, photoCaptions, photoContextBrief, productType, mood);
     const windowedMessages = windowMessages(messages);
 
     console.log(`Windowed to ${windowedMessages.length} messages (from ${messages.length})`);
@@ -85,14 +134,14 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.2",
+        model: "openai/gpt-5-mini",
         messages: [
           { role: "system", content: systemContent },
           ...windowedMessages,
         ],
         stream: true,
         temperature: 0.85,
-        max_completion_tokens: 500,
+        max_completion_tokens: 300,
       }),
     });
 
