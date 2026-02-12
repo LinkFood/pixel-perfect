@@ -27,14 +27,6 @@ function formatElapsed(seconds: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-const variantPersonalityMessages = [
-  "Getting the colors just right...",
-  "This one's going to be special...",
-  "A little more detail here...",
-  "The light in this scene is perfect...",
-  "Adding some extra magic...",
-];
-
 const illustrationCycleStates: RabbitState[] = [
   "painting", "thinking", "excited", "painting", "listening", "painting",
 ];
@@ -56,7 +48,6 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
   const timerRef = useRef<number>();
   const prevIllCountRef = useRef(0);
   const spotlightActiveRef = useRef(false);
-  const variantCountRef = useRef(0);
 
   // Derived step from phase
   const currentStep = phase === "story" || phase === "loading" ? 1
@@ -185,7 +176,18 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
     };
   }, [projectId]);
 
-  // Generate missing illustrations
+  // Fire variant illustrations in background (server completes regardless of unmount)
+  const fireVariantsInBackground = useCallback((variantPages: { id: string }[]) => {
+    variantPages.forEach((page, i) => {
+      setTimeout(() => {
+        supabase.functions.invoke("generate-illustration", {
+          body: { pageId: page.id, projectId, variant: true },
+        }).catch(() => {});
+      }, i * 2500); // stagger to avoid rate limits
+    });
+  }, [projectId]);
+
+  // Generate illustrations — parallel batches of 3, variants deferred to background
   const generateIllustrations = useCallback(async () => {
     const { data: pages } = await supabase
       .from("project_pages")
@@ -195,12 +197,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
 
     if (!pages || pages.length === 0) return;
 
-    const { data: existing } = await supabase
-      .from("project_illustrations")
-      .select("page_id")
-      .eq("project_id", projectId);
-
-    // Count existing per page for variant tracking
+    // Count existing illustrations per page
     const { data: allExisting } = await supabase
       .from("project_illustrations")
       .select("page_id")
@@ -211,18 +208,26 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
     });
 
     const VARIANTS = 3;
-    type WorkItem = { page: typeof pages[0]; isVariant: boolean };
-    const work: WorkItem[] = [];
+
+    // Split work: initials (1 per page) vs variants (2 more per page)
+    const initialWork: typeof pages = [];
+    const variantPages: typeof pages = [];
     for (const page of pages) {
       const existing = countByPage.get(page.id) || 0;
-      const needed = Math.max(0, VARIANTS - existing);
-      for (let v = 0; v < needed; v++) {
-        work.push({ page, isVariant: v > 0 || existing > 0 });
+      if (existing === 0) {
+        initialWork.push(page);
+      }
+      // Variants needed after initial is done
+      const afterInitial = Math.max(existing, 1);
+      if (afterInitial < VARIANTS) {
+        variantPages.push(page);
       }
     }
 
     setTotalPages(pages.length);
-    if (work.length === 0) {
+
+    // Nothing to do at all
+    if (initialWork.length === 0 && variantPages.length === 0) {
       setPhase("done");
       setRabbitState("celebrating");
       addMessage(`${petName}'s book is ready! Take a look!`);
@@ -230,74 +235,100 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
       return;
     }
 
-    setPhase("illustrations");
-    setRabbitState("painting");
-    addMessage(`Now I'm going to paint ${petName}'s story. This is my favorite part!`);
-
-    let successes = 0;
-    let batchDelay = 1500;
-    variantCountRef.current = 0;
-
-    for (let i = 0; i < work.length; i++) {
-      if (cancelRef.current) break;
-
-      const { page, isVariant } = work[i];
-      const label = page.page_type === "cover" ? "the cover"
-        : page.page_type === "dedication" ? "the dedication"
-        : `page ${page.page_number}`;
-
-      if (!isVariant) {
-        addMessage(`Painting ${label}...`);
-        variantCountRef.current = 0;
-      } else {
-        variantCountRef.current++;
-        if (variantCountRef.current % 5 === 0) {
-          const personalityMsg = variantPersonalityMessages[
-            Math.floor(Math.random() * variantPersonalityMessages.length)
-          ].replace("{petName}", petName);
-          addMessage(personalityMsg);
-        }
-      }
-
-      try {
-        const { error } = await supabase.functions.invoke("generate-illustration", {
-          body: { pageId: page.id, projectId, variant: isVariant },
-        });
-        if (!error) {
-          successes++;
-          countByPage.set(page.id, (countByPage.get(page.id) || 0) + 1);
-          if (!isVariant) {
-            setRabbitState("presenting");
-            addMessage(`Look at this one!`);
-            setTimeout(() => setRabbitState("painting"), 2000);
-          }
-        } else {
-          const msg = typeof error === "object" && error.message ? error.message : String(error);
-          if (msg.includes("429")) {
-            batchDelay = Math.min(batchDelay * 2, 6000);
-          }
-        }
-      } catch {
-        // continue
-      }
-
-      if (i + 1 < work.length) await sleep(batchDelay);
-      if (batchDelay > 1500) batchDelay = Math.max(batchDelay - 500, 1500);
-    }
-
-    const remaining = work.length - successes;
-    if (remaining > 0) {
-      setFailedCount(remaining);
-      setPhase("failed");
-      setRabbitState("sympathetic");
-      addMessage(`A few illustrations didn't come out right. You can retry them or continue.`);
-    } else {
+    // All pages already have at least 1 — go straight to review
+    if (initialWork.length === 0) {
       setPhase("done");
       setRabbitState("celebrating");
       addMessage(`${petName}'s book is ready! Take a look!`);
       updateStatus.mutate({ id: projectId, status: "review" });
+      fireVariantsInBackground(variantPages);
+      return;
     }
-  }, [projectId, petName, updateStatus, addMessage]);
+
+    setPhase("illustrations");
+    setRabbitState("painting");
+    addMessage(`Now I'm going to paint ${petName}'s story. This is my favorite part!`);
+
+    // ─── Parallel batches of 3 ──────────────────────────────────
+    const CONCURRENCY = 3;
+    let successes = 0;
+    let failures = 0;
+
+    for (let batch = 0; batch < initialWork.length; batch += CONCURRENCY) {
+      if (cancelRef.current) break;
+
+      const batchItems = initialWork.slice(batch, batch + CONCURRENCY);
+
+      // Announce pages in this batch
+      const labels = batchItems.map(p =>
+        p.page_type === "cover" ? "the cover"
+          : p.page_type === "dedication" ? "the dedication"
+          : `page ${p.page_number}`
+      );
+      if (labels.length === 1) {
+        addMessage(`Painting ${labels[0]}...`);
+      } else {
+        addMessage(`Painting ${labels.join(", ")}...`);
+      }
+
+      // Fire batch concurrently
+      const results = await Promise.allSettled(
+        batchItems.map(page =>
+          supabase.functions.invoke("generate-illustration", {
+            body: { pageId: page.id, projectId, variant: false },
+          })
+        )
+      );
+
+      let batchSuccesses = 0;
+      for (const result of results) {
+        if (result.status === "fulfilled" && !result.value.error) {
+          batchSuccesses++;
+          successes++;
+        } else {
+          failures++;
+        }
+      }
+
+      if (batchSuccesses > 0) {
+        setRabbitState("presenting");
+        addMessage(batchSuccesses === 1 ? "Look at this one!" : `${batchSuccesses} more pages done!`);
+        setTimeout(() => setRabbitState("painting"), 2000);
+      }
+
+      // Brief delay between batches
+      if (batch + CONCURRENCY < initialWork.length) {
+        await sleep(1000);
+      }
+    }
+
+    // ─── Initials done — evaluate results ───────────────────────
+    if (successes === 0) {
+      setFailedCount(initialWork.length);
+      setPhase("failed");
+      setRabbitState("sympathetic");
+      addMessage("The illustrations didn't come out right. You can retry or continue.");
+      return;
+    }
+
+    if (failures > 0) {
+      addMessage(`${failures} page${failures > 1 ? "s" : ""} didn't render, but the rest look great!`);
+    }
+
+    setPhase("done");
+    setRabbitState("celebrating");
+    addMessage(
+      variantPages.length > 0
+        ? `${petName}'s book is ready! I'll keep painting more style options while you review.`
+        : `${petName}'s book is ready! Take a look!`
+    );
+    updateStatus.mutate({ id: projectId, status: "review" });
+
+    // Fire variant generation in background — server completes even if user navigates away
+    if (variantPages.length > 0) {
+      fireVariantsInBackground(variantPages);
+    }
+  }, [projectId, petName, updateStatus, addMessage, fireVariantsInBackground]);
 
   // Main generation pipeline
   useEffect(() => {
