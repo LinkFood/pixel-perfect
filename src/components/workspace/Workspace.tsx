@@ -13,7 +13,8 @@ import GenerationView from "./GenerationView";
 import MinimalNav from "./MinimalNav";
 import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus } from "@/hooks/useProject";
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto } from "@/hooks/usePhotos";
-import { useInterviewMessages, useInterviewChat } from "@/hooks/useInterview";
+import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
+import { isDevMode } from "@/lib/devMode";
 import { supabase } from "@/integrations/supabase/client";
 
 type WorkspaceView = "loading" | "home" | "upload" | "interview" | "generating" | "review";
@@ -39,6 +40,9 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const deletePhoto = useDeletePhoto();
 
   const [input, setInput] = useState("");
+  const [seedMenuOpen, setSeedMenuOpen] = useState(false);
+  const autoFill = useAutoFillInterview(resolvedId);
+  const clearInterview = useClearInterview(resolvedId);
   const [rabbitState, setRabbitState] = useState<RabbitState>("idle");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(resolvedId || null);
@@ -362,6 +366,61 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
             </motion.div>
           )}
         </div>
+
+        {/* Dev toolbar */}
+        {isDevMode() && (
+          <div className="flex items-center gap-2 px-4 py-1 text-xs" style={{ color: "#9B8E7F" }}>
+            <span className="font-mono opacity-60">DEV</span>
+            <div className="relative">
+              <button
+                className="px-2 py-0.5 rounded border font-mono hover:bg-black/5"
+                style={{ borderColor: "#D5C8B8" }}
+                onClick={() => setSeedMenuOpen(!seedMenuOpen)}
+              >
+                Auto-fill ▾
+              </button>
+              {seedMenuOpen && (
+                <div className="absolute bottom-full left-0 mb-1 bg-white rounded shadow-lg border z-50 min-w-[140px]" style={{ borderColor: "#D5C8B8" }}>
+                  {(["link", "luna", "max"] as SeedOption[]).map(seed => (
+                    <button
+                      key={seed}
+                      className="block w-full text-left px-3 py-1.5 hover:bg-black/5 font-mono text-xs"
+                      onClick={() => {
+                        setSeedMenuOpen(false);
+                        autoFill.mutate(seed, {
+                          onSuccess: () => {
+                            // Sync local chat state from DB after auto-fill
+                            setTimeout(() => {
+                              const msgs = document.querySelectorAll("[data-chat]");
+                              // Let react-query refetch handle it — just clear local state so restore effect runs
+                              setChatMessages([]);
+                            }, 300);
+                          },
+                        });
+                      }}
+                    >
+                      {seed === "link" ? "Link (full)" : seed === "luna" ? "Luna (cat)" : "Max (short)"}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              className="px-2 py-0.5 rounded border font-mono hover:bg-black/5"
+              style={{ borderColor: "#D5C8B8" }}
+              onClick={() => {
+                clearInterview.mutate(undefined, {
+                  onSuccess: () => setChatMessages([]),
+                });
+              }}
+            >
+              Clear
+            </button>
+            {(autoFill.isPending || clearInterview.isPending) && (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            )}
+          </div>
+        )}
 
         {/* Chat input — ONLY during interview */}
         <ChatInput
