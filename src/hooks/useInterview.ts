@@ -104,6 +104,7 @@ export const useInterviewChat = (projectId: string | undefined) => {
   const queryClient = useQueryClient();
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [lastFinishedContent, setLastFinishedContent] = useState("");
 
   const sendMessage = useCallback(async (
     userMessage: string,
@@ -117,6 +118,7 @@ export const useInterviewChat = (projectId: string | undefined) => {
     if (!projectId) return;
     setIsStreaming(true);
     setStreamingContent("");
+    setLastFinishedContent("");
 
     // Save user message
     const { error: saveErr } = await supabase
@@ -190,6 +192,9 @@ export const useInterviewChat = (projectId: string | undefined) => {
         await supabase.from("project_interview").insert({ project_id: projectId, role: "assistant", content: fullContent });
         queryClient.invalidateQueries({ queryKey: ["interview", projectId] });
       }
+
+      // Store finished content BEFORE clearing streaming state
+      setLastFinishedContent(fullContent);
     } catch (e) {
       console.error("Interview chat error:", e);
       toast.error("Failed to get AI response");
@@ -199,5 +204,5 @@ export const useInterviewChat = (projectId: string | undefined) => {
     }
   }, [projectId, queryClient]);
 
-  return { sendMessage, isStreaming, streamingContent };
+  return { sendMessage, isStreaming, streamingContent, lastFinishedContent };
 };

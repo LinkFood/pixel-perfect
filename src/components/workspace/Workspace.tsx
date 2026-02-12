@@ -30,7 +30,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const { data: project, isLoading: projectLoading } = useProject(resolvedId);
   const { data: photos = [] } = usePhotos(resolvedId);
   const { data: interviewMessages = [] } = useInterviewMessages(resolvedId);
-  const { sendMessage, isStreaming, streamingContent } = useInterviewChat(resolvedId);
+  const { sendMessage, isStreaming, streamingContent, lastFinishedContent } = useInterviewChat(resolvedId);
   const createProject = useCreateMinimalProject();
   const updateStatus = useUpdateProjectStatus();
   const { uploadBatch, uploadProgress, isBatchUploading } = useUploadPhoto();
@@ -140,14 +140,21 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     }
   };
 
-  // Show streaming interview responses as chat messages
+  // Show finished interview responses as chat messages
   useEffect(() => {
-    if (!isStreaming && streamingContent) {
-      setChatMessages(prev => [...prev, { role: "rabbit", content: streamingContent }]);
+    if (lastFinishedContent) {
+      setChatMessages(prev => [...prev, { role: "rabbit", content: lastFinishedContent }]);
       setRabbitState("listening");
       scrollToBottom();
     }
-  }, [isStreaming]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lastFinishedContent]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scroll during streaming
+  useEffect(() => {
+    if (isStreaming && streamingContent) {
+      scrollToBottom();
+    }
+  }, [streamingContent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // FIX #4: Only restore DB messages on fresh load (no local greeting yet)
   useEffect(() => {
