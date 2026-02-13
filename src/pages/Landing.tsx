@@ -14,7 +14,7 @@ const faqs = [
   { q: "What can I make?", a: "Books, cards, portraits — anything illustrated from your real photos. You chat with Rabbit about the memories, and we create something completely unique." },
   { q: "How long does it take?", a: "The chat takes about 10 minutes, generation takes about 15 minutes, and you review everything before paying. Most people finish in under an hour." },
   { q: "How much does it cost?", a: "Uploading photos, chatting, and story writing are free. You only pay for illustration credits — starting at $4.99 for 15 credits. Every new account gets 3 free credits." },
-  { q: "Is this AI-generated?", a: "Yes — our AI studies YOUR photos so illustrations actually look like your person or pet. You approve every single page before anything is finalized." },
+  { q: "Is this AI-generated?", a: "Yes — our AI studies YOUR photos so illustrations actually look like your subject. You approve every single page before anything is finalized." },
 ];
 
 const Landing = () => {

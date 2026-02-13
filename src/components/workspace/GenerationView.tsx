@@ -112,12 +112,12 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
   // Story phase rotating messages
   const storyMessages = [
     `Reading everything you shared about ${petName}...`,
-    `Getting to know ${petName}'s personality...`,
+    `Getting to know ${petName}...`,
     `Crafting the narrative arc...`,
     `Weaving your memories into prose...`,
     `Writing the story page by page...`,
     `Choosing the perfect words...`,
-    `Polishing ${petName}'s story...`,
+    `Polishing the story...`,
   ];
 
   useEffect(() => {
@@ -230,7 +230,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
     if (initialWork.length === 0 && variantPages.length === 0) {
       setPhase("done");
       setRabbitState("celebrating");
-      addMessage(`${petName}'s book is ready! Take a look!`);
+      addMessage(`The book is ready! Take a look!`);
       updateStatus.mutate({ id: projectId, status: "review" });
       return;
     }
@@ -239,7 +239,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
     if (initialWork.length === 0) {
       setPhase("done");
       setRabbitState("celebrating");
-      addMessage(`${petName}'s book is ready! Take a look!`);
+      addMessage(`The book is ready! Take a look!`);
       updateStatus.mutate({ id: projectId, status: "review" });
       fireVariantsInBackground(variantPages);
       return;
@@ -247,7 +247,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
 
     setPhase("illustrations");
     setRabbitState("painting");
-    addMessage(`Now I'm going to paint ${petName}'s story. This is my favorite part!`);
+    addMessage(`Now I'm going to illustrate the story. This is my favorite part!`);
 
     // ─── Parallel batches of 3 ──────────────────────────────────
     const CONCURRENCY = 3;
@@ -319,8 +319,8 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
     setRabbitState("celebrating");
     addMessage(
       variantPages.length > 0
-        ? `${petName}'s book is ready! I'll keep painting more style options while you review.`
-        : `${petName}'s book is ready! Take a look!`
+        ? `The book is ready! I'll keep painting more style options while you review.`
+        : `The book is ready! Take a look!`
     );
     updateStatus.mutate({ id: projectId, status: "review" });
 
@@ -364,7 +364,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
         return;
       }
 
-      addMessage(`${petName}'s story is written! Now let me illustrate it...`);
+      addMessage(`The story is written! Now let me illustrate it...`);
 
       // Phase 2: Illustrations
       await generateIllustrations();

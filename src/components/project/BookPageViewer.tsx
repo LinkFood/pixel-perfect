@@ -102,7 +102,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
               <div className="relative rounded-lg overflow-hidden shadow-lg border-4 border-white dark:border-gray-700 max-w-[80%] max-h-[70%]">
                 <img
                   src={photoUrl}
-                  alt={photoCaption || `Photo of pet`}
+                  alt={photoCaption || "Photo"}
                   className={cn(
                     "w-full h-full object-cover transition-opacity duration-500",
                     imgLoaded ? "opacity-100" : "opacity-0"
