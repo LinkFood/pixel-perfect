@@ -372,7 +372,18 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   };
 
   const userInterviewCount = interviewMessages.filter(m => m.role === "user").length;
-  const canFinish = photos.length <= 3 ? userInterviewCount >= 1 : userInterviewCount >= 2;
+  const canFinish = userInterviewCount >= 4;
+
+  // Extract short highlights from user interview messages for generation callbacks
+  const interviewHighlights = interviewMessages
+    .filter(m => m.role === "user")
+    .map(m => {
+      // Take first ~40 chars of each user message as a highlight snippet
+      const text = m.content.trim();
+      if (text.length <= 40) return text.toLowerCase();
+      return text.slice(0, 40).replace(/\s+\S*$/, "").toLowerCase() + "...";
+    })
+    .slice(0, 4);
   const canContinueToInterview = photos.length >= 1 && !isBatchUploading;
 
   // Rabbit greeting based on phase
@@ -580,6 +591,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         activeProjectId={activeProjectId}
         onGenerationComplete={handleGenerationComplete}
         onNewIllustration={handleNewIllustration}
+        interviewHighlights={interviewHighlights}
         onBackFromReview={handleBackFromReview}
       />
     </div>

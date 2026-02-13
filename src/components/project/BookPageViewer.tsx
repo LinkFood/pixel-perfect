@@ -40,14 +40,18 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
 
   // Gallery title page
   if (isGalleryTitle) {
+    const galleryTitle = textContent && textContent !== "Photo Gallery" ? textContent : "The Real Moments";
     return (
       <div className="rounded-2xl border-2 overflow-hidden bg-card border-primary/20">
         <div className="aspect-square flex items-center justify-center bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
           <div className="text-center space-y-4 p-8">
             <Camera className={cn("text-primary/60 mx-auto", isHalf ? "w-10 h-10" : "w-16 h-16")} />
             <h2 className={cn("font-display font-bold text-foreground", isHalf ? "text-lg" : "text-2xl")}>
-              {textContent}
+              {galleryTitle}
             </h2>
+            <p className={cn("font-body text-muted-foreground italic", isHalf ? "text-xs" : "text-sm")}>
+              Behind the scenes
+            </p>
           </div>
         </div>
       </div>
@@ -178,7 +182,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
   if (pageType === "cover") {
     return (
       <div className={cn(
-        "rounded-2xl border-2 overflow-hidden bg-card transition-colors",
+        "rounded-2xl border-2 overflow-hidden bg-card transition-colors book-page-texture",
         isApproved ? "border-primary/30" : "border-border"
       )}>
         <div className="aspect-square relative overflow-hidden">
@@ -191,6 +195,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
                   "w-full h-full object-cover transition-opacity duration-500",
                   imgLoaded ? "opacity-100" : "opacity-0"
                 )}
+                style={{ boxShadow: "inset 0 0 40px hsl(12 85% 56% / 0.15)" }}
                 onLoad={() => setImgLoaded(true)}
                 onError={handleError}
                 loading="lazy"
@@ -210,10 +215,13 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
           {/* Title overlay at bottom */}
           {textContent && (
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pt-12 pb-5 px-5">
-              <p className={cn(
-                "font-display font-bold leading-relaxed text-white text-center drop-shadow-md",
-                isHalf ? "text-lg" : "text-2xl"
-              )}>
+              <p
+                className={cn(
+                  "font-display font-bold leading-relaxed text-white text-center",
+                  isHalf ? "text-xl" : "text-3xl"
+                )}
+                style={{ textShadow: "0 2px 8px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)" }}
+              >
                 {textContent}
               </p>
             </div>
@@ -226,7 +234,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
   // Standard story page — full-bleed illustration with text overlay
   return (
     <div className={cn(
-      "rounded-2xl border-2 overflow-hidden bg-card transition-colors",
+      "rounded-2xl border-2 overflow-hidden bg-card transition-colors book-page-texture",
       isApproved ? "border-primary/30" : "border-border"
     )}>
       <div className="aspect-square bg-secondary/50 relative overflow-hidden">

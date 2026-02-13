@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Loader2, BookOpen, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
@@ -32,6 +32,7 @@ const SharedBookViewer = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [spreadIdx, setSpreadIdx] = useState(0);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     if (!shareToken) return;
@@ -106,21 +107,7 @@ const SharedBookViewer = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <RabbitCharacter state="thinking" size={120} />
-          <div className="flex items-center gap-2 justify-center">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            <span className="font-body text-sm text-muted-foreground">Loading book...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !book) {
+  if (error && !loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4 max-w-md px-6">
@@ -142,96 +129,145 @@ const SharedBookViewer = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Minimal header */}
-      <header className="flex items-center justify-between px-6 py-4">
-        <Link to="/" className="flex items-center gap-2">
-          <RabbitCharacter state="idle" size={32} />
-          <span className="font-display text-lg font-bold text-foreground">PhotoRabbit</span>
-        </Link>
-        <Link to="/">
-          <Button size="sm" className="rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-            <BookOpen className="w-4 h-4" /> Make Your Own
-          </Button>
-        </Link>
-      </header>
-
-      {/* Book title */}
-      <div className="text-center py-4">
-        <h1 className="font-display text-2xl font-bold text-foreground">
-          {book.petName}'s Book
-        </h1>
-        <p className="font-body text-sm mt-1 text-muted-foreground">
-          Made with PhotoRabbit
-        </p>
-      </div>
-
-      {/* Book spread */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 pb-4">
-        {currentSpread && (
-          <motion.div
-            key={spreadIdx}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3 }}
-            className="flex max-w-4xl w-full shadow-2xl rounded-2xl overflow-hidden border border-border"
-          >
-            {/* Left page */}
-            <div className="flex-1 overflow-hidden">
-              {renderSharedPage(currentSpread[0])}
+    <AnimatePresence mode="wait">
+      {!revealed ? (
+        <motion.div
+          key="gift"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.4 }}
+          className="min-h-screen flex items-center justify-center bg-background"
+        >
+          <div className="text-center space-y-6 max-w-sm px-6">
+            <RabbitCharacter state="presenting" size={140} />
+            <div className="bg-card border border-border rounded-2xl shadow-xl p-8 space-y-4">
+              <h1 className="font-display text-2xl font-bold text-foreground">
+                Someone made this book just for you
+              </h1>
+              <p className="font-body text-sm text-muted-foreground">
+                A one-of-a-kind picture book, illustrated by a rabbit.
+              </p>
+              <Button
+                size="lg"
+                className="rounded-xl px-10 gap-2 bg-primary text-primary-foreground hover:bg-primary/90 text-base shadow-lg hover:shadow-xl transition-all w-full"
+                disabled={loading}
+                onClick={() => setRevealed(true)}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Unwrapping...
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="w-5 h-5" />
+                    Open
+                  </>
+                )}
+              </Button>
             </div>
-            {/* Spine */}
-            <div className="w-1 flex-shrink-0" style={{ background: "linear-gradient(to right, rgba(0,0,0,0.08), transparent, rgba(0,0,0,0.08))" }} />
-            {/* Right page */}
-            <div className="flex-1 overflow-hidden">
-              {renderSharedPage(currentSpread[1])}
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="book"
+          initial={{ opacity: 0, scale: 1.02 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="min-h-screen flex flex-col bg-background"
+        >
+          {/* Minimal header */}
+          <header className="flex items-center justify-between px-6 py-4">
+            <Link to="/" className="flex items-center gap-2">
+              <RabbitCharacter state="idle" size={32} />
+              <span className="font-display text-lg font-bold text-foreground">PhotoRabbit</span>
+            </Link>
+            <Link to="/">
+              <Button size="sm" className="rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                <BookOpen className="w-4 h-4" /> Make Your Own
+              </Button>
+            </Link>
+          </header>
+
+          {/* Book title */}
+          <div className="text-center py-4">
+            <h1 className="font-display text-2xl font-bold text-foreground">
+              {book?.petName}'s Book
+            </h1>
+            <p className="font-body text-sm mt-1 text-muted-foreground">
+              Made with PhotoRabbit
+            </p>
+          </div>
+
+          {/* Book spread */}
+          <div className="flex-1 flex flex-col items-center justify-center px-4 pb-4">
+            {currentSpread && (
+              <motion.div
+                key={spreadIdx}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3 }}
+                className="flex max-w-4xl w-full shadow-2xl rounded-2xl overflow-hidden border border-border"
+              >
+                {/* Left page */}
+                <div className="flex-1 overflow-hidden">
+                  {renderSharedPage(currentSpread[0])}
+                </div>
+                {/* Spine */}
+                <div className="w-1 flex-shrink-0 bg-gradient-to-r from-black/[0.08] via-transparent to-black/[0.08]" />
+                {/* Right page */}
+                <div className="flex-1 overflow-hidden">
+                  {renderSharedPage(currentSpread[1])}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Navigation */}
+            <div className="flex items-center gap-6 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-2 border border-border"
+                disabled={spreadIdx === 0}
+                onClick={() => setSpreadIdx(s => s - 1)}
+              >
+                <ChevronLeft className="w-4 h-4" /> Previous
+              </Button>
+              <span className="font-body text-sm text-muted-foreground">
+                {spreadIdx + 1} / {spreads.length}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-2 border border-border"
+                disabled={spreadIdx >= spreads.length - 1}
+                onClick={() => setSpreadIdx(s => s + 1)}
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </Button>
             </div>
-          </motion.div>
-        )}
+          </div>
 
-        {/* Navigation */}
-        <div className="flex items-center gap-6 mt-6">
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl gap-2 border border-border"
-            disabled={spreadIdx === 0}
-            onClick={() => setSpreadIdx(s => s - 1)}
-          >
-            <ChevronLeft className="w-4 h-4" /> Previous
-          </Button>
-          <span className="font-body text-sm text-muted-foreground">
-            {spreadIdx + 1} / {spreads.length}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl gap-2 border border-border"
-            disabled={spreadIdx >= spreads.length - 1}
-            onClick={() => setSpreadIdx(s => s + 1)}
-          >
-            Next <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* CTA footer — strong viral loop */}
-      <div className="text-center py-10 border-t border-border bg-gradient-to-b from-background to-primary/5">
-        <RabbitCharacter state="presenting" size={100} />
-        <h2 className="font-display text-2xl font-bold mt-4 text-foreground">
-          Make your own picture book
-        </h2>
-        <p className="font-body text-sm mt-2 text-muted-foreground max-w-md mx-auto">
-          Drop any photos — pets, kids, trips, couples — and I'll write and illustrate a custom book in minutes. Free to try.
-        </p>
-        <Link to="/">
-          <Button size="lg" className="rounded-xl mt-5 px-10 gap-2 bg-primary text-primary-foreground hover:bg-primary/90 text-base shadow-lg hover:shadow-xl transition-all">
-            <Camera className="w-5 h-5" />
-            Start With Your Photos
-          </Button>
-        </Link>
-      </div>
-    </div>
+          {/* CTA footer — strong viral loop */}
+          <div className="text-center py-12 border-t border-border bg-gradient-to-b from-background to-primary/5">
+            <RabbitCharacter state="presenting" size={120} />
+            <h2 className="font-display text-3xl font-bold mt-5 text-foreground">
+              I loved making this book.
+            </h2>
+            <p className="font-body text-base mt-3 text-muted-foreground max-w-md mx-auto">
+              Want me to make one for you?
+            </p>
+            <Link to="/">
+              <Button size="lg" className="rounded-xl mt-6 px-12 gap-2 bg-primary text-primary-foreground hover:bg-primary/90 text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all">
+                <Camera className="w-5 h-5" />
+                Let's Make a Book
+              </Button>
+            </Link>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -308,11 +344,11 @@ function renderSharedPage(vp: VirtualPageType | null) {
       )}
       {/* Dedication wash */}
       {isDedication && page.illustrationUrl && (
-        <div className="absolute inset-0" style={{ background: "rgba(254, 247, 238, 0.88)" }} />
+        <div className="absolute inset-0 bg-amber-50/[0.88]" />
       )}
       {/* Cover top wash */}
       {isCover && page.illustrationUrl && (
-        <div className="absolute top-0 left-0 right-0 h-[30%]" style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(255,255,255,0.6), transparent)" }} />
+        <div className="absolute top-0 left-0 right-0 h-[30%] bg-gradient-to-b from-white/90 via-white/60 to-transparent" />
       )}
       {/* Dedication centered text */}
       {isDedication && page.textContent && (
@@ -324,7 +360,7 @@ function renderSharedPage(vp: VirtualPageType | null) {
       )}
       {/* Cover/story text overlay */}
       {!isDedication && page.textContent && (
-        <div className="absolute bottom-0 left-0 right-0 pt-10 pb-4 px-4" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0.3), transparent)" }}>
+        <div className="absolute bottom-0 left-0 right-0 pt-10 pb-4 px-4 bg-gradient-to-t from-black/60 via-black/30 to-transparent">
           <p className={`font-display text-sm leading-relaxed text-white text-center drop-shadow-md ${isCover ? "font-bold text-base" : ""}`}>
             {page.textContent}
           </p>

@@ -19,6 +19,7 @@ interface GenerationViewProps {
   hideRabbit?: boolean;
   onRabbitStateChange?: (state: RabbitState) => void;
   onNewIllustration?: (pageNum: number, url: string) => void;
+  interviewHighlights?: string[];
 }
 
 function sleep(ms: number) {
@@ -64,7 +65,7 @@ const IllustrationReveal = ({ src, alt, className }: { src: string; alt: string;
   );
 };
 
-const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitStateChange, onNewIllustration }: GenerationViewProps) => {
+const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitStateChange, onNewIllustration, interviewHighlights = [] }: GenerationViewProps) => {
   const updateStatus = useUpdateProjectStatus();
   const [phase, setPhase] = useState<Phase>("loading");
   const [rabbitState, setRabbitState] = useState<RabbitState>("thinking");
@@ -142,16 +143,24 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
     return () => { clearTimeout(flash1); clearTimeout(flash2); };
   }, [phase]);
 
-  // Story phase rotating messages
-  const storyMessages = [
-    `Reading everything you shared about ${petName}...`,
-    `Getting to know ${petName}...`,
-    `Crafting the narrative arc...`,
-    `Weaving your memories into prose...`,
-    `Writing the story page by page...`,
-    `Choosing the perfect words...`,
-    `Polishing the story...`,
-  ];
+  // Story phase rotating messages — use interview highlights when available
+  const storyMessages = interviewHighlights.length > 0
+    ? [
+        `Reading everything you shared about ${petName}...`,
+        ...interviewHighlights.slice(0, 4).map(h => `Writing about ${h}...`),
+        `Weaving your memories into prose...`,
+        `Choosing the perfect words...`,
+        `This is going to be a good one...`,
+      ]
+    : [
+        `Reading everything you shared about ${petName}...`,
+        `Getting to know ${petName}...`,
+        `Crafting the narrative arc...`,
+        `Weaving your memories into prose...`,
+        `Writing the story page by page...`,
+        `Choosing the perfect words...`,
+        `Polishing the story...`,
+      ];
 
   useEffect(() => {
     if (phase !== "story") return;
@@ -287,7 +296,11 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
 
     setPhase("illustrations");
     setRabbitState("painting");
-    addMessage(`Now I'm going to illustrate the story. This is my favorite part!`);
+    addMessage(
+      interviewHighlights.length > 0
+        ? `Now I'm going to illustrate the story. I can already picture the ${interviewHighlights[0]} scene...`
+        : `Now I'm going to illustrate the story. This is my favorite part!`
+    );
 
     // ─── Parallel batches of 3 ──────────────────────────────────
     const CONCURRENCY = 3;

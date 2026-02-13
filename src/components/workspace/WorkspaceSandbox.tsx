@@ -1,12 +1,14 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, Camera, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
 import PhotoUploadInline from "./PhotoUploadInline";
 import MoodPicker from "./MoodPicker";
 import GenerationView from "./GenerationView";
 import BookReview from "@/components/project/BookReview";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { type ProjectPhoto, getPhotoUrl } from "@/hooks/usePhotos";
+import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useRef } from "react";
 
 type Phase = "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
@@ -32,6 +34,7 @@ interface WorkspaceSandboxProps {
   activeProjectId: string | null;
   onGenerationComplete: () => void;
   onNewIllustration?: (pageNum: number, url: string) => void;
+  interviewHighlights?: string[];
   // Review props
   onBackFromReview: () => void;
 }
@@ -53,21 +56,53 @@ const WorkspaceSandbox = ({
   activeProjectId,
   onGenerationComplete,
   onNewIllustration,
+  interviewHighlights,
   onBackFromReview,
 }: WorkspaceSandboxProps) => {
   const [photoStripOpen, setPhotoStripOpen] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
+  const [revealReady, setRevealReady] = useState(false);
+  const [coverIllustrationUrl, setCoverIllustrationUrl] = useState<string | null>(null);
   const prevPhaseRef = useRef<Phase>(phase);
 
-  // Book reveal sequence: when transitioning to review
+  // Fetch cover illustration URL when transitioning to review
   useEffect(() => {
-    if (phase === "review" && prevPhaseRef.current === "generating") {
+    if (phase === "review" && prevPhaseRef.current === "generating" && activeProjectId) {
       setShowReveal(true);
-      const timer = setTimeout(() => setShowReveal(false), 2200);
-      return () => clearTimeout(timer);
+      setRevealReady(false);
+
+      // Fetch cover illustration
+      const fetchCover = async () => {
+        const { data: coverPage } = await supabase
+          .from("project_pages")
+          .select("id")
+          .eq("project_id", activeProjectId)
+          .eq("page_type", "cover")
+          .single();
+        if (coverPage) {
+          const { data: coverIll } = await supabase
+            .from("project_illustrations")
+            .select("storage_path")
+            .eq("page_id", coverPage.id)
+            .eq("is_selected", true)
+            .single();
+          if (coverIll) {
+            const { data: urlData } = supabase.storage.from("pet-photos").getPublicUrl(coverIll.storage_path);
+            setCoverIllustrationUrl(urlData.publicUrl);
+          }
+        }
+        // Button becomes clickable after 3 seconds
+        setTimeout(() => setRevealReady(true), 3000);
+      };
+      fetchCover();
     }
     prevPhaseRef.current = phase;
-  }, [phase]);
+  }, [phase, activeProjectId]);
+
+  const dismissReveal = () => {
+    setShowReveal(false);
+    setCoverIllustrationUrl(null);
+  };
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -184,6 +219,12 @@ const WorkspaceSandbox = ({
 
             <div className="flex-1" />
 
+            {!canFinish && (
+              <p className="font-body text-xs text-muted-foreground text-center py-2 italic">
+                The more you share, the better your book will be.
+              </p>
+            )}
+
             {canFinish && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -233,11 +274,12 @@ const WorkspaceSandbox = ({
               onComplete={onGenerationComplete}
               hideRabbit={true}
               onNewIllustration={onNewIllustration}
+              interviewHighlights={interviewHighlights}
             />
           </motion.div>
         )}
 
-        {/* Review phase — with reveal sequence */}
+        {/* Review phase */}
         {phase === "review" && activeProjectId && (
           <motion.div
             key="review"
@@ -247,41 +289,100 @@ const WorkspaceSandbox = ({
             transition={{ duration: 0.2 }}
             className="flex-1 flex flex-col"
           >
-            {showReveal ? (
+            <BookReview projectId={activeProjectId} onBack={onBackFromReview} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Cinematic book reveal — fixed overlay, does NOT unmount GenerationView */}
+      <AnimatePresence>
+        {showReveal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            {/* Warm-dark backdrop */}
+            <motion.div
+              className="absolute inset-0 bg-amber-950/90"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1 }}
+            />
+
+            {/* Content */}
+            <div className="relative z-10 flex flex-col items-center gap-6 px-8 max-w-md">
+              {/* Book title */}
+              <motion.h1
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8, duration: 0.8 }}
+                className="font-display text-3xl md:text-4xl font-bold text-white text-center drop-shadow-lg"
+              >
+                {petName}'s Book
+              </motion.h1>
+
+              {/* Cover illustration with glow */}
+              {coverIllustrationUrl && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4, duration: 1, type: "spring", stiffness: 120, damping: 20 }}
+                  className="w-64 h-64 md:w-80 md:h-80 rounded-2xl overflow-hidden shadow-2xl"
+                  style={{ boxShadow: "0 0 60px 20px hsl(var(--primary) / 0.3)" }}
+                >
+                  <img
+                    src={coverIllustrationUrl}
+                    alt="Your book cover"
+                    className="w-full h-full object-cover"
+                  />
+                </motion.div>
+              )}
+
+              {/* Fallback if no cover loaded yet */}
+              {!coverIllustrationUrl && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4, duration: 0.8 }}
+                  className="w-64 h-64 md:w-80 md:h-80 rounded-2xl bg-primary/20 flex items-center justify-center"
+                  style={{ boxShadow: "0 0 60px 20px hsl(var(--primary) / 0.3)" }}
+                >
+                  <CheckCircle className="w-16 h-16 text-primary/60" />
+                </motion.div>
+              )}
+
+              {/* Rabbit + message */}
               <motion.div
-                className="flex-1 flex flex-col items-center justify-center gap-6 p-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.5, duration: 0.6 }}
+                className="flex flex-col items-center gap-2"
+              >
+                <RabbitCharacter state="presenting" size={60} />
+                <p className="font-body text-sm text-white/80 text-center">
+                  I made this for you.
+                </p>
+              </motion.div>
+
+              {/* Open button — fades in after 3 seconds */}
+              <motion.div
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                animate={{ opacity: revealReady ? 1 : 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 20 }}
-                  className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center glow-primary"
+                <Button
+                  size="lg"
+                  className="rounded-2xl gap-2 px-10 py-6 text-base bg-white text-amber-950 hover:bg-white/90 shadow-2xl"
+                  onClick={dismissReveal}
+                  disabled={!revealReady}
                 >
-                  <CheckCircle className="w-10 h-10 text-primary" />
-                </motion.div>
-                <motion.h2
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8, duration: 0.5 }}
-                  className="font-display text-2xl font-bold text-foreground text-center"
-                >
-                  {petName}'s Book is Ready
-                </motion.h2>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 1.2, duration: 0.5 }}
-                  className="font-body text-sm text-muted-foreground text-center"
-                >
-                  Every page illustrated, every memory captured
-                </motion.p>
+                  Open Your Book
+                </Button>
               </motion.div>
-            ) : (
-              <BookReview projectId={activeProjectId} onBack={onBackFromReview} />
-            )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

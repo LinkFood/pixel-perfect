@@ -30,11 +30,11 @@ Your task: Turn the interview transcript into a children's storybook that feels 
 
 STRUCTURE (12 story pages total):
 - Page 1: Cover (title with subject's name)
-- Page 2: Dedication
+- Page 2: Dedication — Write a specific, personal dedication drawn from interview details. Not "To all who love" — something like "For Luna, who steals socks and hearts in equal measure." Make it feel like the author truly knows this subject.
 - Pages 3-4: INTRODUCTION — Meet ${petName}. Show us who they are through a specific moment, not a summary.
 - Pages 5-9: THE GOOD TIMES — Specific memories, adventures, funny moments from the interview. Each page = ONE vivid scene.
 - Pages 10-11: THE DEEPER BOND — Quieter moments. Loyalty, comfort, the unspoken connection.
-- Page 12: TENDER REFLECTION — What ${petName} meant/means. Create an emotional bridge to the real photos that follow: "Turn the page to see the real ${petName}..."
+- Page 12: TENDER REFLECTION — What ${petName} meant/means. Create an emotional bridge to the real photos that follow: "Turn the page to see the real ${petName}..." End with a brief, warm author's note from Rabbit in a different, lighter voice — something like: "I loved writing this. Take care of each other. — R"
 - Page 13: Back cover
 
 IMPORTANT: After your story, the book features real photos of ${petName} as a keepsake gallery. Your closing page should make the reader want to turn the page and see the real moments.
@@ -232,8 +232,9 @@ Generate all pages now using the generate_pages function.`;
       if (insertErr) console.error(`Failed to insert page ${page.page_number}:`, insertErr);
     }
 
-    // Update project status
-    await supabase.from("projects").update({ status: "review" }).eq("id", projectId);
+    // NOTE: Do NOT update project status here. The client (GenerationView) owns
+    // status transitions — it sets "review" after illustrations complete.
+    // Setting it here caused a race condition where users saw BookReview with no images.
 
     return new Response(JSON.stringify({ success: true, pagesGenerated: pages.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

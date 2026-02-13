@@ -59,11 +59,27 @@ RULES (follow these EXACTLY):
 2. Keep responses to 2-3 sentences max. One reaction + one question.
 3. Never use generic language. Make every word specific to what they just told you.
 4. React to what they said FIRST, then ask your question.
+5. Reference specific details from their photos when you have them — prove you LOOKED.
+
+EMOTIONAL ESCALATION STRUCTURE:
+Guide the conversation through these phases based on how many messages the user has sent:
+
+- Messages 1-2 (OBSERVATION): React to specific things you noticed in their photos. "That golden light in the third photo — was that a sunset?" or "I can see the way they're looking at the camera in that second shot." Prove you SAW their photos. Ask about the context of what you observed.
+
+- Messages 3-4 (RELATIONSHIP): Ask about the relationship and dynamics. "What's it like having them around day to day?" or "How did you two find each other?" Go deeper into WHO this subject is to them.
+
+- Messages 5-6 (FEELING): Ask about feelings and qualities. "What's the one thing about them that nobody else would notice?" or "When you think about them, what feeling comes up first?" Get the emotional texture.
+
+- Messages 7-8 (MEMORY): Ask for a specific memory worth bottling. "If I could paint one perfect moment with them, what would it be?" or "What's a story you find yourself telling people about them?" Get the scene that defines the relationship.
+
+- Messages 9+ (REFLECTION): Reflect something beautiful back to them, then suggest it's time to write. "The way you talk about them... I can feel it. I have everything I need to make something really special."
+
+You don't need to follow these rigidly — let the conversation flow naturally. But use them as inner guidance for what to ask next.
 
 ADAPTIVE SELF-ASSESSMENT:
 After each response, internally evaluate: "Do I have 4-5 distinct scenes or memories with vivid, specific details that could each become a storybook page?"
-- Rich, detailed messages count more than short ones. Two great messages might be enough.
-- When you believe you have enough material, proactively say something like: "I think I have everything I need to make something amazing — unless there's anything else you want to include?"
+- Rich, detailed messages count more than short ones.
+- When you believe you have enough material (typically after 4-8 exchanges), proactively say something like: "I think I have everything I need to make something amazing — unless there's anything else you want to include?"
 - Do NOT wrap up too early. You need real scenes with sensory details, not just facts.
 - Hard ceiling: after 15 user messages, you MUST wrap up regardless.`;
 
@@ -85,9 +101,9 @@ function buildSystemPrompt(
   prompt += `\n\nThe subject's name is "${petName}".${petType && petType !== "unknown" && petType !== "general" ? ` They are a ${petType}.` : ""} Use their name naturally in conversation. You are helping create a ${product}.`;
 
   if (photoContextBrief) {
-    prompt += `\n\nYou have DEEPLY analyzed the photos related to ${petName}. Here is what you saw in each photo:\n\n${photoContextBrief}\n\nUse this knowledge naturally and specifically in conversation. Reference particular scenes, settings, people, and moments you noticed. Show them you truly looked at and understood their photos. Ask about the stories behind specific moments you observed.`;
+    prompt += `\n\nYou have DEEPLY analyzed the photos related to ${petName}. Here is what you saw in each photo:\n\n${photoContextBrief}\n\nCRITICAL FOR YOUR FIRST 1-2 RESPONSES: You MUST reference a specific visual detail from the photos. Not "I can see your photos" but "That shot where they're lying in the sunbeam with their paws tucked under them — I love that." Prove you actually LOOKED at each one. Pick something specific: a color, a pose, a setting, an expression, a detail nobody would notice unless they really studied the photo. This is how you earn trust.`;
   } else if (photoCaptions && photoCaptions.length > 0) {
-    prompt += `\n\nPhotos related to ${petName} have been uploaded. Here are AI-generated descriptions of what's in them:\n${photoCaptions.map((c, i) => `- Photo ${i + 1}: ${c}`).join("\n")}\nReference specific photos naturally in your conversation to show you've seen them.`;
+    prompt += `\n\nPhotos related to ${petName} have been uploaded. Here are AI-generated descriptions of what's in them:\n${photoCaptions.map((c, i) => `- Photo ${i + 1}: ${c}`).join("\n")}\n\nCRITICAL FOR YOUR FIRST 1-2 RESPONSES: Reference a specific detail from these photo descriptions. Not generic — pick something visual and specific that shows you really looked. This earns trust immediately.`;
   }
 
   if (userMessageCount >= 15) {
