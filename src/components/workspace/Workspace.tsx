@@ -50,7 +50,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const [rabbitState, setRabbitState] = useState<RabbitState>("idle");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(resolvedId || null);
-  const [showMoodPicker, setShowMoodPicker] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
 
@@ -66,12 +65,12 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     ? "loading"
     : !activeProjectId || !project
     ? "home"
-    : showMoodPicker ? "mood-picker"
+    : !project.mood ? "mood-picker"
     : project.status === "upload" ? "upload"
     : project.status === "interview" ? "interview"
     : project.status === "generating" ? "generating"
     : project.status === "review" ? "review"
-    : "home";
+    : "upload";
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -187,25 +186,20 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   };
 
   const handleContinueToInterview = () => {
-    if (!activeProjectId) return;
+    if (!activeProjectId || !project?.mood) return;
     // Fire appearance profile in background
     supabase.functions.invoke("build-appearance-profile", {
       body: { projectId: activeProjectId },
     });
-    // If no mood set yet, show mood picker first
-    if (!project?.mood) {
-      setShowMoodPicker(true);
-      return;
-    }
-    // Mood already set (re-entry) — go straight to interview
+    // Mood is already set (before upload), go straight to interview
     startInterview(project.mood);
   };
 
   const handleMoodSelect = (mood: string) => {
     if (!activeProjectId) return;
     updateProject.mutate({ id: activeProjectId, mood });
-    setShowMoodPicker(false);
-    startInterview(mood);
+    // After mood is selected, transition to upload view
+    // (view will auto-resolve to "upload" since mood is now set and status is "upload")
   };
 
   const startInterview = (mood: string) => {

@@ -1,7 +1,8 @@
-import { LogOut, Coins } from "lucide-react";
+import { LogOut, Coins, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
+import { isDevMode, disableDevMode } from "@/lib/devMode";
 
 interface MinimalNavProps {
   showAuth?: boolean;
@@ -34,6 +35,20 @@ const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
       </a>
 
       <div className="flex items-center gap-4">
+        {isDevMode() && (
+          <button
+            onClick={async () => {
+              disableDevMode();
+              await supabase.auth.signOut();
+              window.location.href = "/";
+            }}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-mono transition-colors hover:bg-black/5"
+            style={{ color: "#9B8E7F", borderColor: "#D5C8B8", border: "1px solid" }}
+          >
+            <X className="w-3 h-3" />
+            Exit Dev
+          </button>
+        )}
         {!loading && user && showAuth ? (
           <>
             {credits !== null && (
