@@ -162,29 +162,31 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
         >
-          <div className={`relative transition-transform duration-300 ${isDragOver ? "scale-105" : ""}`}>
+          <div className={`transition-transform duration-300 ${isDragOver ? "scale-105" : ""}`}>
             <RabbitCharacter
               state={isDragOver ? "excited" : "idle"}
               size={200}
               eyeOffset={eyeOffset}
             />
+          </div>
 
-            {/* Speech bubble */}
+          {/* Speech bubble — below rabbit, centered */}
+          <div className="min-h-[52px] w-full max-w-sm">
             <AnimatePresence mode="wait">
               {showBubble && (
                 <motion.div
                   key={lineIndex}
-                  className="absolute -right-4 top-4 md:left-full md:top-1/4 md:ml-3 max-w-[220px] glass-warm rounded-2xl rounded-bl-sm px-4 py-3 shadow-chat"
+                  className="relative mx-auto w-fit max-w-sm glass-warm rounded-2xl px-5 py-3 shadow-chat"
                   initial={{ opacity: 0, scale: 0.9, y: 5 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: -5 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <p className="font-body text-xs text-foreground leading-relaxed">
+                  <p className="font-body text-sm text-foreground leading-relaxed text-center">
                     {rabbitLines[lineIndex]}
                   </p>
-                  {/* Bubble tail */}
-                  <div className="absolute -left-1.5 bottom-3 w-3 h-3 glass-warm rotate-45 hidden md:block" />
+                  {/* Bubble tail pointing up to rabbit */}
+                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 glass-warm rotate-45" />
                 </motion.div>
               )}
             </AnimatePresence>
