@@ -61,18 +61,18 @@ const Landing = () => {
   const steps = [
     {
       icon: Upload,
-      title: "Upload photos",
-      desc: "Drop any photos of your subject — pets, kids, friends, anything.",
+      title: "Drop your photos",
+      desc: "The ones that mean something. Pets, kids, trips, people you miss.",
     },
     {
       icon: MessageCircle,
-      title: "Chat with Rabbit",
-      desc: "Tell your story, pick the mood, and shape the narrative.",
+      title: "Talk to Rabbit",
+      desc: "Tell the story behind them. Rabbit pulls out the details that matter.",
     },
     {
       icon: BookOpen,
-      title: "Get your book",
-      desc: "AI illustrates every page. Review, tweak, and download.",
+      title: "Get a real book",
+      desc: "Illustrated, written, one-of-one. Not a template. A gift.",
     },
   ];
 
@@ -81,24 +81,26 @@ const Landing = () => {
       <MinimalNav showAuth={true} />
 
       {/* ── Hero ── */}
-      <section className="flex-1 flex flex-col items-center justify-center px-4 pt-16 pb-20">
+      <section className="flex-1 flex flex-col items-center justify-center px-4 pt-20 pb-24">
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-center max-w-xl"
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="text-center max-w-2xl"
         >
-          {/* Rabbit character */}
-          <div className="flex justify-center mb-8">
-            <RabbitCharacter state={previewUrls.length > 0 ? "excited" : "idle"} size={200} />
+          {/* Rabbit */}
+          <div className="flex justify-center mb-10">
+            <RabbitCharacter state={previewUrls.length > 0 ? "excited" : "idle"} size={180} />
           </div>
 
           {/* Headline */}
-          <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight text-foreground mb-4">
-            Drop photos. Get a book.
+          <h1 className="font-display text-5xl md:text-6xl font-bold leading-[1.1] tracking-tight text-foreground mb-5">
+            Your photos.{" "}
+            <span className="text-primary">Your story.</span>
+            <br />A real book.
           </h1>
-          <p className="font-body text-lg text-muted-foreground mb-10 max-w-md mx-auto">
-            Upload your photos, chat with our AI rabbit about the story you want, and get a beautifully illustrated book back.
+          <p className="font-body text-lg md:text-xl text-muted-foreground mb-12 max-w-lg mx-auto leading-relaxed">
+            Drop photos of anyone you love. Rabbit turns them into an illustrated book that didn't exist until you showed up.
           </p>
 
           {/* Photo previews */}
@@ -106,19 +108,20 @@ const Landing = () => {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex gap-2 justify-center flex-wrap mb-6"
+              className="flex gap-2 justify-center flex-wrap mb-8"
             >
               {previewUrls.slice(0, 8).map((url, i) => (
                 <img
                   key={i}
                   src={url}
                   alt=""
-                  className="w-16 h-16 rounded-xl object-cover shadow-sm border-2 border-border"
+                  className="w-16 h-16 rounded-xl object-cover border border-border"
+                  style={{ boxShadow: "var(--shadow-sm)" }}
                 />
               ))}
               {previewUrls.length > 8 && (
                 <div className="w-16 h-16 rounded-xl flex items-center justify-center bg-secondary">
-                  <span className="font-body text-sm font-medium text-muted-foreground">
+                  <span className="font-body text-sm font-semibold text-muted-foreground">
                     +{previewUrls.length - 8}
                   </span>
                 </div>
@@ -131,7 +134,8 @@ const Landing = () => {
             onDragOver={e => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="rounded-2xl border-2 border-dashed border-border bg-card p-8 cursor-pointer transition-all hover:border-primary/40 hover:shadow-md mx-auto max-w-md"
+            className="group rounded-2xl border-2 border-dashed border-border bg-card p-10 cursor-pointer transition-all hover:border-primary/50 mx-auto max-w-md"
+            style={{ boxShadow: "var(--shadow-sm)" }}
             role="button"
             tabIndex={0}
             onKeyDown={e =>
@@ -147,26 +151,28 @@ const Landing = () => {
               onChange={handleFileInput}
               aria-label="Upload photos"
             />
-            <Upload className="w-8 h-8 mx-auto mb-3 text-primary" />
-            <p className="font-display text-base font-semibold text-foreground mb-1">
-              {previewUrls.length > 0 ? "Drop more photos" : "Drop your photos here"}
+            <Upload className="w-8 h-8 mx-auto mb-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            <p className="font-body text-base font-semibold text-foreground mb-1">
+              {previewUrls.length > 0 ? "Drop more photos" : "Drop photos here"}
             </p>
             <p className="font-body text-sm text-muted-foreground">
               {previewUrls.length > 0
-                ? `${previewUrls.length} selected — keep adding!`
-                : "Or click to browse. The more photos, the better the book."}
+                ? `${previewUrls.length} selected — keep going`
+                : "Or click to browse. More photos = better book."}
             </p>
           </div>
 
-          {/* Auth form — appears after first photo drop */}
+          {/* Auth — appears after first photo */}
           {showAuth && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl bg-card border border-border p-6 space-y-4 mx-auto max-w-md mt-5"
+              transition={{ duration: 0.3 }}
+              className="rounded-2xl bg-card border border-border p-6 space-y-4 mx-auto max-w-md mt-6"
+              style={{ boxShadow: "var(--shadow-md)" }}
             >
-              <p className="font-body text-sm font-medium text-foreground">
-                Sign in to start building your book
+              <p className="font-body text-sm font-semibold text-foreground">
+                Sign in to start your book
               </p>
               <div className="flex gap-2">
                 <Input
@@ -175,16 +181,16 @@ const Landing = () => {
                   value={authEmail}
                   onChange={e => setAuthEmail(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleMagicLink()}
-                  className="rounded-xl text-sm h-10 flex-1 bg-background border-border"
+                  className="rounded-xl text-sm h-11 flex-1 bg-background border-border"
                   disabled={authLoading}
                 />
                 <Button
                   size="sm"
-                  className="rounded-xl h-10 px-4 shrink-0 gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="rounded-xl h-11 px-5 shrink-0 gap-1"
                   onClick={handleMagicLink}
                   disabled={authLoading || !authEmail.trim()}
                 >
-                  {authLoading ? "Sending..." : <>Go <ArrowRight className="w-3 h-3" /></>}
+                  {authLoading ? "Sending..." : <>Go <ArrowRight className="w-3.5 h-3.5" /></>}
                 </Button>
               </div>
               <div className="flex items-center gap-3">
@@ -194,7 +200,7 @@ const Landing = () => {
               </div>
               <button
                 onClick={handleGoogle}
-                className="w-full flex items-center justify-center gap-2 rounded-xl h-10 text-sm font-body font-medium bg-background border border-border text-foreground hover:bg-secondary transition-colors"
+                className="w-full flex items-center justify-center gap-2 rounded-xl h-11 text-sm font-body font-medium bg-background border border-border text-foreground hover:bg-secondary transition-colors"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -210,28 +216,28 @@ const Landing = () => {
       </section>
 
       {/* ── How It Works ── */}
-      <section className="border-t border-border py-20 px-4">
+      <section className="border-t border-border py-24 px-4">
         <div className="max-w-3xl mx-auto">
-          <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground text-center mb-14">
-            How it works
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground text-center mb-16">
+            Three steps. One book.
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {steps.map((step, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
-                transition={{ delay: i * 0.12, duration: 0.4 }}
+                transition={{ delay: i * 0.1, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                 className="text-center"
               >
-                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-5">
-                  <step.icon className="w-6 h-6 text-primary" />
+                <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-5">
+                  <step.icon className="w-6 h-6 text-foreground" />
                 </div>
-                <p className="font-body text-xs font-semibold uppercase tracking-widest text-primary mb-2">
-                  Step {i + 1}
+                <p className="font-body text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">
+                  {i + 1}
                 </p>
-                <h3 className="font-display text-lg font-semibold text-foreground mb-2">
+                <h3 className="font-display text-xl font-semibold text-foreground mb-2">
                   {step.title}
                 </h3>
                 <p className="font-body text-sm text-muted-foreground leading-relaxed">
@@ -244,16 +250,17 @@ const Landing = () => {
       </section>
 
       {/* ── Bottom CTA ── */}
-      <section className="border-t border-border py-16 px-4 text-center">
-        <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground mb-4">
-          Ready to make something?
+      <section className="border-t border-border py-20 px-4 text-center">
+        <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-5">
+          Make something real.
         </h2>
-        <p className="font-body text-muted-foreground mb-8 max-w-sm mx-auto">
-          It starts with a few photos. No account needed until you're ready.
+        <p className="font-body text-muted-foreground mb-10 max-w-md mx-auto text-lg">
+          It starts with a few photos. No account until you're ready.
         </p>
         <Button
           size="lg"
-          className="rounded-xl px-8 bg-primary text-primary-foreground hover:bg-primary/90 font-body font-semibold"
+          variant="hero"
+          className="rounded-xl px-10 h-12"
           onClick={() => fileInputRef.current?.click()}
         >
           Upload photos
@@ -262,15 +269,15 @@ const Landing = () => {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-border py-6 text-center">
-        <div className="flex items-center justify-center gap-4 font-body text-xs text-muted-foreground">
+      <footer className="border-t border-border py-8 text-center">
+        <div className="flex items-center justify-center gap-5 font-body text-xs text-muted-foreground">
           <span className="font-semibold text-foreground">PhotoRabbit</span>
           <span>&copy; {new Date().getFullYear()}</span>
-          <a href="#" className="hover:underline hover:text-foreground transition-colors">Privacy</a>
-          <a href="#" className="hover:underline hover:text-foreground transition-colors">Terms</a>
+          <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
+          <a href="#" className="hover:text-foreground transition-colors">Terms</a>
           <button
             onClick={() => { enableDevMode(); window.location.reload(); }}
-            className="hover:underline opacity-30 hover:opacity-100 transition-opacity"
+            className="opacity-0 hover:opacity-100 transition-opacity"
           >
             Dev
           </button>
