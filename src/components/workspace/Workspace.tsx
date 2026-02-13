@@ -11,7 +11,7 @@ import PhotoUploadInline from "./PhotoUploadInline";
 import ProjectShelf from "./ProjectShelf";
 import GenerationView from "./GenerationView";
 import MinimalNav from "./MinimalNav";
-import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus, useUpdateProject } from "@/hooks/useProject";
+import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus, useUpdateProject, useDeleteProject } from "@/hooks/useProject";
 import MoodPicker from "./MoodPicker";
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto, getPhotoUrl } from "@/hooks/usePhotos";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -38,6 +38,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const createProject = useCreateMinimalProject();
   const updateStatus = useUpdateProjectStatus();
   const updateProject = useUpdateProject();
+  const deleteProject = useDeleteProject();
   const { uploadBatch, uploadProgress, isBatchUploading } = useUploadPhoto();
   const updatePhoto = useUpdatePhoto();
   const deletePhoto = useDeletePhoto();
@@ -132,6 +133,24 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const handleSelectProject = (id: string) => {
     setActiveProjectId(id);
     navigate(`/project/${id}`);
+  };
+
+  const handleRenameProject = (id: string, newName: string) => {
+    updateProject.mutate({ id, pet_name: newName });
+  };
+
+  const handleDeleteProject = (id: string) => {
+    deleteProject.mutate(id);
+    if (activeProjectId === id) {
+      const remaining = projects.filter(p => p.id !== id);
+      if (remaining.length > 0) {
+        setActiveProjectId(remaining[0].id);
+        navigate(`/project/${remaining[0].id}`);
+      } else {
+        setActiveProjectId(null);
+        navigate("/project");
+      }
+    }
   };
 
   // ─── Interview chat ─────────────────────────────────────────
@@ -264,6 +283,8 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
           activeProjectId={activeProjectId}
           onSelect={handleSelectProject}
           onNew={handleNewProject}
+          onRename={handleRenameProject}
+          onDelete={handleDeleteProject}
         />
       </div>
     );
@@ -337,6 +358,8 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
           activeProjectId={activeProjectId}
           onSelect={handleSelectProject}
           onNew={handleNewProject}
+          onRename={handleRenameProject}
+          onDelete={handleDeleteProject}
         />
       </div>
     );
@@ -361,6 +384,8 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
           activeProjectId={activeProjectId}
           onSelect={handleSelectProject}
           onNew={handleNewProject}
+          onRename={handleRenameProject}
+          onDelete={handleDeleteProject}
         />
       </div>
     );
@@ -534,6 +559,8 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
         activeProjectId={activeProjectId}
         onSelect={handleSelectProject}
         onNew={handleNewProject}
+        onRename={handleRenameProject}
+        onDelete={handleDeleteProject}
       />
     </div>
   );
