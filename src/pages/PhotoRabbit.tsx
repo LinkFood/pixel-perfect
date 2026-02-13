@@ -334,6 +334,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }]);
   };
 
+  const handleNewIllustration = useCallback((pageNum: number, url: string) => {
+    setChatMessages(prev => [...prev, {
+      role: "rabbit" as const,
+      content: `Look at page ${pageNum}!`,
+      photos: [url],
+    }]);
+    scrollToBottom();
+  }, [scrollToBottom]);
+
   const handleGenerationComplete = async () => {
     // Create share link automatically on completion
     let shareMsg = "Your book is ready! Review it and share it with anyone.";
@@ -570,6 +579,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         onFinishInterview={handleFinishInterview}
         activeProjectId={activeProjectId}
         onGenerationComplete={handleGenerationComplete}
+        onNewIllustration={handleNewIllustration}
         onBackFromReview={handleBackFromReview}
       />
     </div>

@@ -18,6 +18,7 @@ interface GenerationViewProps {
   onComplete: () => void;
   hideRabbit?: boolean;
   onRabbitStateChange?: (state: RabbitState) => void;
+  onNewIllustration?: (pageNum: number, url: string) => void;
 }
 
 function sleep(ms: number) {
@@ -34,7 +35,36 @@ const illustrationCycleStates: RabbitState[] = [
   "painting", "thinking", "excited", "painting", "listening", "painting",
 ];
 
-const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitStateChange }: GenerationViewProps) => {
+/** Component that loads an image hidden, then reveals blur → sharp */
+const IllustrationReveal = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <div className={`relative overflow-hidden ${className || ""}`}>
+      {/* Shimmer placeholder while loading */}
+      {!loaded && (
+        <div className="absolute inset-0 shimmer rounded-2xl bg-primary/5" />
+      )}
+      <motion.img
+        src={src}
+        alt={alt}
+        className={`w-full h-auto object-cover ${loaded ? "reveal-blur" : "opacity-0"}`}
+        onLoad={() => setLoaded(true)}
+      />
+      {/* Warm glow ring on reveal */}
+      {loaded && (
+        <motion.div
+          className="absolute inset-0 rounded-2xl pointer-events-none"
+          initial={{ boxShadow: "inset 0 0 30px hsl(var(--primary) / 0.3)" }}
+          animate={{ boxShadow: "inset 0 0 0px hsl(var(--primary) / 0)" }}
+          transition={{ duration: 1.5, ease: "easeOut" }}
+        />
+      )}
+    </div>
+  );
+};
+
+const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitStateChange, onNewIllustration }: GenerationViewProps) => {
   const updateStatus = useUpdateProjectStatus();
   const [phase, setPhase] = useState<Phase>("loading");
   const [rabbitState, setRabbitState] = useState<RabbitState>("thinking");
@@ -163,9 +193,16 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
 
           // New illustration arrived — set as persistent hero
           if (data.length > prevIllCountRef.current && urls.length > 0) {
-            setLatestIllustration(urls[urls.length - 1]);
+            const newUrl = urls[urls.length - 1];
+            setLatestIllustration(newUrl);
             spotlightActiveRef.current = true;
             setRabbitState("presenting");
+
+            // Notify parent for inline chat preview
+            if (onNewIllustration) {
+              onNewIllustration(data.length, newUrl);
+            }
+
             // Let rabbit cycle resume after a beat
             setTimeout(() => { spotlightActiveRef.current = false; }, 4000);
           }
@@ -177,7 +214,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [projectId]);
+  }, [projectId, onNewIllustration]);
 
   // Fire variant illustrations in background (server completes regardless of unmount)
   const fireVariantsInBackground = useCallback((variantPages: { id: string }[]) => {
@@ -419,18 +456,34 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
                   />
                 )}
                 <div className="flex items-center gap-1.5">
-                  <div
+                  <motion.div
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-body font-semibold shrink-0 ${
                       isComplete ? "bg-green-500 text-white"
                         : isActive ? "bg-primary text-white"
                         : "bg-border text-muted-foreground"
                     }`}
+                    animate={isActive ? {
+                      boxShadow: [
+                        "0 0 0 0 hsl(var(--primary) / 0.3)",
+                        "0 0 12px 4px hsl(var(--primary) / 0.2)",
+                        "0 0 0 0 hsl(var(--primary) / 0.3)",
+                      ],
+                    } : {}}
+                    transition={isActive ? { duration: 2, repeat: Infinity, ease: "easeInOut" } : {}}
                   >
-                    {isComplete ? <Check className="w-3.5 h-3.5" /> : s.step}
-                  </div>
+                    {isComplete ? (
+                      <motion.div
+                        initial={{ scale: 0, rotate: -90 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </motion.div>
+                    ) : s.step}
+                  </motion.div>
                   <span
                     className={`font-body text-xs whitespace-nowrap ${
-                      isActive ? "text-primary"
+                      isActive ? "text-primary font-medium"
                         : isComplete ? "text-green-500"
                         : "text-muted-foreground"
                     }`}
@@ -461,7 +514,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
           <ChatMessage key={`${i}-${msg.slice(0, 20)}`} role="rabbit" content={msg} />
         ))}
 
-        {/* Latest illustration — persistent hero */}
+        {/* Latest illustration — persistent hero with blur-to-sharp reveal */}
         <AnimatePresence mode="wait">
           {latestIllustration && (
             <motion.div
@@ -473,15 +526,13 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
               className="flex justify-center py-3"
             >
               <div
-                className="rounded-2xl overflow-hidden shadow-lg border-2 border-primary w-full"
-                style={{ maxWidth: 380 }}
+                className="rounded-2xl overflow-hidden shadow-float border-2 border-primary/40 glow-primary w-full"
               >
-                <img
+                <IllustrationReveal
                   src={latestIllustration}
                   alt="Latest illustration"
-                  className="w-full h-auto object-cover"
                 />
-                <div className="px-3 py-2 flex items-center justify-between bg-card">
+                <div className="px-3 py-2 flex items-center justify-between glass-warm">
                   <span className="font-body text-xs font-medium text-primary">
                     Page {illustrationsGenerated} of {totalPages}
                   </span>
@@ -494,7 +545,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
           )}
         </AnimatePresence>
 
-        {/* Previous illustrations — medium gallery row */}
+        {/* Previous illustrations — gallery row with slight rotation */}
         {completedIllustrations.length > 1 && (
           <div className="py-2">
             <p className="font-body text-xs mb-2 text-muted-foreground">
@@ -505,10 +556,11 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
                 {completedIllustrations.slice(0, -1).map((url, i) => (
                   <motion.div
                     key={url}
-                    initial={{ opacity: 0, scale: 0.8, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    initial={{ opacity: 0, scale: 0.8, y: 10, rotate: (i % 2 === 0 ? 2 : -2) }}
+                    animate={{ opacity: 1, scale: 1, y: 0, rotate: (i % 3 - 1) * 1.5 }}
                     transition={{ delay: i * 0.03 }}
-                    className="shrink-0 w-20 h-20 rounded-xl overflow-hidden border border-border"
+                    whileHover={{ scale: 1.1, rotate: 0, zIndex: 10 }}
+                    className="shrink-0 w-20 h-20 rounded-xl overflow-hidden border border-border shadow-chat cursor-pointer"
                   >
                     <img src={url} alt={`Page ${i + 1}`} className="w-full h-full object-cover" />
                   </motion.div>
@@ -518,7 +570,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
           </div>
         )}
 
-        {/* Pulse indicator + timer (replaces old Loader2 spinner) */}
+        {/* Pulse indicator + timer */}
         {(phase === "story" || phase === "illustrations") && (
           <div className="flex items-center gap-3 py-2">
             <motion.div

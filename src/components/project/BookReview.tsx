@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
-import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft, MoreHorizontal } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -63,6 +63,8 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const [isCreatingShare, setIsCreatingShare] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
 
   const handleImageError = useCallback((pageId: string) => {
     setBrokenImagePageIds(prev => {
@@ -407,8 +409,8 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
     <div className="flex-1 overflow-y-auto">
       <div className="pb-16 px-4 md:px-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          {/* Share bar — prominent top position */}
-          <div className="flex items-center gap-3 pt-4 mb-4 p-4 rounded-2xl bg-primary/5 border border-primary/20">
+          {/* Share bar — glass treatment */}
+          <div className="flex items-center gap-3 pt-4 mb-4 p-4 rounded-2xl glass-warm border border-primary/20 glow-soft">
             <Share2 className="w-5 h-5 text-primary shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-display text-sm font-bold text-foreground">Share this book with anyone</p>
@@ -465,39 +467,6 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                 variant="outline"
                 size="sm"
                 className="rounded-xl gap-2"
-                onClick={handleRebuildProfile}
-                disabled={isRebuildingProfile}
-              >
-                {isRebuildingProfile ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <ScanFace className="w-4 h-4" />
-                )}
-                {isRebuildingProfile ? "Rebuilding..." : "Rebuild Profile"}
-              </Button>
-              {missingCount > 0 && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="rounded-xl gap-2"
-                  onClick={handleGenerateMissing}
-                  disabled={isGeneratingMissing}
-                >
-                  {isGeneratingMissing ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <ImageIcon className="w-4 h-4" />
-                  )}
-                  {isGeneratingMissing ? "Generating..." : `Generate ${missingCount} Missing`}
-                </Button>
-              )}
-              <Button variant="outline" size="sm" className="rounded-xl gap-2" onClick={() => setPreviewOpen(true)}>
-                <Eye className="w-4 h-4" /> Preview
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-xl gap-2"
                 onClick={handleDownloadPdf}
                 disabled={isDownloadingPdf}
               >
@@ -506,11 +475,51 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
-                {isDownloadingPdf ? "Generating PDF..." : "Download PDF"}
+                {isDownloadingPdf ? "PDF..." : "PDF"}
               </Button>
               <Button variant="hero" size="sm" className="rounded-xl gap-2" onClick={approveAll} disabled={approvedCount === pages.length}>
                 <CheckCircle className="w-4 h-4" /> Approve All
               </Button>
+              {/* More actions dropdown */}
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl w-9 h-9 p-0"
+                  onClick={() => setMoreMenuOpen(prev => !prev)}
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+                {moreMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setMoreMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 bg-card rounded-xl border border-border shadow-float z-50 min-w-[180px] py-1">
+                      <button
+                        className="flex items-center gap-2 w-full px-3 py-2 font-body text-sm text-foreground hover:bg-secondary/50 transition-colors"
+                        onClick={() => { setPreviewOpen(true); setMoreMenuOpen(false); }}
+                      >
+                        <Eye className="w-4 h-4" /> Preview
+                      </button>
+                      <button
+                        className="flex items-center gap-2 w-full px-3 py-2 font-body text-sm text-foreground hover:bg-secondary/50 transition-colors disabled:opacity-50"
+                        onClick={() => { handleRebuildProfile(); setMoreMenuOpen(false); }}
+                        disabled={isRebuildingProfile}
+                      >
+                        <ScanFace className="w-4 h-4" /> {isRebuildingProfile ? "Rebuilding..." : "Rebuild Profile"}
+                      </button>
+                      {missingCount > 0 && (
+                        <button
+                          className="flex items-center gap-2 w-full px-3 py-2 font-body text-sm text-destructive hover:bg-secondary/50 transition-colors disabled:opacity-50"
+                          onClick={() => { handleGenerateMissing(); setMoreMenuOpen(false); }}
+                          disabled={isGeneratingMissing}
+                        >
+                          <ImageIcon className="w-4 h-4" /> {isGeneratingMissing ? "Generating..." : `${missingCount} Missing`}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -524,8 +533,16 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
 
           {currentSpread ? (
             <div className="space-y-8">
-              {/* Two-page spread */}
-              <div className="flex gap-1 max-w-4xl mx-auto relative">
+              {/* Two-page spread with slide transition */}
+              <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={currentPage}
+                initial={{ opacity: 0, x: slideDirection * 40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: slideDirection * -40 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+                className="flex gap-1 max-w-4xl mx-auto relative"
+              >
                 <div
                   className={cn(
                     "flex-1 cursor-pointer rounded-l-2xl overflow-hidden transition-shadow",
@@ -563,17 +580,18 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                     <div className="aspect-square bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 rounded-r-2xl" />
                   )}
                 </div>
-              </div>
+              </motion.div>
+              </AnimatePresence>
 
               {/* Navigation */}
               <div className="flex items-center justify-center gap-6">
-                <Button variant="outline" className="rounded-xl gap-2" disabled={currentPage === 0} onClick={() => { setCurrentPage(p => p - 1); setSelectedSide("right"); }}>
+                <Button variant="outline" className="rounded-xl gap-2" disabled={currentPage === 0} onClick={() => { setSlideDirection(-1); setCurrentPage(p => p - 1); setSelectedSide("right"); }}>
                   <ChevronLeft className="w-4 h-4" /> Previous
                 </Button>
                 <span className="font-body text-sm text-muted-foreground">
                   Spread {currentPage + 1} / {spreads.length}
                 </span>
-                <Button variant="outline" className="rounded-xl gap-2" disabled={currentPage >= spreads.length - 1} onClick={() => { setCurrentPage(p => p + 1); setSelectedSide("left"); }}>
+                <Button variant="outline" className="rounded-xl gap-2" disabled={currentPage >= spreads.length - 1} onClick={() => { setSlideDirection(1); setCurrentPage(p => p + 1); setSelectedSide("left"); }}>
                   Next <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>

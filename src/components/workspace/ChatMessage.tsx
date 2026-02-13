@@ -13,8 +13,8 @@ const ChatMessage = ({ role, content, isStreaming, photos, children }: ChatMessa
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
       className={`flex ${isRabbit ? "items-start" : "justify-end"}`}
     >
@@ -25,11 +25,15 @@ const ChatMessage = ({ role, content, isStreaming, photos, children }: ChatMessa
           {photos && photos.length > 0 && (
             <div className={`flex gap-2 flex-wrap ${!isRabbit ? "justify-end" : ""}`}>
               {photos.map((url, i) => (
-                <img
+                <motion.img
                   key={i}
                   src={url}
                   alt="Photo"
-                  className="w-20 h-20 rounded-xl object-cover shadow-chat"
+                  className="w-20 h-20 rounded-xl object-cover shadow-elevated"
+                  initial={{ rotate: (i % 2 === 0 ? 1 : -1) * (1 + Math.random() * 2) }}
+                  animate={{ rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 20, delay: i * 0.05 }}
+                  whileHover={{ rotate: (i % 2 === 0 ? 2 : -2), scale: 1.05 }}
                 />
               ))}
             </div>
@@ -38,15 +42,16 @@ const ChatMessage = ({ role, content, isStreaming, photos, children }: ChatMessa
             <div
               className={`rounded-2xl px-5 py-3.5 ${
                 isRabbit
-                  ? "rounded-tl-md shadow-chat"
-                  : "rounded-tr-md ml-auto shadow-sm"
+                  ? "rounded-tl-md glass-warm glow-soft border-l-2 border-l-primary/30"
+                  : "rounded-tr-md ml-auto shadow-elevated hover:shadow-float transition-shadow"
               }`}
-              style={{
-                background: isRabbit
-                  ? "hsl(var(--chat-ai-bg))"
-                  : "hsl(var(--chat-user-bg))",
-                border: isRabbit ? "1px solid hsl(var(--chat-ai-border))" : "none",
-              }}
+              style={
+                isRabbit
+                  ? undefined
+                  : {
+                      background: "hsl(var(--chat-user-bg))",
+                    }
+              }
             >
               <p
                 className="font-body text-[15px] leading-relaxed whitespace-pre-line"

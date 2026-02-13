@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { motion } from "framer-motion";
 import { Paperclip, ArrowRight } from "lucide-react";
 
 interface ChatInputProps {
@@ -21,6 +22,7 @@ const ChatInput = ({
   showPhotoButton = true,
 }: ChatInputProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasText = value.trim().length > 0;
 
   const handlePhotoSelect = (files: FileList | null) => {
     if (!files || !onPhotos) return;
@@ -32,7 +34,8 @@ const ChatInput = ({
     <div className="px-4 md:px-0 pb-4">
       <form
         onSubmit={e => { e.preventDefault(); onSend(); }}
-        className="flex items-center gap-2 rounded-[20px] px-4 py-2.5 bg-card border border-border/60 shadow-input transition-all focus-within:border-primary/30 focus-within:shadow-md"
+        className="flex items-center gap-2 rounded-[20px] px-4 py-3 glass-warm border border-border/40 shadow-elevated transition-all focus-within:glow-primary focus-within:border-primary/30"
+        style={{ minHeight: 48 }}
       >
         {showPhotoButton && onPhotos && (
           <>
@@ -44,14 +47,16 @@ const ChatInput = ({
               multiple
               onChange={e => handlePhotoSelect(e.target.files)}
             />
-            <button
+            <motion.button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="shrink-0 p-1.5 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-primary/10"
               disabled={disabled}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
             >
               <Paperclip className="w-5 h-5" />
-            </button>
+            </motion.button>
           </>
         )}
         <input
@@ -61,13 +66,15 @@ const ChatInput = ({
           className="flex-1 bg-transparent border-none outline-none font-body text-[15px] text-foreground placeholder:text-muted-foreground"
           disabled={disabled}
         />
-        <button
+        <motion.button
           type="submit"
-          disabled={disabled || !value.trim()}
-          className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all bg-primary text-primary-foreground disabled:opacity-30 hover:brightness-95 hover:shadow-sm active:scale-95"
+          disabled={disabled || !hasText}
+          className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all bg-primary text-primary-foreground disabled:opacity-30 hover:brightness-95 active:scale-95 ${hasText ? "pulse-glow" : ""}`}
+          animate={hasText ? { scale: [1, 1.05, 1] } : { scale: 1 }}
+          transition={hasText ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
         >
           <ArrowRight className="w-4 h-4" />
-        </button>
+        </motion.button>
       </form>
     </div>
   );
