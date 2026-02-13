@@ -16,6 +16,7 @@ interface RabbitCharacterProps {
   state?: RabbitState;
   size?: number;
   className?: string;
+  eyeOffset?: { x: number; y: number };
 }
 
 // ─── Color palette — gritty but warm ───────────────────────
@@ -208,7 +209,7 @@ const SleepZzz = () => (
 );
 
 // ─── Main Component ─────────────────────────────────────────
-const RabbitCharacter = ({ state = "idle", size = 200, className }: RabbitCharacterProps) => {
+const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: RabbitCharacterProps) => {
   const blinkControls = useBlinkLoop();
   const [currentState, setCurrentState] = useState(state);
 
@@ -218,6 +219,10 @@ const RabbitCharacter = ({ state = "idle", size = 200, className }: RabbitCharac
 
   const isSleeping = currentState === "sleeping";
   const isHappy = currentState === "celebrating" || currentState === "excited";
+
+  // Eye tracking — clamp offset to stay within eye bounds
+  const ex = eyeOffset ? Math.max(-2.5, Math.min(2.5, eyeOffset.x * 2.5)) : 0;
+  const ey = eyeOffset ? Math.max(-1.5, Math.min(1.5, eyeOffset.y * 1.5)) : 0;
 
   return (
     <div className={className} style={{ width: size, height: size * 1.4 }}>
@@ -350,7 +355,7 @@ const RabbitCharacter = ({ state = "idle", size = 200, className }: RabbitCharac
             ) : (
               <>
                 <ellipse cx="82" cy="128" rx="5.5" ry={5} fill={C.eye} />
-                <circle cx="84" cy="126" r="2" fill={C.eyeHighlight} />
+                <circle cx={84 + ex} cy={126 + ey} r="2" fill={C.eyeHighlight} />
                 {/* Slight squint line under left eye */}
                 <path d="M76 134 C78 135, 82 135, 85 134" stroke={C.bodyStroke} strokeWidth="0.8" strokeLinecap="round" fill="none" opacity="0.4" />
               </>
@@ -364,7 +369,7 @@ const RabbitCharacter = ({ state = "idle", size = 200, className }: RabbitCharac
             ) : (
               <>
                 <ellipse cx="118" cy="128" rx="6" ry="6.5" fill={C.eye} />
-                <circle cx="120.5" cy="125.5" r="2.5" fill={C.eyeHighlight} />
+                <circle cx={120.5 + ex} cy={125.5 + ey} r="2.5" fill={C.eyeHighlight} />
               </>
             )}
           </motion.g>

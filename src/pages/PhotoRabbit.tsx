@@ -106,6 +106,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
   const unauthFileRef = useRef<HTMLInputElement>(null);
   const projectCreatedRef = useRef(false);
+  const pendingFilesRef = useRef<File[]>([]);
   // Mobile sandbox collapsed state
   const [mobileSandboxCollapsed, setMobileSandboxCollapsed] = useState(false);
 
@@ -172,15 +173,30 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
 
     let pid = activeProjectId;
+    if (!pid && projectCreatedRef.current) {
+      // Project is being created — queue these files for upload after creation
+      pendingFilesRef.current = [...pendingFilesRef.current, ...files];
+      setRabbitState("excited");
+      return;
+    }
     if (!pid && !projectCreatedRef.current) {
       projectCreatedRef.current = true;
+      // Queue any concurrent drops
+      pendingFilesRef.current = [...pendingFilesRef.current, ...files];
       try {
         const newProject = await createProject.mutateAsync();
         pid = newProject.id;
         setActiveProjectId(pid);
         navigate(`/project/${pid}`);
+        // Upload all queued files (this batch + any that arrived during creation)
+        const allFiles = pendingFilesRef.current;
+        pendingFilesRef.current = [];
+        uploadBatch(pid, allFiles);
+        setRabbitState("excited");
+        return;
       } catch {
         projectCreatedRef.current = false;
+        pendingFilesRef.current = [];
         return;
       }
     }
@@ -697,15 +713,17 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
             <HeroLanding onPhotoDrop={handlePhotoUpload} />
 
             {/* Chat input at bottom — "the chat never leaves" */}
-            <ChatInput
-              value={input}
-              onChange={setInput}
-              onSend={handleSend}
-              onPhotos={handlePhotoUpload}
-              disabled={false}
-              placeholder="Drop photos or say hi..."
-              showPhotoButton
-            />
+            <div className="max-w-2xl mx-auto w-full">
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSend={handleSend}
+                onPhotos={handlePhotoUpload}
+                disabled={false}
+                placeholder="Drop photos or say hi..."
+                showPhotoButton
+              />
+            </div>
           </motion.div>
         ) : isMobile ? (
           /* ── Mobile: stacked layout ── */

@@ -429,6 +429,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
   const handleRetry = () => {
     cancelRef.current = false;
     setFailedCount(0);
+    prevIllCountRef.current = 0;
     generateIllustrations();
   };
 
@@ -606,7 +607,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
 
       {/* Action buttons */}
       <div className="px-4 md:px-0 pb-4 flex items-center justify-center gap-3">
-        {(phase === "story" || phase === "illustrations") && (
+        {phase === "illustrations" && (
           <Button
             variant="outline"
             size="sm"

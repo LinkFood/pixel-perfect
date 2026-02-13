@@ -31,7 +31,7 @@ const ChatInput = ({
   };
 
   return (
-    <div className="px-4 md:px-0 pb-4">
+    <div className="px-4 pb-4">
       <form
         onSubmit={e => { e.preventDefault(); onSend(); }}
         className="flex items-center gap-2 rounded-[20px] px-4 py-3 glass-warm border border-border/40 shadow-elevated transition-all focus-within:glow-primary focus-within:border-primary/30"

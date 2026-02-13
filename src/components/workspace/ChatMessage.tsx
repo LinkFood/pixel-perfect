@@ -82,7 +82,7 @@ const ChatMessage = ({ role, content, isStreaming, photos, children }: ChatMessa
 
 export const TypingIndicator = () => (
   <div className="flex justify-start">
-    <div className="chat-bubble-rabbit px-4 py-3 flex items-center gap-1">
+    <div className="glass-warm glow-soft rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1">
       {[0, 1, 2].map(i => (
         <motion.span
           key={i}

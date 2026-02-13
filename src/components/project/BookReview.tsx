@@ -356,10 +356,14 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
 
   const handleCopyShare = async () => {
     if (!shareUrl) return;
-    await navigator.clipboard.writeText(shareUrl);
-    setShareCopied(true);
-    toast.success("Link copied!");
-    setTimeout(() => setShareCopied(false), 3000);
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      toast.success("Link copied!");
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      toast("Copy this link: " + shareUrl, { duration: 8000 });
+    }
   };
 
   const handleRebuildProfile = async () => {
