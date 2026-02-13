@@ -316,7 +316,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
 
     // Deduct credit
-    const success = await deduct(1);
+    const success = await deduct(activeProjectId, "Book generation");
     if (!success) {
       setChatMessages(prev => [...prev, {
         role: "rabbit",

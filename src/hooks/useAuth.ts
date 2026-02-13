@@ -78,15 +78,15 @@ export const useCredits = () => {
     }
   };
 
-  const deduct = async (amount: number = 1): Promise<boolean> => {
+  const deduct = async (projectId: string, description: string = "Book generation"): Promise<boolean> => {
     if (!user) return false;
     try {
-      const { data, error } = await supabase.rpc("deduct_credit" as any, {
+      const { error } = await supabase.rpc("deduct_credit", {
         p_user_id: user.id,
-        p_amount: amount,
+        p_project_id: projectId,
+        p_description: description,
       });
       if (error) return false;
-      // Refresh balance after deduction
       await fetchBalance();
       return true;
     } catch {
