@@ -115,21 +115,25 @@ async function preloadImages(urls: (string | null)[]): Promise<Map<string, strin
 }
 
 function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
-  const words = text.split(" ");
   const lines: string[] = [];
-  let currentLine = "";
-
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const width = doc.getTextWidth(testLine);
-    if (width > maxWidth && currentLine) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
+  // Split on newlines first, then word-wrap each paragraph
+  const paragraphs = text.split(/\n/);
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(" ");
+    let currentLine = "";
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const width = doc.getTextWidth(testLine);
+      if (width > maxWidth && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
     }
+    if (currentLine) lines.push(currentLine);
+    else lines.push(""); // preserve empty lines
   }
-  if (currentLine) lines.push(currentLine);
   return lines;
 }
 
@@ -338,7 +342,17 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
           doc.setFillColor(255, 255, 255);
           doc.roundedRect(x - 1, y - 1, cellSize + 2, cellSize + 2, 2, 2, "F");
 
-          doc.addImage(imgData, "JPEG", x, y, cellSize, cellSize);
+          // Aspect-fit: center the image within the square cell
+          const img = new Image();
+          img.src = imgData;
+          const iw = img.naturalWidth || cellSize;
+          const ih = img.naturalHeight || cellSize;
+          const ratio = Math.min(cellSize / iw, cellSize / ih);
+          const drawW = iw * ratio;
+          const drawH = ih * ratio;
+          const drawX = x + (cellSize - drawW) / 2;
+          const drawY = y + (cellSize - drawH) / 2;
+          doc.addImage(imgData, "JPEG", drawX, drawY, drawW, drawH);
         }
 
         // Caption below each photo

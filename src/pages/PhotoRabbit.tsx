@@ -1,5 +1,5 @@
 // PhotoRabbit – Split layout: chat left, sandbox right. The entire app.
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useCredits } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import CreditGate from "@/components/workspace/CreditGate";
+import { toast } from "sonner";
 
 type Phase = "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
 
@@ -56,8 +57,8 @@ const PhotoRabbit = () => {
     autoSignIn();
   }, [user, authLoading, devSigningIn]);
 
-  // Show loader while dev mode is signing in
-  if (isDevMode() && (!user || devSigningIn || authLoading)) {
+  // Show loader while auth is resolving (prevents race between anon sign-in and photo drops)
+  if (authLoading || (isDevMode() && (!user || devSigningIn))) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -103,8 +104,6 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const [isFinishing, setIsFinishing] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
-  const unauthFileRef = useRef<HTMLInputElement>(null);
   const projectCreatedRef = useRef(false);
   const pendingFilesRef = useRef<File[]>([]);
   // Mobile sandbox collapsed state
@@ -161,7 +160,6 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       const images = files.filter(f => f.type.startsWith("image/"));
       if (images.length === 0) return;
       const urls = images.map(f => URL.createObjectURL(f));
-      setPendingPreviews(prev => [...prev, ...urls]);
       setChatMessages(prev => [
         ...prev,
         { role: "user" as const, content: "", photos: urls },
@@ -197,6 +195,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       } catch {
         projectCreatedRef.current = false;
         pendingFilesRef.current = [];
+        toast.error("Couldn't start your project — try dropping your photos again.");
         return;
       }
     }
@@ -228,6 +227,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const handleDeleteProject = (id: string) => {
     deleteProject.mutate(id);
     if (activeProjectId === id) {
+      setChatMessages([]);
       const remaining = projects.filter(p => p.id !== id);
       if (remaining.length > 0) {
         setActiveProjectId(remaining[0].id);
@@ -389,7 +389,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       appearanceProfilePromise.current = null;
     }
 
-    updateStatus.mutate({ id: activeProjectId, status: "generating" });
+    try {
+      await updateStatus.mutateAsync({ id: activeProjectId, status: "generating" });
+    } catch {
+      setChatMessages(prev => [...prev, {
+        role: "rabbit",
+        content: "Something went wrong starting the generation. Your credit is safe — try again?",
+      }]);
+      scrollToBottom();
+      return;
+    }
     setChatMessages(prev => [...prev, {
       role: "rabbit",
       content: `I have everything I need. Watch this — I'm going to paint ${project?.pet_name || "your"} book! Keep chatting while I work.`,
@@ -493,6 +502,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     return null;
   };
 
+  const rabbitGreeting = getRabbitGreeting();
+
   // ─── Chat panel content (used for both layouts) ─────────
   const chatPanel = (
     <div className={isMobile ? "flex flex-col flex-1 min-h-0" : "workspace-chat"}>
@@ -504,8 +515,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       {/* Chat scroll area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 space-y-5 pb-4">
         {/* Rabbit greeting */}
-        {getRabbitGreeting() && (
-          <ChatMessage role="rabbit" content={getRabbitGreeting()!} />
+        {rabbitGreeting && (
+          <ChatMessage role="rabbit" content={rabbitGreeting} />
         )}
 
         {/* Unauth chat messages */}

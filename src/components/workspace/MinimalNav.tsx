@@ -1,4 +1,5 @@
 import { LogOut, Coins, X } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useAuth, useCredits } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { isDevMode, disableDevMode } from "@/lib/devMode";
@@ -14,12 +15,12 @@ const MinimalNav = ({ showAuth = true, isHero = false }: MinimalNavProps) => {
 
   return (
     <nav className={`flex items-center justify-between px-6 lg:px-12 h-14 shrink-0 transition-colors ${isHero ? "border-b border-transparent bg-transparent" : "border-b border-border/50"}`}>
-      <a
-        href="/"
+      <Link
+        to="/"
         className="font-display text-lg font-semibold tracking-tight text-foreground"
       >
         PhotoRabbit
-      </a>
+      </Link>
 
       <div className="flex items-center gap-4">
         {isDevMode() && (

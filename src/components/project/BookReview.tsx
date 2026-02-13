@@ -171,16 +171,25 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
     }
   };
 
+  const [isGeneratingVariant, setIsGeneratingVariant] = useState<string | null>(null);
+  const [isRegeneratingText, setIsRegeneratingText] = useState<string | null>(null);
+  const [isRegeneratingIll, setIsRegeneratingIll] = useState<string | null>(null);
+
   const handleTryAnother = async (pageId: string) => {
-    if (!id) return;
+    if (!id || isGeneratingVariant) return;
+    setIsGeneratingVariant(pageId);
     toast.info("Generating another variant...");
-    const { error } = await supabase.functions.invoke("generate-illustration", {
-      body: { pageId, projectId: id, variant: true },
-    });
-    if (error) { toast.error("Failed to generate variant"); return; }
-    queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
-    queryClient.invalidateQueries({ queryKey: ["all-illustrations", id] });
-    toast.success("New variant generated!");
+    try {
+      const { error } = await supabase.functions.invoke("generate-illustration", {
+        body: { pageId, projectId: id, variant: true },
+      });
+      if (error) { toast.error("Failed to generate variant"); return; }
+      queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
+      queryClient.invalidateQueries({ queryKey: ["all-illustrations", id] });
+      toast.success("New variant generated!");
+    } finally {
+      setIsGeneratingVariant(null);
+    }
   };
 
   const getIllustrationUrl = useCallback((pageId: string) => {
@@ -249,21 +258,33 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   };
 
   const handleRegenerateText = async (pageId: string) => {
-    const { error } = await supabase.functions.invoke("regenerate-page", {
-      body: { pageId, projectId: id },
-    });
-    if (error) { toast.error("Failed to regenerate text"); return; }
-    queryClient.invalidateQueries({ queryKey: ["pages", id] });
-    toast.success("Page text regenerated!");
+    if (isRegeneratingText) return;
+    setIsRegeneratingText(pageId);
+    try {
+      const { error } = await supabase.functions.invoke("regenerate-page", {
+        body: { pageId, projectId: id },
+      });
+      if (error) { toast.error("Failed to regenerate text"); return; }
+      queryClient.invalidateQueries({ queryKey: ["pages", id] });
+      toast.success("Page text regenerated!");
+    } finally {
+      setIsRegeneratingText(null);
+    }
   };
 
   const handleRegenerateIllustration = async (pageId: string) => {
-    const { error } = await supabase.functions.invoke("generate-illustration", {
-      body: { pageId, projectId: id },
-    });
-    if (error) { toast.error("Failed to regenerate illustration"); return; }
-    queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
-    toast.success("Illustration regenerated!");
+    if (isRegeneratingIll) return;
+    setIsRegeneratingIll(pageId);
+    try {
+      const { error } = await supabase.functions.invoke("generate-illustration", {
+        body: { pageId, projectId: id, variant: true },
+      });
+      if (error) { toast.error("Failed to regenerate illustration"); return; }
+      queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
+      toast.success("Illustration regenerated!");
+    } finally {
+      setIsRegeneratingIll(null);
+    }
   };
 
   const handleGenerateMissing = async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, SkipForward, StopCircle, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ interface GenerationViewProps {
   petName: string;
   onComplete: () => void;
   hideRabbit?: boolean;
-  onRabbitStateChange?: (state: RabbitState) => void;
   onNewIllustration?: (pageNum: number, url: string) => void;
   interviewHighlights?: string[];
   mood?: string | null;
@@ -268,7 +267,7 @@ const IllustrationReveal = ({ src, alt, className }: { src: string; alt: string;
   );
 };
 
-const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitStateChange, onNewIllustration, interviewHighlights = [], mood }: GenerationViewProps) => {
+const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllustration, interviewHighlights = [], mood }: GenerationViewProps) => {
   const updateStatus = useUpdateProjectStatus();
   const [phase, setPhase] = useState<Phase>("loading");
   const [rabbitState, setRabbitState] = useState<RabbitState>("thinking");
@@ -321,7 +320,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
   }, [phase]);
 
   // ─── Rabbit personality cycling during illustration phase ────
-  const moodCycleStates = getIllustrationCycleStates(mood);
+  const moodCycleStates = useMemo(() => getIllustrationCycleStates(mood), [mood]);
   useEffect(() => {
     if (phase !== "illustrations") return;
     let idx = 0;
@@ -620,6 +619,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
     setFailedCount(0);
     setElapsedSeconds(0);
     prevIllCountRef.current = 0;
+    setRabbitMessages(prev => [...prev, "Let me try those again..."]);
     generateIllustrations().finally(() => { isRetryingRef.current = false; });
   };
 
