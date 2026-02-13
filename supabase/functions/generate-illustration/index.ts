@@ -232,9 +232,9 @@ STYLE RULES:
     // Try primary model (3 attempts)
     let result = await tryGenerate(LOVABLE_API_KEY, PRIMARY_MODEL, finalPrompt, 3, temperature);
 
-    // If primary failed with credits issue, try fallback
-    if (!result.base64 && result.error === "Credits exhausted") {
-      console.log("Primary model credits exhausted, trying fallback model");
+    // If primary failed for ANY reason, try fallback model
+    if (!result.base64) {
+      console.log(`Primary model failed (${result.error}), trying fallback model`);
       result = await tryGenerate(LOVABLE_API_KEY, FALLBACK_MODEL, finalPrompt, 2, temperature);
     }
 

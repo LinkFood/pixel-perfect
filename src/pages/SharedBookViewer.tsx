@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Loader2, BookOpen, Camera } from "lucide-react";
@@ -107,6 +107,23 @@ const SharedBookViewer = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
+  // Touch swipe navigation for mobile
+  const touchStartX = useRef<number | null>(null);
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  }, []);
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const threshold = 50;
+    if (dx < -threshold && spreadIdx < spreads.length - 1) {
+      setSpreadIdx(s => s + 1);
+    } else if (dx > threshold && spreadIdx > 0) {
+      setSpreadIdx(s => s - 1);
+    }
+    touchStartX.current = null;
+  }, [spreadIdx, spreads.length]);
+
   if (error && !loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -201,7 +218,11 @@ const SharedBookViewer = () => {
           </div>
 
           {/* Book spread */}
-          <div className="flex-1 flex flex-col items-center justify-center px-4 pb-4">
+          <div
+            className="flex-1 flex flex-col items-center justify-center px-4 pb-4"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             {currentSpread && (
               <motion.div
                 key={spreadIdx}
@@ -309,7 +330,13 @@ function renderSharedPage(vp: VirtualPageType | null) {
           {vp.photos.map((photo, i) => (
             <div key={i} className="rounded-lg overflow-hidden shadow-sm flex flex-col border border-border">
               <div className="flex-1 min-h-0">
-                <img src={photo.photoUrl} alt={photo.caption || `Photo ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                <img
+                  src={photo.photoUrl}
+                  alt={photo.caption || `Photo ${i + 1}`}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
               </div>
               {photo.caption && (
                 <p className="font-body text-[8px] text-center px-1 py-0.5 truncate text-muted-foreground">
@@ -336,7 +363,13 @@ function renderSharedPage(vp: VirtualPageType | null) {
   return (
     <div className="aspect-square relative overflow-hidden bg-card">
       {page.illustrationUrl ? (
-        <img src={page.illustrationUrl} alt={`Page ${page.pageNumber}`} className="w-full h-full object-cover" loading="lazy" />
+        <img
+          src={page.illustrationUrl}
+          alt={`Page ${page.pageNumber}`}
+          className="w-full h-full object-cover"
+          loading="lazy"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-border/25">
           <BookOpen className="w-12 h-12" />

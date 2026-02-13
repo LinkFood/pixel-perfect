@@ -1,7 +1,7 @@
 // PhotoRabbit – Split layout: chat left, sandbox right. The entire app.
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
 import ChatMessage, { TypingIndicator } from "@/components/workspace/ChatMessage";
@@ -99,6 +99,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const autoFill = useAutoFillInterview(activeProjectId || undefined);
   const clearInterview = useClearInterview(activeProjectId || undefined);
   const [rabbitState, setRabbitState] = useState<RabbitState>("idle");
+  const [isFinishing, setIsFinishing] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
@@ -113,6 +114,17 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     projectCreatedRef.current = false;
   }, [paramId]);
 
+  // Auto-recover stale "generating" projects (closed tab, crashed browser)
+  const isStaleGenerating = project?.status === "generating" && project.updated_at &&
+    (Date.now() - new Date(project.updated_at).getTime()) > 30 * 60 * 1000;
+
+  useEffect(() => {
+    if (isStaleGenerating && activeProjectId) {
+      console.log("Recovering stale generating project", activeProjectId);
+      updateStatus.mutate({ id: activeProjectId, status: "review" });
+    }
+  }, [isStaleGenerating, activeProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Derive phase from project state
   const phase: Phase = activeProjectId && projectLoading
     ? "home"
@@ -121,7 +133,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     : !project.mood ? "mood-picker"
     : project.status === "upload" ? "upload"
     : project.status === "interview" ? "interview"
-    : project.status === "generating" ? "generating"
+    : project.status === "generating" ? (isStaleGenerating ? "review" : "generating")
     : project.status === "review" ? "review"
     : "upload";
 
@@ -187,6 +199,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   };
 
   const handleSelectProject = (id: string) => {
+    setChatMessages([]);
     setActiveProjectId(id);
     navigate(`/project/${id}`);
   };
@@ -248,6 +261,13 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
   }, [lastFinishedContent]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Reset rabbitState if streaming ends without content (error recovery)
+  useEffect(() => {
+    if (!isStreaming && rabbitState === "thinking") {
+      setRabbitState(phase === "generating" ? "painting" : "listening");
+    }
+  }, [isStreaming]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (isStreaming && streamingContent) scrollToBottom();
   }, [streamingContent]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -277,9 +297,12 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     memorial: `I've studied all your photos of ${project?.pet_name || "them"} — what a beautiful life. Take your time — tell me about them.`,
   };
 
+  const appearanceProfilePromise = useRef<Promise<unknown> | null>(null);
+
   const handleContinueToInterview = () => {
     if (!activeProjectId || !project?.mood) return;
-    supabase.functions.invoke("build-appearance-profile", {
+    // Store the promise so we can await it before generation starts
+    appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
       body: { projectId: activeProjectId },
     });
     startInterview(project.mood);
@@ -301,8 +324,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   };
 
   const handleFinishInterview = async () => {
-    if (!activeProjectId) return;
+    if (!activeProjectId || isFinishing) return;
+    setIsFinishing(true);
 
+    try {
     // Credit check before generation
     const currentBalance = await fetchBalance();
     if (currentBalance <= 0) {
@@ -327,11 +352,21 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
 
     setShowCreditGate(false);
+
+    // Wait for appearance profile to finish before generating (prevents race condition)
+    if (appearanceProfilePromise.current) {
+      await appearanceProfilePromise.current.catch(() => {});
+      appearanceProfilePromise.current = null;
+    }
+
     updateStatus.mutate({ id: activeProjectId, status: "generating" });
     setChatMessages(prev => [...prev, {
       role: "rabbit",
       content: `I have everything I need. Watch this — I'm going to paint ${project?.pet_name || "your"} book! Keep chatting while I work.`,
     }]);
+    } finally {
+      setIsFinishing(false);
+    }
   };
 
   const handleNewIllustration = useCallback((pageNum: number, url: string) => {
@@ -621,6 +656,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         canFinish={canFinish}
         userInterviewCount={userInterviewCount}
         onFinishInterview={handleFinishInterview}
+        isFinishing={isFinishing}
         activeProjectId={activeProjectId}
         onGenerationComplete={handleGenerationComplete}
         onNewIllustration={handleNewIllustration}

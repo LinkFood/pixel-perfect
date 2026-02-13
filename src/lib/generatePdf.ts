@@ -11,7 +11,10 @@ const FONT_URLS = {
 
 async function loadFontAsBase64(url: string): Promise<string | null> {
   try {
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) return null;
     const buffer = await response.arrayBuffer();
     const bytes = new Uint8Array(buffer);

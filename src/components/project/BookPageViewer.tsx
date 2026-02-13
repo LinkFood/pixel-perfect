@@ -72,6 +72,7 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
                     alt={photo.caption || `Photo ${i + 1}`}
                     className="w-full h-full object-cover"
                     loading="lazy"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 </div>
                 {photo.caption && (

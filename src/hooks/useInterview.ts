@@ -129,13 +129,9 @@ export const useInterviewChat = (projectId: string | undefined) => {
 
     queryClient.invalidateQueries({ queryKey: ["interview", projectId] });
 
-    // Build messages — only send last 20 to edge function
+    // Build full message list — server handles windowing with gap explanation
     const allMessages = existingMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
     allMessages.push({ role: "user", content: userMessage });
-
-    const messagesToSend = allMessages.length > 20
-      ? [...allMessages.slice(0, 6), ...allMessages.slice(-14)]
-      : allMessages;
 
     const userMessageCount = allMessages.filter(m => m.role === "user").length;
 
@@ -147,7 +143,7 @@ export const useInterviewChat = (projectId: string | undefined) => {
           "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
-          messages: messagesToSend,
+          messages: allMessages,
           petName,
           petType,
           userMessageCount,

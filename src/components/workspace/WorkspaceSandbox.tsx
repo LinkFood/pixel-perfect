@@ -31,6 +31,7 @@ interface WorkspaceSandboxProps {
   canFinish: boolean;
   userInterviewCount?: number;
   onFinishInterview: () => void;
+  isFinishing?: boolean;
   // Generation props
   activeProjectId: string | null;
   onGenerationComplete: () => void;
@@ -55,6 +56,7 @@ const WorkspaceSandbox = ({
   canFinish,
   userInterviewCount = 0,
   onFinishInterview,
+  isFinishing = false,
   activeProjectId,
   onGenerationComplete,
   onNewIllustration,
@@ -73,27 +75,31 @@ const WorkspaceSandbox = ({
       setShowReveal(true);
       setRevealReady(false);
 
-      // Fetch cover illustration
+      // Fetch cover illustration (wrapped in try/catch so reveal never traps the user)
       const fetchCover = async () => {
-        const { data: coverPage } = await supabase
-          .from("project_pages")
-          .select("id")
-          .eq("project_id", activeProjectId)
-          .eq("page_type", "cover")
-          .single();
-        if (coverPage) {
-          const { data: coverIll } = await supabase
-            .from("project_illustrations")
-            .select("storage_path")
-            .eq("page_id", coverPage.id)
-            .eq("is_selected", true)
+        try {
+          const { data: coverPage } = await supabase
+            .from("project_pages")
+            .select("id")
+            .eq("project_id", activeProjectId)
+            .eq("page_type", "cover")
             .single();
-          if (coverIll) {
-            const { data: urlData } = supabase.storage.from("pet-photos").getPublicUrl(coverIll.storage_path);
-            setCoverIllustrationUrl(urlData.publicUrl);
+          if (coverPage) {
+            const { data: coverIll } = await supabase
+              .from("project_illustrations")
+              .select("storage_path")
+              .eq("page_id", coverPage.id)
+              .eq("is_selected", true)
+              .single();
+            if (coverIll) {
+              const { data: urlData } = supabase.storage.from("pet-photos").getPublicUrl(coverIll.storage_path);
+              setCoverIllustrationUrl(urlData.publicUrl);
+            }
           }
+        } catch (err) {
+          console.error("Failed to fetch cover for reveal:", err);
         }
-        // Button becomes clickable after 3 seconds
+        // Button becomes clickable after 3 seconds regardless of fetch result
         setTimeout(() => setRevealReady(true), 3000);
       };
       fetchCover();
@@ -105,6 +111,16 @@ const WorkspaceSandbox = ({
     setShowReveal(false);
     setCoverIllustrationUrl(null);
   };
+
+  // Escape key dismisses reveal overlay (safety hatch)
+  useEffect(() => {
+    if (!showReveal) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismissReveal();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [showReveal]);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -258,8 +274,9 @@ const WorkspaceSandbox = ({
                       size="lg"
                       className="rounded-2xl gap-2 px-8 py-6 text-base bg-primary text-primary-foreground hover:bg-primary/90 shadow-elevated"
                       onClick={onFinishInterview}
+                      disabled={isFinishing}
                     >
-                      <CheckCircle className="w-5 h-5" /> {buttonText}
+                      <CheckCircle className="w-5 h-5" /> {isFinishing ? "Starting..." : buttonText}
                     </Button>
                   </motion.div>
                   <p className="font-body text-xs mt-2 text-muted-foreground">
