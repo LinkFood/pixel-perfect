@@ -14,28 +14,36 @@ const moods = [
     label: "Make it funny",
     description: "Quirky moments & silly habits",
     icon: Sparkles,
-    color: "#F59E0B",
+    iconClass: "text-amber-500",
+    hoverBorder: "hover:border-amber-400",
+    hoverBg: "hover:bg-amber-50",
   },
   {
     key: "heartfelt",
     label: "Make it heartfelt",
     description: "The deep bond & quiet moments",
     icon: Heart,
-    color: "#EC4899",
+    iconClass: "text-pink-500",
+    hoverBorder: "hover:border-pink-400",
+    hoverBg: "hover:bg-pink-50",
   },
   {
     key: "adventure",
     label: "Tell an adventure",
     description: "Wild times & mischief",
     icon: Compass,
-    color: "#3B82F6",
+    iconClass: "text-blue-500",
+    hoverBorder: "hover:border-blue-400",
+    hoverBg: "hover:bg-blue-50",
   },
   {
     key: "memorial",
     label: "Honor their memory",
     description: "Celebrating a life well-lived",
     icon: Star,
-    color: "#8B5CF6",
+    iconClass: "text-violet-500",
+    hoverBorder: "hover:border-violet-400",
+    hoverBg: "hover:bg-violet-50",
   },
 ] as const;
 
@@ -97,17 +105,9 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => onSelect(m.key, subjectName.trim() || "My Story")}
-              className="flex flex-col items-center gap-2 rounded-2xl border-2 p-5 cursor-pointer transition-colors border-border bg-white"
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = m.color;
-                (e.currentTarget as HTMLElement).style.background = `${m.color}08`;
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = "";
-                (e.currentTarget as HTMLElement).style.background = "";
-              }}
+              className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-5 cursor-pointer transition-colors border-border bg-card ${m.hoverBorder} ${m.hoverBg}`}
             >
-              <Icon className="w-7 h-7" style={{ color: m.color }} />
+              <Icon className={`w-7 h-7 ${m.iconClass}`} />
               <span className="font-display text-base font-semibold text-foreground">
                 {m.label}
               </span>
