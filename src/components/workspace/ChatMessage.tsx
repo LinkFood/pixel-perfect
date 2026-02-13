@@ -1,11 +1,9 @@
 import { motion } from "framer-motion";
-import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
 
 interface ChatMessageProps {
   role: "rabbit" | "user" | "assistant";
   content: string;
   isStreaming?: boolean;
-  rabbitState?: RabbitState;
   photos?: string[];
   children?: React.ReactNode;
 }
@@ -15,17 +13,11 @@ const ChatMessage = ({ role, content, isStreaming, photos, children }: ChatMessa
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      className={`flex ${isRabbit ? "items-start gap-3" : "justify-end"}`}
+      transition={{ type: "spring", stiffness: 300, damping: 28 }}
+      className={`flex ${isRabbit ? "items-start" : "justify-end"}`}
     >
-      {isRabbit && (
-        <div className="shrink-0 mt-1">
-          <RabbitCharacter state="idle" size={32} />
-        </div>
-      )}
-
       {children ? (
         <div className="max-w-[85%]">{children}</div>
       ) : (
@@ -37,15 +29,17 @@ const ChatMessage = ({ role, content, isStreaming, photos, children }: ChatMessa
                   key={i}
                   src={url}
                   alt="Photo"
-                  className="w-16 h-16 rounded-xl object-cover"
+                  className="w-20 h-20 rounded-xl object-cover shadow-chat"
                 />
               ))}
             </div>
           )}
           {content && (
             <div
-              className={`rounded-2xl px-4 py-3 ${
-                isRabbit ? "rounded-tl-md" : "rounded-tr-md ml-auto"
+              className={`rounded-2xl px-5 py-3.5 ${
+                isRabbit
+                  ? "rounded-tl-md shadow-chat"
+                  : "rounded-tr-md ml-auto shadow-sm"
               }`}
               style={{
                 background: isRabbit

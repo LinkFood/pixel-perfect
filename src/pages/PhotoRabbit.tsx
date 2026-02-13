@@ -394,7 +394,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto overflow-hidden">
         {/* Rabbit — always present */}
         {phase !== "generating" && (
-          <div className="flex justify-center py-3 shrink-0">
+          <div className="flex justify-center pt-6 pb-2 shrink-0">
             <RabbitCharacter state={rabbitState} size={140} />
           </div>
         )}
@@ -444,7 +444,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         )}
 
         {/* ─── Chat scroll area — THE core interface ─── */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-0 space-y-4 pb-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-0 space-y-5 pb-4">
           {/* Phase: Upload — upload widget appears in chat context */}
           {(phase === "home" || phase === "upload" || phase === "mood-picker") && (
             <>
@@ -465,7 +465,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                         e.stopPropagation();
                         handlePhotoUpload(Array.from(e.dataTransfer.files));
                       }}
-                      className="rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-all border-border bg-card hover:border-primary/40 hover:bg-accent/30"
+                      className="rounded-[20px] border border-border/60 p-6 text-center cursor-pointer transition-all bg-card shadow-chat hover:shadow-md hover:border-primary/40"
                     >
                       <input
                         type="file"
@@ -688,7 +688,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
       {/* Footer for unauth */}
       {!user && (
-        <div className="flex items-center justify-center gap-3 py-3 font-body text-[11px] text-muted-foreground/60">
+        <div className="flex items-center justify-center gap-3 py-3 font-body text-[11px] text-muted-foreground/50">
           <span>PhotoRabbit</span>
           <span>&copy; {new Date().getFullYear()}</span>
           <button

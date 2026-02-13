@@ -43,7 +43,7 @@ const AuthInline = () => {
           value={email}
           onChange={e => setEmail(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleMagicLink()}
-          className="rounded-xl text-sm h-10 flex-1 bg-background border-border"
+          className="rounded-xl text-sm h-10 flex-1 bg-card border-border/60 shadow-chat"
           disabled={loading}
           autoFocus
         />
@@ -63,7 +63,7 @@ const AuthInline = () => {
       </div>
       <button
         onClick={handleGoogle}
-        className="w-full flex items-center justify-center gap-2 rounded-xl h-10 text-sm font-body font-medium bg-background border border-border text-foreground hover:bg-secondary transition-colors"
+        className="w-full flex items-center justify-center gap-2 rounded-xl h-10 text-sm font-body font-medium bg-card border border-border/60 text-foreground shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24">
           <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />

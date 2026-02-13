@@ -32,7 +32,7 @@ const ChatInput = ({
     <div className="px-4 md:px-0 pb-4">
       <form
         onSubmit={e => { e.preventDefault(); onSend(); }}
-        className="flex items-center gap-2 rounded-2xl px-4 py-2 bg-white border-2 border-border transition-colors focus-within:border-primary/40"
+        className="flex items-center gap-2 rounded-[20px] px-4 py-2.5 bg-card border border-border/60 shadow-input transition-all focus-within:border-primary/30 focus-within:shadow-md"
       >
         {showPhotoButton && onPhotos && (
           <>
@@ -47,7 +47,7 @@ const ChatInput = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="shrink-0 p-1.5 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-secondary"
+              className="shrink-0 p-1.5 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-primary/10"
               disabled={disabled}
             >
               <Paperclip className="w-5 h-5" />
@@ -64,7 +64,7 @@ const ChatInput = ({
         <button
           type="submit"
           disabled={disabled || !value.trim()}
-          className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all bg-primary text-primary-foreground disabled:opacity-30 hover:brightness-95"
+          className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all bg-primary text-primary-foreground disabled:opacity-30 hover:brightness-95 hover:shadow-sm active:scale-95"
         >
           <ArrowRight className="w-4 h-4" />
         </button>

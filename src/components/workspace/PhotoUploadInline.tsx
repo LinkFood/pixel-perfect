@@ -45,7 +45,7 @@ const PhotoUploadInline = ({
         onDragOver={e => e.preventDefault()}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className="rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-all border-border bg-card hover:border-primary/40 hover:bg-accent/30"
+        className="rounded-[20px] border border-border/60 p-6 text-center cursor-pointer transition-all bg-card shadow-sm hover:shadow-md hover:border-primary/40"
       >
         <input
           type="file"
@@ -82,7 +82,7 @@ const PhotoUploadInline = ({
                 key={photo.id}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="relative rounded-xl overflow-hidden group aspect-square"
+                className="relative rounded-xl overflow-hidden group aspect-square shadow-sm"
               >
                 <img
                   src={getPhotoUrl(photo.storage_path)}

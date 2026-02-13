@@ -81,7 +81,7 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
           value={subjectName}
           onChange={(e) => setSubjectName(e.target.value)}
           placeholder="e.g. Max, Mom, Our Trip to Japan..."
-          className="w-full rounded-xl border-2 px-4 py-3 font-body text-sm outline-none transition-colors border-border bg-white text-foreground focus:border-primary"
+          className="w-full rounded-xl border border-border/60 px-4 py-3 font-body text-sm outline-none transition-all shadow-chat bg-card text-foreground focus:border-primary/30 focus:shadow-md"
           autoFocus
         />
         <p className="font-body text-xs mt-1.5 text-center text-muted-foreground">
@@ -105,7 +105,7 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => onSelect(m.key, subjectName.trim() || "My Story")}
-              className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-5 cursor-pointer transition-colors border-border bg-card ${m.hoverBorder} ${m.hoverBg}`}
+              className={`flex flex-col items-center gap-2 rounded-2xl border border-border/60 p-5 cursor-pointer transition-all shadow-sm hover:shadow-md bg-card ${m.hoverBorder} ${m.hoverBg}`}
             >
               <Icon className={`w-7 h-7 ${m.iconClass}`} />
               <span className="font-display text-base font-semibold text-foreground">
