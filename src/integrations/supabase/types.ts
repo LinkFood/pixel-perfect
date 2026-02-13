@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      build_log: {
+        Row: {
+          created_at: string
+          id: string
+          level: string
+          message: string
+          metadata: Json | null
+          phase: string
+          project_id: string
+          technical_message: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level?: string
+          message: string
+          metadata?: Json | null
+          phase: string
+          project_id: string
+          technical_message?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: string
+          message?: string
+          metadata?: Json | null
+          phase?: string
+          project_id?: string
+          technical_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "build_log_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_transactions: {
         Row: {
           amount: number

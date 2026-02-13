@@ -227,6 +227,8 @@ STYLE RULES:
 
     console.log(`Generating illustration${variant ? " (variant)" : ""} for page ${page.page_number} (${page.page_type}): ${scenePrompt.slice(0, 80)}...`);
 
+    const illStartTime = Date.now();
+
     // Try primary model (3 attempts)
     let result = await tryGenerate(LOVABLE_API_KEY, PRIMARY_MODEL, finalPrompt, 3, temperature);
 
@@ -328,7 +330,27 @@ STYLE RULES:
       });
     if (insertErr) throw new Error(`Insert failed: ${insertErr.message}`);
 
-    console.log(`Illustration saved for page ${page.page_number} (${detectedContentType}, ${bytes.length} bytes)`);
+    const illElapsedMs = Date.now() - illStartTime;
+    console.log(`Illustration saved for page ${page.page_number} (${detectedContentType}, ${bytes.length} bytes, ${illElapsedMs}ms)`);
+
+    // Build log: illustration complete (only for non-variants to avoid noise)
+    if (!variant) {
+      await supabase.from("build_log").insert({
+        project_id: projectId,
+        phase: "illustration",
+        level: "milestone",
+        message: `Page ${page.page_number} illustrated!`,
+        technical_message: `${detectedContentType} | ${bytes.length} bytes | ${illElapsedMs}ms | Model: ${PRIMARY_MODEL}`,
+        metadata: {
+          page_number: page.page_number,
+          page_type: page.page_type,
+          size_bytes: bytes.length,
+          content_type: detectedContentType,
+          elapsed_ms: illElapsedMs,
+          model: PRIMARY_MODEL,
+        },
+      });
+    }
 
     return new Response(JSON.stringify({ success: true, storagePath, pageNumber: page.page_number }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

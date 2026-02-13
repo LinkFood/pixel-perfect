@@ -81,6 +81,16 @@ serve(async (req) => {
 
     console.log(`Building appearance profile for ${project.pet_name} from ${photos.length} photos`);
 
+    // Build log: appearance profile starting
+    await supabase.from("build_log").insert({
+      project_id: projectId,
+      phase: "appearance",
+      level: "milestone",
+      message: `Studying ${photos.length} photos to learn ${project.pet_name}'s appearance...`,
+      technical_message: `Analyzing ${photos.length} photos | Model: google/gemini-2.5-flash`,
+      metadata: { photos_analyzed: photos.length, model: "google/gemini-2.5-flash" },
+    });
+
     // Build multi-image content array for Gemini vision
     const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
       {
@@ -153,6 +163,16 @@ Be extremely specific — an illustrator should be able to draw this subject ide
     if (!profile) throw new Error("No profile generated");
 
     console.log(`Appearance profile for ${project.pet_name}: ${profile.slice(0, 100)}...`);
+
+    // Build log: appearance profile complete
+    await supabase.from("build_log").insert({
+      project_id: projectId,
+      phase: "appearance",
+      level: "milestone",
+      message: `Got it! I know exactly what ${project.pet_name} looks like now.`,
+      technical_message: `Profile: ${profile.slice(0, 120)}...`,
+      metadata: { photos_analyzed: photos.length, model: "google/gemini-2.5-flash", profile_length: profile.length },
+    });
 
     // Compile photo_context_brief from all ai_analysis data (no extra API call)
     const briefParts: string[] = [];
