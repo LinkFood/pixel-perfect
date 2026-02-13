@@ -159,7 +159,7 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
       }}
       onDrop={handleDrop}
     >
-      <div className="max-w-2xl mx-auto px-6 pt-3 pb-6 flex flex-col items-center gap-5">
+      <div className="max-w-2xl mx-auto px-6 pt-3 pb-3 flex flex-col items-center gap-5">
 
         {/* ── Rabbit + Speech Bubble ── */}
         <motion.div
