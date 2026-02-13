@@ -440,9 +440,37 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         {user && (phase === "interview" || phase === "generating" || phase === "review") && (
           <>
             <AnimatePresence initial={false}>
-              {chatMessages.map((msg, i) => (
-                <ChatMessage key={i} role={msg.role} content={msg.content} photos={msg.photos} />
-              ))}
+              {chatMessages.map((msg, i) => {
+                // Count user messages up to this point to insert phase dividers
+                const userCountBefore = chatMessages.slice(0, i).filter(m => m.role === "user").length;
+                const isUserMsg = msg.role === "user";
+                const phaseLabels: Record<number, string> = {
+                  3: "getting deeper...",
+                  5: "the good stuff...",
+                  7: "one more thing...",
+                };
+                const showDivider = isUserMsg && phaseLabels[userCountBefore];
+
+                return (
+                  <div key={i}>
+                    {showDivider && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.6 }}
+                        className="flex items-center gap-3 py-2"
+                      >
+                        <div className="flex-1 h-px bg-border/40" />
+                        <span className="font-body text-[11px] text-muted-foreground/60 italic tracking-wide">
+                          {phaseLabels[userCountBefore]}
+                        </span>
+                        <div className="flex-1 h-px bg-border/40" />
+                      </motion.div>
+                    )}
+                    <ChatMessage role={msg.role} content={msg.content} photos={msg.photos} />
+                  </div>
+                );
+              })}
             </AnimatePresence>
 
             {isStreaming && streamingContent && (
