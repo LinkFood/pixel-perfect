@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, MessageCircle, BookOpen } from "lucide-react";
+import { Camera, MessageCircle, BookOpen, Palette } from "lucide-react";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -24,16 +24,19 @@ const showcaseSpreads = [
     title: "The Great Sock Heist",
     text: "Max crept across the living room, his golden tail low, eyes locked on the prize — Dad's favorite argyle sock. This was not his first heist. It would not be his last.",
     gradient: "from-amber-100 to-orange-50",
+    illustrationDesc: "A golden retriever army-crawling across the living room, eyes locked on a single argyle sock — tail frozen mid-wag",
   },
   {
     title: "Why Brad Can't Cook",
     text: "The smoke alarm went off for the third time. Brad stood in the kitchen holding a spatula and what used to be an omelet. 'It's rustic,' he said. Nobody believed him.",
     gradient: "from-emerald-100 to-teal-50",
+    illustrationDesc: "A smoke-filled kitchen, a bewildered man holding a spatula, and something that used to be an omelet",
   },
   {
     title: "Grandma's Garden",
     text: "She never measured anything — not the soil, not the water, not the love. But everything she planted grew. And everyone who visited left carrying something home.",
     gradient: "from-violet-100 to-indigo-50",
+    illustrationDesc: "Morning light through a greenhouse window, weathered hands pressing seeds into dark soil, everything blooming",
   },
 ];
 
@@ -224,10 +227,14 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
                 transition={{ duration: 0.5 }}
               >
                 {/* Illustration side */}
-                <div className={`md:w-1/2 aspect-square bg-gradient-to-br ${currentSpread.gradient} flex items-center justify-center p-8`}>
-                  <div className="text-center">
-                    <BookOpen className="w-12 h-12 text-foreground/10 mx-auto mb-3" />
-                    <p className="font-display text-sm font-semibold text-foreground/20">Illustrated page</p>
+                <div className={`md:w-1/2 aspect-square bg-gradient-to-br ${currentSpread.gradient} relative flex items-center justify-center p-8 overflow-hidden`}>
+                  {/* Subtle paper texture overlay */}
+                  <div className="absolute inset-0 book-page-texture opacity-40" />
+                  <div className="relative text-center px-4 flex flex-col items-center justify-center gap-3">
+                    <Palette className="w-8 h-8 text-foreground/20" />
+                    <p className="font-display text-sm italic text-foreground/40 leading-relaxed">
+                      {currentSpread.illustrationDesc}
+                    </p>
                   </div>
                 </div>
                 {/* Text side */}

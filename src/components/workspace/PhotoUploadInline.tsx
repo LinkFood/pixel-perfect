@@ -102,6 +102,16 @@ const PhotoUploadInline = ({
               ? `Uploading... ${uploadProgress ? `${uploadProgress.completed}/${uploadProgress.total}` : ""}`
               : "Drag & drop or click to browse"}
           </p>
+          {isUploading && uploadProgress && uploadProgress.total > 0 && (
+            <div className="w-full max-w-[200px] mx-auto mt-2 h-1.5 rounded-full bg-border/40 overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-primary"
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.round((uploadProgress.completed / uploadProgress.total) * 100)}%` }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              />
+            </div>
+          )}
         </motion.div>
       </motion.div>
 

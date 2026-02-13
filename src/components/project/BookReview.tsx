@@ -341,7 +341,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const url = `${window.location.origin}/book/${data.shareToken}`;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/share-page?token=${data.shareToken}`;
       setShareUrl(url);
 
       // Try native share sheet first (mobile), then clipboard fallback

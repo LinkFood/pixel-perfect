@@ -339,7 +339,7 @@ const WorkspaceSandbox = ({
           >
             {/* Warm-dark backdrop */}
             <motion.div
-              className="absolute inset-0 bg-amber-950/90"
+              className="absolute inset-0 bg-foreground/90"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 1 }}
@@ -352,7 +352,7 @@ const WorkspaceSandbox = ({
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.8, duration: 0.8 }}
-                className="font-display text-3xl md:text-4xl font-bold text-white text-center drop-shadow-lg"
+                className="font-display text-3xl md:text-4xl font-bold text-background text-center drop-shadow-lg"
               >
                 {petName}'s Book
               </motion.h1>
@@ -395,7 +395,7 @@ const WorkspaceSandbox = ({
                 className="flex flex-col items-center gap-2"
               >
                 <RabbitCharacter state="presenting" size={60} />
-                <p className="font-body text-sm text-white/80 text-center">
+                <p className="font-body text-sm text-background/80 text-center">
                   I made this for you.
                 </p>
               </motion.div>
@@ -408,7 +408,7 @@ const WorkspaceSandbox = ({
               >
                 <Button
                   size="lg"
-                  className="rounded-2xl gap-2 px-10 py-6 text-base bg-white text-amber-950 hover:bg-white/90 shadow-2xl"
+                  className="rounded-2xl gap-2 px-10 py-6 text-base bg-background text-foreground hover:bg-background/90 shadow-2xl"
                   onClick={dismissReveal}
                   disabled={!revealReady}
                 >

@@ -265,8 +265,13 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
     if ((phase === "interview" || phase === "generating") && project) {
       const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
-      sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
-      setRabbitState("thinking");
+      try {
+        sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
+        setRabbitState("thinking");
+      } catch {
+        setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try sending that again?" }]);
+        scrollToBottom();
+      }
     }
   };
 
@@ -433,6 +438,19 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   const userInterviewCount = interviewMessages.filter(m => m.role === "user").length;
   const canFinish = userInterviewCount >= 4;
+
+  // Signal when canFinish becomes true — rabbit hints that the "Make my book" button is ready
+  const prevCanFinish = useRef(false);
+  useEffect(() => {
+    if (canFinish && !prevCanFinish.current && phase === "interview") {
+      setChatMessages(prev => [...prev, {
+        role: "rabbit",
+        content: "I have enough to start — hit \"Make my book\" whenever you're ready. Or keep sharing for an even richer story!",
+      }]);
+      scrollToBottom();
+    }
+    prevCanFinish.current = canFinish;
+  }, [canFinish, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Extract short highlights from user interview messages for generation callbacks
   const interviewHighlights = interviewMessages
