@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle, Loader2, ChevronDown, Camera } from "lucide-react";
+import { CheckCircle, Loader2, ChevronDown, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
 import ChatMessage from "./ChatMessage";
@@ -18,6 +18,8 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
 import { isDevMode } from "@/lib/devMode";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import AuthInline from "./AuthInline";
 
 type WorkspacePhase = "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
 
@@ -52,6 +54,9 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(resolvedId || null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
+  const unauthFileRef = useRef<HTMLInputElement>(null);
   const projectCreatedRef = useRef(false);
 
   // Sync activeProjectId with URL params
@@ -97,6 +102,21 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   // ─── Handlers ─────────────────────────────────────────────
 
   const handlePhotoUpload = async (files: File[]) => {
+    if (!user) {
+      const images = files.filter(f => f.type.startsWith("image/"));
+      if (images.length === 0) return;
+      const urls = images.map(f => URL.createObjectURL(f));
+      setPendingPreviews(prev => [...prev, ...urls]);
+      setChatMessages(prev => [
+        ...prev,
+        { role: "user" as const, content: "", photos: urls },
+        { role: "rabbit" as const, content: "Love these! Sign in and I'll start turning them into something amazing." },
+      ]);
+      setRabbitState("excited");
+      scrollToBottom();
+      return;
+    }
+
     let pid = activeProjectId;
     if (!pid && !projectCreatedRef.current) {
       projectCreatedRef.current = true;
@@ -156,6 +176,21 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     setChatMessages(prev => [...prev, { role: "user", content: text }]);
     setInput("");
     scrollToBottom();
+
+    if (!user) {
+      const responses = [
+        "I turn photos into illustrated storybooks — drop some in and sign in to get started!",
+        "Any photos work — pets, kids, trips, adventures. Drop a few and let's make something.",
+        "I'm ready when you are! Just drop some photos to begin.",
+      ];
+      const rabbitCount = chatMessages.filter(m => m.role === "rabbit").length;
+      const idx = rabbitCount % responses.length;
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { role: "rabbit", content: responses[idx] }]);
+        scrollToBottom();
+      }, 500);
+      return;
+    }
 
     if ((phase === "interview" || phase === "generating") && project) {
       const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
@@ -248,6 +283,9 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
 
   // Rabbit greeting based on phase
   const getRabbitGreeting = () => {
+    if (!user) {
+      return "I'm Rabbit. Drop some photos and I'll turn them into a custom illustrated book — pets, kids, trips, anything.";
+    }
     if (phase === "home" && photos.length === 0) {
       return "Drop your photos here — I'll study every detail so we can make something amazing.";
     }
@@ -265,7 +303,15 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
 
   // ─── Single unified layout ─────────────────────────────────
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div
+      className="h-screen flex flex-col bg-background overflow-hidden"
+      onDragOver={e => e.preventDefault()}
+      onDrop={e => {
+        e.preventDefault();
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+        if (files.length > 0) handlePhotoUpload(files);
+      }}
+    >
       <MinimalNav />
 
       <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto overflow-hidden">
@@ -327,40 +373,87 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
                 <ChatMessage role="rabbit" content={getRabbitGreeting()!} />
               )}
 
-              {/* Upload zone in chat flow */}
-              <ChatMessage role="rabbit" content="">
-                <PhotoUploadInline
-                  photos={photos}
-                  isUploading={isBatchUploading}
-                  uploadProgress={isBatchUploading ? uploadProgress : undefined}
-                  onUpload={handlePhotoUpload}
-                  onToggleFavorite={activeProjectId ? (id, cur) => updatePhoto.mutate({ id, projectId: activeProjectId, is_favorite: !cur }) : undefined}
-                  onDelete={activeProjectId ? (id, path) => deletePhoto.mutate({ id, projectId: activeProjectId, storagePath: path }) : undefined}
-                />
-              </ChatMessage>
+              {/* Upload zone — simple for unauth, full for auth */}
+              {!user ? (
+                <>
+                  <ChatMessage role="rabbit" content="">
+                    <div
+                      onClick={() => unauthFileRef.current?.click()}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePhotoUpload(Array.from(e.dataTransfer.files));
+                      }}
+                      className="rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-all border-border bg-card hover:border-primary/40 hover:bg-accent/30"
+                    >
+                      <input
+                        type="file"
+                        ref={unauthFileRef}
+                        className="sr-only"
+                        accept="image/*"
+                        multiple
+                        onChange={e => e.target.files && handlePhotoUpload(Array.from(e.target.files))}
+                      />
+                      <Upload className="w-6 h-6 mx-auto mb-2 text-primary" />
+                      <p className="font-body text-sm text-muted-foreground">
+                        Drop photos here or click to browse
+                      </p>
+                    </div>
+                  </ChatMessage>
 
-              {/* Continue button */}
-              {canContinueToInterview && phase === "upload" && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center py-2">
-                  <Button
-                    size="lg"
-                    className="rounded-xl gap-2 px-8 bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={handleContinueToInterview}
-                  >
-                    That's all my photos — let's go!
-                  </Button>
-                  <p className="font-body text-xs mt-2 text-muted-foreground">Or keep adding more photos</p>
-                </motion.div>
-              )}
+                  {/* Unauth chat messages */}
+                  <AnimatePresence initial={false}>
+                    {chatMessages.map((msg, i) => (
+                      <ChatMessage key={i} role={msg.role} content={msg.content} photos={msg.photos} />
+                    ))}
+                  </AnimatePresence>
 
-              {/* Mood picker in chat flow */}
-              {phase === "mood-picker" && (
-                <ChatMessage role="rabbit" content="">
-                  <MoodPicker
-                    petName={project?.pet_name || "your subject"}
-                    onSelect={handleMoodSelect}
-                  />
-                </ChatMessage>
+                  {/* Auth gate when photos pending */}
+                  {pendingPreviews.length > 0 && (
+                    <ChatMessage role="rabbit" content="">
+                      <AuthInline />
+                    </ChatMessage>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Auth'd upload zone */}
+                  <ChatMessage role="rabbit" content="">
+                    <PhotoUploadInline
+                      photos={photos}
+                      isUploading={isBatchUploading}
+                      uploadProgress={isBatchUploading ? uploadProgress : undefined}
+                      onUpload={handlePhotoUpload}
+                      onToggleFavorite={activeProjectId ? (id, cur) => updatePhoto.mutate({ id, projectId: activeProjectId, is_favorite: !cur }) : undefined}
+                      onDelete={activeProjectId ? (id, path) => deletePhoto.mutate({ id, projectId: activeProjectId, storagePath: path }) : undefined}
+                    />
+                  </ChatMessage>
+
+                  {/* Continue button */}
+                  {canContinueToInterview && phase === "upload" && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center py-2">
+                      <Button
+                        size="lg"
+                        className="rounded-xl gap-2 px-8 bg-primary text-primary-foreground hover:bg-primary/90"
+                        onClick={handleContinueToInterview}
+                      >
+                        That's all my photos — let's go!
+                      </Button>
+                      <p className="font-body text-xs mt-2 text-muted-foreground">Or keep adding more photos</p>
+                    </motion.div>
+                  )}
+
+                  {/* Mood picker in chat flow */}
+                  {phase === "mood-picker" && (
+                    <ChatMessage role="rabbit" content="">
+                      <MoodPicker
+                        petName={project?.pet_name || "your subject"}
+                        onSelect={handleMoodSelect}
+                      />
+                    </ChatMessage>
+                  )}
+                </>
               )}
             </>
           )}
@@ -510,15 +603,17 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
         />
       </div>
 
-      {/* Project shelf */}
-      <ProjectShelf
-        projects={projects}
-        activeProjectId={activeProjectId}
-        onSelect={handleSelectProject}
-        onNew={handleNewProject}
-        onRename={handleRenameProject}
-        onDelete={handleDeleteProject}
-      />
+      {/* Project shelf — only for auth'd users */}
+      {user && (
+        <ProjectShelf
+          projects={projects}
+          activeProjectId={activeProjectId}
+          onSelect={handleSelectProject}
+          onNew={handleNewProject}
+          onRename={handleRenameProject}
+          onDelete={handleDeleteProject}
+        />
+      )}
     </div>
   );
 };

@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import Workspace from "@/components/workspace/Workspace";
-import Landing from "./Landing";
+
 import { isDevMode } from "@/lib/devMode";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -61,11 +61,7 @@ const Home = () => {
     );
   }
 
-  if (user) {
-    return <Workspace />;
-  }
-
-  return <Landing />;
+  return <Workspace />;
 };
 
 export default Home;

@@ -24,6 +24,7 @@ const PhotoUploadInline = ({
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
     if (files.length > 0) onUpload(files);
   }, [onUpload]);
