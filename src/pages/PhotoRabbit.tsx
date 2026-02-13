@@ -334,7 +334,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if (!activeProjectId) return;
     updateStatus.mutate({ id: activeProjectId, status: "interview" });
     const greetings = photos.length <= 3 ? shortGreetings : fullGreetings;
-    const greeting = greetings[mood] || greetings.heartfelt;
+    let greeting: string;
+    if (mood.startsWith("custom:")) {
+      const vibe = mood.slice(7).trim();
+      greeting = photos.length <= 3
+        ? `Got it — "${vibe}" energy. Tell me what's going on in this photo.`
+        : `Got it — "${vibe}" energy. I've studied your photos. Tell me the story.`;
+    } else {
+      greeting = greetings[mood] || greetings.heartfelt;
+    }
     setChatMessages([{ role: "rabbit", content: greeting }]);
     setRabbitState("listening");
     scrollToBottom();

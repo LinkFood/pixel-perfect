@@ -9,12 +9,12 @@ interface HeroLandingProps {
 
 // ─── Rabbit personality lines (rotates on load) ────────────────
 const rabbitLines = [
-  "Drop some photos. I'll make them into something you'll cry about.",
-  "I just finished painting a book about a golden retriever named Biscuit. Your turn.",
-  "Fun fact: I've painted 847 books and cried at every single one.",
-  "The last person who dropped photos here sent the book to their mom. She called them sobbing. Good sobbing.",
-  "I paint books from your photos. Real ones. The kind people keep.",
-  "Got pet photos? Kid photos? Vacation photos? I don't care. Drop them. Let's make something.",
+  "Drop some photos. I'll turn them into something that hits different.",
+  "Last book I painted was a frat's spring break recap. Before that, a memorial for someone's grandma. I don't judge. I just make it good.",
+  "One photo, fifty photos — I don't care. Give me something to work with.",
+  "Someone made a book about their cat knocking things off tables. 22 pages. It was a masterpiece.",
+  "I've made anniversary gifts, retirement tributes, and a book called 'Why Brad Can't Cook.' All bangers.",
+  "Funny, sad, weird, heartfelt — you pick the vibe, I'll paint it.",
 ];
 
 // ─── Auto-playing flipbook spreads ─────────────────────────────
@@ -25,30 +25,31 @@ const showcaseSpreads = [
     gradient: "from-amber-100 to-orange-50",
   },
   {
-    title: "Sunrise at the Summit",
-    text: "They reached the top just as the sky turned pink. Luna sat at the edge, ears forward, watching the world wake up beneath them. Some adventures you feel forever.",
-    gradient: "from-rose-100 to-pink-50",
+    title: "Why Brad Can't Cook",
+    text: "The smoke alarm went off for the third time. Brad stood in the kitchen holding a spatula and what used to be an omelet. 'It's rustic,' he said. Nobody believed him.",
+    gradient: "from-emerald-100 to-teal-50",
   },
   {
-    title: "The Birthday Surprise",
-    text: "The kitchen was covered in flour. Somehow, the cake survived. And somehow, so did the birthday girl's smile — wider than anyone had seen in years.",
+    title: "Grandma's Garden",
+    text: "She never measured anything — not the soil, not the water, not the love. But everything she planted grew. And everyone who visited left carrying something home.",
     gradient: "from-violet-100 to-indigo-50",
   },
 ];
 
 // ─── Social proof lines ────────────────────────────────────────
 const proofLines = [
-  "Just painted 'The Great Sock Heist' — a book about a golden retriever named Max",
-  "New book: 'Luna's Mountain' — 22 illustrated pages",
-  "Someone just sent 'The Birthday Surprise' to their mom",
-  "Just finished: 'Adventures of Captain Whiskers' — 22 pages, cats in space",
+  "Just painted 'Why Brad Can't Cook' — 22 pages of kitchen disasters",
+  "New book: 'Grandma's Garden' — someone's going to cry reading this",
+  "Someone just sent 'The Sock Heist' to their entire family group chat",
+  "Just finished: 'Spring Break 2025' — 14 pages, no regrets",
   "New book: 'Our First Year' — a couple's story in illustrations",
+  "Someone made a 6-page book from one photo of their dog. It's perfect.",
 ];
 
 const steps = [
-  { icon: Camera, label: "Drop your photos", detail: "Pets, kids, trips — anything" },
-  { icon: MessageCircle, label: "Chat with Rabbit", detail: "Tell the story behind them" },
-  { icon: BookOpen, label: "Get your book", detail: "22 illustrated pages, yours to keep" },
+  { icon: Camera, label: "Drop your photos", detail: "One photo or a hundred" },
+  { icon: MessageCircle, label: "Chat with Rabbit", detail: "Pick the vibe — funny, deep, weird, yours" },
+  { icon: BookOpen, label: "Get your book", detail: "Illustrated, shareable, yours to keep" },
 ];
 
 const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
