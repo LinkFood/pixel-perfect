@@ -413,7 +413,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="flex gap-2 overflow-x-auto pb-2 pt-1 scrollbar-hide">
-                {photos.slice(0, 12).map((p) => (
+                {photos.map((p) => (
                   <div
                     key={p.id}
                     className="shrink-0 w-16 h-16 rounded-lg overflow-hidden border"
@@ -426,14 +426,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
                     />
                   </div>
                 ))}
-                {photos.length > 12 && (
-                  <div
-                    className="shrink-0 w-16 h-16 rounded-lg flex items-center justify-center font-body text-xs"
-                    style={{ background: "#F5EDE4", color: "#9B8E7F" }}
-                  >
-                    +{photos.length - 12} more
-                  </div>
-                )}
               </div>
             </CollapsibleContent>
           </Collapsible>
