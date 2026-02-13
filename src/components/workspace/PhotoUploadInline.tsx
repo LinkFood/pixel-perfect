@@ -44,8 +44,7 @@ const PhotoUploadInline = ({
         onDragOver={e => e.preventDefault()}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className="rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors hover:border-[#C4956A]/50"
-        style={{ borderColor: "#E8D5C0", background: "#FEFCF9" }}
+        className="rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-all border-border bg-card hover:border-primary/40 hover:bg-accent/30"
       >
         <input
           type="file"
@@ -55,8 +54,8 @@ const PhotoUploadInline = ({
           multiple
           onChange={e => e.target.files && onUpload(Array.from(e.target.files).filter(f => f.type.startsWith("image/")))}
         />
-        <Upload className="w-6 h-6 mx-auto mb-2" style={{ color: "#C4956A" }} />
-        <p className="font-body text-sm" style={{ color: "#6B5D4F" }}>
+        <Upload className="w-6 h-6 mx-auto mb-2 text-primary" />
+        <p className="font-body text-sm text-muted-foreground">
           {isUploading
             ? `Uploading... ${uploadProgress ? `${uploadProgress.completed}/${uploadProgress.total}` : ""}`
             : messages[threshold]}
@@ -66,8 +65,8 @@ const PhotoUploadInline = ({
       {/* Photo count */}
       {count > 0 && (
         <div className="flex items-center gap-2">
-          <Camera className="w-4 h-4" style={{ color: "#C4956A" }} />
-          <span className="font-body text-sm font-medium" style={{ color: "#2C2417" }}>
+          <Camera className="w-4 h-4 text-primary" />
+          <span className="font-body text-sm font-medium text-foreground">
             {count} photo{count !== 1 ? "s" : ""}
           </span>
         </div>

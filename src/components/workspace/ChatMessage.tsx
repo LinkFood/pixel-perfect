@@ -48,13 +48,19 @@ const ChatMessage = ({ role, content, isStreaming, photos, children }: ChatMessa
                 isRabbit ? "rounded-tl-md" : "rounded-tr-md ml-auto"
               }`}
               style={{
-                background: isRabbit ? "#F5EDE4" : "#E8D5C0",
-                border: isRabbit ? "1px solid #E8D5C0" : "none",
+                background: isRabbit
+                  ? "hsl(var(--chat-ai-bg))"
+                  : "hsl(var(--chat-user-bg))",
+                border: isRabbit ? "1px solid hsl(var(--chat-ai-border))" : "none",
               }}
             >
               <p
                 className="font-body text-[15px] leading-relaxed whitespace-pre-line"
-                style={{ color: "#2C2417" }}
+                style={{
+                  color: isRabbit
+                    ? "hsl(var(--chat-ai-text))"
+                    : "hsl(var(--chat-user-text))",
+                }}
               >
                 {content}
                 {isStreaming && (

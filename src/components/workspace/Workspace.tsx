@@ -259,8 +259,8 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   // ─── Loading state (prevents flash of wrong view) ────────────
   if (view === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FDF8F0" }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#C4956A" }} />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -268,8 +268,8 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   // ─── Review: handled by useEffect redirect above ─────────────
   if (view === "review") {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FDF8F0" }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#C4956A" }} />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -277,7 +277,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   // ─── Generating view ────────────────────────────────────────
   if (view === "generating") {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
+      <div className="min-h-screen flex flex-col bg-background">
         <MinimalNav />
         <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto">
           <GenerationView
@@ -301,7 +301,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   // ─── Home / Upload views: PHOTOS FIRST, no chat ─────────────
   if (view === "home" || view === "upload") {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
+      <div className="min-h-screen flex flex-col bg-background">
         <MinimalNav />
 
         <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto overflow-hidden">
@@ -345,13 +345,12 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
                 <div className="mt-6 text-center">
                   <Button
                     size="lg"
-                    className="rounded-xl gap-2 px-8"
-                    style={{ background: "#C4956A", color: "white" }}
+                    className="rounded-xl gap-2 px-8 bg-primary text-primary-foreground hover:bg-primary/90"
                     onClick={handleContinueToInterview}
                   >
                     That's all my photos — let's go!
                   </Button>
-                  <p className="font-body text-xs mt-2" style={{ color: "#9B8E7F" }}>
+                  <p className="font-body text-xs mt-2 text-muted-foreground">
                     Or keep adding more photos
                   </p>
                 </div>
@@ -376,7 +375,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   // ─── Mood Picker view ──────────────────────────────────────
   if (view === "mood-picker") {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
+      <div className="min-h-screen flex flex-col bg-background">
         <MinimalNav />
         <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto overflow-hidden">
           <div className="flex justify-center py-6 shrink-0">
@@ -401,7 +400,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
 
   // ─── Interview view: NOW the chat opens ─────────────────────
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
+    <div className="min-h-screen flex flex-col bg-background">
       <MinimalNav />
 
       <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto overflow-hidden">
@@ -418,8 +417,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
                 {photos.slice(0, 6).map((p) => (
                   <div
                     key={p.id}
-                    className="w-8 h-8 rounded-full overflow-hidden border-2 shrink-0"
-                    style={{ borderColor: "#FDF8F0" }}
+                    className="w-8 h-8 rounded-full overflow-hidden border-2 border-background shrink-0"
                   >
                     <img
                       src={getPhotoUrl(p.storage_path)}
@@ -429,13 +427,13 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
                   </div>
                 ))}
               </div>
-              <span className="font-body text-xs flex items-center gap-1" style={{ color: "#9B8E7F" }}>
+              <span className="font-body text-xs flex items-center gap-1 text-muted-foreground">
                 <Camera className="w-3 h-3" />
                 {photos.length} photo{photos.length !== 1 ? "s" : ""}
               </span>
               <ChevronDown
-                className="w-3.5 h-3.5 ml-auto transition-transform duration-200"
-                style={{ color: "#9B8E7F", transform: photoStripOpen ? "rotate(180deg)" : undefined }}
+                className="w-3.5 h-3.5 ml-auto transition-transform duration-200 text-muted-foreground"
+                style={{ transform: photoStripOpen ? "rotate(180deg)" : undefined }}
               />
             </CollapsibleTrigger>
             <CollapsibleContent>
@@ -443,8 +441,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
                 {photos.map((p) => (
                   <div
                     key={p.id}
-                    className="shrink-0 w-16 h-16 rounded-lg overflow-hidden border"
-                    style={{ borderColor: "#E8D5C0" }}
+                    className="shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-border"
                   >
                     <img
                       src={getPhotoUrl(p.storage_path)}
@@ -485,8 +482,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
             >
               <Button
                 size="sm"
-                className="rounded-xl gap-2"
-                style={{ background: "#C4956A", color: "white" }}
+                className="rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={handleFinishInterview}
               >
                 <CheckCircle className="w-4 h-4" /> I've shared enough — make my book!
@@ -497,18 +493,17 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
 
         {/* Dev toolbar */}
         {isDevMode() && (
-          <div className="flex items-center gap-2 px-4 py-1 text-xs" style={{ color: "#9B8E7F" }}>
+          <div className="flex items-center gap-2 px-4 py-1 text-xs text-muted-foreground">
             <span className="font-mono opacity-60">DEV</span>
             <div className="relative">
               <button
-                className="px-2 py-0.5 rounded border font-mono hover:bg-black/5"
-                style={{ borderColor: "#D5C8B8" }}
+                className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
                 onClick={() => setSeedMenuOpen(!seedMenuOpen)}
               >
                 Auto-fill ▾
               </button>
               {seedMenuOpen && (
-                <div className="absolute bottom-full left-0 mb-1 bg-white rounded shadow-lg border z-50 min-w-[140px]" style={{ borderColor: "#D5C8B8" }}>
+                <div className="absolute bottom-full left-0 mb-1 bg-card rounded shadow-lg border border-border z-50 min-w-[140px]">
                   {(["link", "luna", "max"] as SeedOption[]).map(seed => (
                     <button
                       key={seed}
@@ -534,8 +529,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
               )}
             </div>
             <button
-              className="px-2 py-0.5 rounded border font-mono hover:bg-black/5"
-              style={{ borderColor: "#D5C8B8" }}
+              className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
               onClick={() => {
                 clearInterview.mutate(undefined, {
                   onSuccess: () => setChatMessages([]),

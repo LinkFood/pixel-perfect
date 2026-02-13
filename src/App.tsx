@@ -27,8 +27,8 @@ const ProjectGenerating = lazy(() => import("./pages/ProjectGenerating"));
 const queryClient = new QueryClient();
 
 const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center" style={{ background: "#FDF8F0" }}>
-    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#C4956A" }} />
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <Loader2 className="w-8 h-8 animate-spin text-primary" />
   </div>
 );
 

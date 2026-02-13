@@ -460,9 +460,8 @@ const ProjectReview = () => {
               {shareUrl ? (
                 <Button
                   variant="outline"
-                  className="rounded-xl gap-2"
+                  className="rounded-xl gap-2 border-primary"
                   onClick={handleCopyShare}
-                  style={{ borderColor: "#C4956A" }}
                 >
                   {shareCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   {shareCopied ? "Copied!" : "Copy Link"}

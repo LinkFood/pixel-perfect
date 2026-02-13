@@ -108,12 +108,12 @@ const SharedBookViewer = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FDF8F0" }}>
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <RabbitCharacter state="thinking" size={120} />
           <div className="flex items-center gap-2 justify-center">
-            <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#C4956A" }} />
-            <span className="font-body text-sm" style={{ color: "#9B8E7F" }}>Loading book...</span>
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            <span className="font-body text-sm text-muted-foreground">Loading book...</span>
           </div>
         </div>
       </div>
@@ -122,17 +122,17 @@ const SharedBookViewer = () => {
 
   if (error || !book) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FDF8F0" }}>
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4 max-w-md px-6">
           <RabbitCharacter state="sympathetic" size={120} />
-          <h1 className="font-display text-2xl font-bold" style={{ color: "#2C2417" }}>
+          <h1 className="font-display text-2xl font-bold text-foreground">
             Book Not Found
           </h1>
-          <p className="font-body text-sm" style={{ color: "#9B8E7F" }}>
+          <p className="font-body text-sm text-muted-foreground">
             This link may have expired or the book may have been removed.
           </p>
           <Link to="/">
-            <Button className="rounded-xl mt-4" style={{ background: "#C4956A", color: "white" }}>
+            <Button className="rounded-xl mt-4 bg-primary text-primary-foreground">
               Create Your Own
             </Button>
           </Link>
@@ -142,15 +142,15 @@ const SharedBookViewer = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#FDF8F0" }}>
+    <div className="min-h-screen flex flex-col bg-background">
       {/* Minimal header */}
       <header className="flex items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2">
           <RabbitCharacter state="idle" size={32} />
-          <span className="font-display text-lg font-bold" style={{ color: "#2C2417" }}>PhotoRabbit</span>
+          <span className="font-display text-lg font-bold text-foreground">PhotoRabbit</span>
         </Link>
         <Link to="/">
-          <Button variant="outline" size="sm" className="rounded-xl gap-2" style={{ borderColor: "#E8D5C0" }}>
+          <Button variant="outline" size="sm" className="rounded-xl gap-2 border border-border">
             <BookOpen className="w-4 h-4" /> Make Your Own
           </Button>
         </Link>
@@ -158,10 +158,10 @@ const SharedBookViewer = () => {
 
       {/* Book title */}
       <div className="text-center py-4">
-        <h1 className="font-display text-2xl font-bold" style={{ color: "#2C2417" }}>
+        <h1 className="font-display text-2xl font-bold text-foreground">
           {book.petName}'s Book
         </h1>
-        <p className="font-body text-sm mt-1" style={{ color: "#9B8E7F" }}>
+        <p className="font-body text-sm mt-1 text-muted-foreground">
           Made with PhotoRabbit
         </p>
       </div>
@@ -174,8 +174,7 @@ const SharedBookViewer = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex max-w-4xl w-full shadow-2xl rounded-2xl overflow-hidden"
-            style={{ border: "1px solid #E8D5C0" }}
+            className="flex max-w-4xl w-full shadow-2xl rounded-2xl overflow-hidden border border-border"
           >
             {/* Left page */}
             <div className="flex-1 overflow-hidden">
@@ -195,21 +194,19 @@ const SharedBookViewer = () => {
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl gap-2"
-            style={{ borderColor: "#E8D5C0" }}
+            className="rounded-xl gap-2 border border-border"
             disabled={spreadIdx === 0}
             onClick={() => setSpreadIdx(s => s - 1)}
           >
             <ChevronLeft className="w-4 h-4" /> Previous
           </Button>
-          <span className="font-body text-sm" style={{ color: "#9B8E7F" }}>
+          <span className="font-body text-sm text-muted-foreground">
             {spreadIdx + 1} / {spreads.length}
           </span>
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl gap-2"
-            style={{ borderColor: "#E8D5C0" }}
+            className="rounded-xl gap-2 border border-border"
             disabled={spreadIdx >= spreads.length - 1}
             onClick={() => setSpreadIdx(s => s + 1)}
           >
@@ -219,13 +216,13 @@ const SharedBookViewer = () => {
       </div>
 
       {/* CTA footer */}
-      <div className="text-center py-8" style={{ borderTop: "1px solid #E8D5C0" }}>
+      <div className="text-center py-8 border-t border-border">
         <RabbitCharacter state="presenting" size={80} />
-        <p className="font-display text-lg font-bold mt-3" style={{ color: "#2C2417" }}>
+        <p className="font-display text-lg font-bold mt-3 text-foreground">
           Want to make one for someone you love?
         </p>
         <Link to="/">
-          <Button className="rounded-xl mt-3 px-6" style={{ background: "#C4956A", color: "white" }}>
+          <Button className="rounded-xl mt-3 px-6 bg-primary text-primary-foreground">
             Start With Your Photos
           </Button>
         </Link>
@@ -248,16 +245,16 @@ type VirtualPageType = {
 function renderSharedPage(vp: VirtualPageType | null) {
   if (!vp) {
     return (
-      <div className="aspect-square" style={{ background: "linear-gradient(to bottom, #FEF7EE, #FDF0E0)" }} />
+      <div className="aspect-square bg-gradient-to-b from-accent to-secondary" />
     );
   }
 
   if (vp.type === "gallery_title") {
     return (
-      <div className="aspect-square flex items-center justify-center" style={{ background: "linear-gradient(to bottom, #FEF7EE, #FDF0E0)" }}>
+      <div className="aspect-square flex items-center justify-center bg-gradient-to-b from-accent to-secondary">
         <div className="text-center space-y-3 p-8">
-          <Camera className="w-10 h-10 mx-auto" style={{ color: "#C4956A" }} />
-          <h2 className="font-display text-lg font-bold" style={{ color: "#2C2417" }}>
+          <Camera className="w-10 h-10 mx-auto text-primary" />
+          <h2 className="font-display text-lg font-bold text-foreground">
             The Real {vp.petName}
           </h2>
         </div>
@@ -267,23 +264,23 @@ function renderSharedPage(vp: VirtualPageType | null) {
 
   if (vp.type === "gallery_grid") {
     return (
-      <div className="aspect-square p-3" style={{ background: "linear-gradient(to bottom, #FEF7EE, white)" }}>
+      <div className="aspect-square p-3 bg-gradient-to-b from-accent to-white">
         <div className="grid grid-cols-2 grid-rows-3 gap-2 h-full">
           {vp.photos.map((photo, i) => (
-            <div key={i} className="rounded-lg overflow-hidden shadow-sm flex flex-col" style={{ border: "1px solid #E8D5C0" }}>
+            <div key={i} className="rounded-lg overflow-hidden shadow-sm flex flex-col border border-border">
               <div className="flex-1 min-h-0">
                 <img src={photo.photoUrl} alt={photo.caption || `Photo ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
               </div>
               {photo.caption && (
-                <p className="font-body text-[8px] text-center px-1 py-0.5 truncate" style={{ color: "#9B8E7F" }}>
+                <p className="font-body text-[8px] text-center px-1 py-0.5 truncate text-muted-foreground">
                   {photo.caption}
                 </p>
               )}
             </div>
           ))}
           {Array.from({ length: Math.max(0, 6 - vp.photos.length) }).map((_, i) => (
-            <div key={`empty-${i}`} className="rounded-lg flex items-center justify-center" style={{ border: "1px solid #E8D5C040", background: "#FDF8F080" }}>
-              <Camera className="w-5 h-5" style={{ color: "#E8D5C060" }} />
+            <div key={`empty-${i}`} className="rounded-lg flex items-center justify-center border border-border/25 bg-background/50">
+              <Camera className="w-5 h-5 text-border/40" />
             </div>
           ))}
         </div>
@@ -297,11 +294,11 @@ function renderSharedPage(vp: VirtualPageType | null) {
   const isCover = page.pageType === "cover";
 
   return (
-    <div className="aspect-square relative overflow-hidden" style={{ background: "#F5EDE4" }}>
+    <div className="aspect-square relative overflow-hidden bg-card">
       {page.illustrationUrl ? (
         <img src={page.illustrationUrl} alt={`Page ${page.pageNumber}`} className="w-full h-full object-cover" loading="lazy" />
       ) : (
-        <div className="w-full h-full flex items-center justify-center" style={{ color: "#D4B89640" }}>
+        <div className="w-full h-full flex items-center justify-center text-border/25">
           <BookOpen className="w-12 h-12" />
         </div>
       )}
@@ -316,7 +313,7 @@ function renderSharedPage(vp: VirtualPageType | null) {
       {/* Dedication centered text */}
       {isDedication && page.textContent && (
         <div className="absolute inset-0 flex items-center justify-center z-10 px-8">
-          <p className="font-display text-base italic leading-relaxed text-center" style={{ color: "#2C2417CC" }}>
+          <p className="font-display text-base italic leading-relaxed text-center text-foreground/80">
             {page.textContent}
           </p>
         </div>

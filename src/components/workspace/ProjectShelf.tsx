@@ -66,10 +66,8 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
                 key={project.id}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                className="shrink-0 rounded-xl px-3 py-2 text-left transition-all relative group"
+                className={`shrink-0 rounded-xl px-3 py-2 text-left transition-all relative group border ${isActive ? "bg-primary border-primary" : "bg-card border-border"}`}
                 style={{
-                  background: isActive ? "#C4956A" : "#F5EDE4",
-                  border: `1px solid ${isActive ? "#C4956A" : "#E8D5C0"}`,
                   minWidth: 80,
                   maxWidth: 160,
                   cursor: "pointer",
@@ -93,23 +91,17 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
                           if (e.key === "Escape") setEditingId(null);
                         }}
                         onClick={e => e.stopPropagation()}
-                        className="w-full bg-transparent font-body text-xs font-medium outline-none border-b"
-                        style={{
-                          color: isActive ? "white" : "#2C2417",
-                          borderColor: isActive ? "rgba(255,255,255,0.5)" : "#C4956A",
-                        }}
+                        className={`w-full bg-transparent font-body text-xs font-medium outline-none border-b ${isActive ? "text-white border-white/50" : "text-foreground border-primary"}`}
                       />
                     ) : (
                       <p
-                        className="font-body text-xs font-medium truncate"
-                        style={{ color: isActive ? "white" : "#2C2417" }}
+                        className={`font-body text-xs font-medium truncate ${isActive ? "text-white" : "text-foreground"}`}
                       >
                         {name}
                       </p>
                     )}
                     <p
-                      className="font-body text-[10px] truncate"
-                      style={{ color: isActive ? "rgba(255,255,255,0.7)" : "#9B8E7F" }}
+                      className={`font-body text-[10px] truncate ${isActive ? "text-white/70" : "text-muted-foreground"}`}
                     >
                       {project.status}
                     </p>
@@ -122,7 +114,7 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
                           onClick={e => e.stopPropagation()}
                           className="shrink-0 p-0.5 rounded hover:bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <MoreHorizontal className="w-3.5 h-3.5" style={{ color: "white" }} />
+                          <MoreHorizontal className="w-3.5 h-3.5 text-white" />
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" sideOffset={8} className="min-w-[120px]">
@@ -162,10 +154,9 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onNew}
-            className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: "#F5EDE4", border: "1px dashed #E8D5C0" }}
+            className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-card border border-dashed border-border"
           >
-            <Plus className="w-4 h-4" style={{ color: "#9B8E7F" }} />
+            <Plus className="w-4 h-4 text-muted-foreground" />
           </motion.button>
         </div>
       </div>

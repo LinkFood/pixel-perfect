@@ -25,11 +25,10 @@ const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
   }, [user]);
 
   return (
-    <nav className="flex items-center justify-between px-6 lg:px-12 h-14 shrink-0">
+    <nav className="flex items-center justify-between px-6 lg:px-12 h-14 shrink-0 border-b border-border/50">
       <a
         href="/"
-        className="font-display text-lg font-semibold tracking-tight"
-        style={{ color: "#2C2417" }}
+        className="font-display text-lg font-semibold tracking-tight text-foreground"
       >
         PhotoRabbit
       </a>
@@ -42,8 +41,7 @@ const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
               await supabase.auth.signOut();
               window.location.href = "/";
             }}
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-mono transition-colors hover:bg-black/5"
-            style={{ color: "#9B8E7F", borderColor: "#D5C8B8", border: "1px solid" }}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-mono transition-colors text-muted-foreground border border-border hover:bg-secondary"
           >
             <X className="w-3 h-3" />
             Exit Dev
@@ -52,22 +50,20 @@ const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
         {!loading && user && showAuth ? (
           <>
             {credits !== null && (
-              <div className="flex items-center gap-1.5 font-body text-sm" style={{ color: "#6B5D4F" }}>
-                <Coins className="w-4 h-4" style={{ color: "#C4956A" }} />
-                <span className="font-semibold" style={{ color: "#2C2417" }}>{credits}</span>
+              <div className="flex items-center gap-1.5 font-body text-sm">
+                <Coins className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-foreground">{credits}</span>
               </div>
             )}
             <a
               href="/dashboard"
-              className="font-body text-sm transition-colors hover:text-foreground"
-              style={{ color: "#6B5D4F" }}
+              className="font-body text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               My Books
             </a>
             <button
               onClick={signOut}
-              className="transition-colors hover:text-foreground"
-              style={{ color: "#9B8E7F" }}
+              className="text-muted-foreground transition-colors hover:text-foreground"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -75,16 +71,8 @@ const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
         ) : !loading && !user && showAuth ? (
           <>
             <a
-              href="#pricing"
-              className="hidden sm:block font-body text-sm transition-colors hover:text-foreground"
-              style={{ color: "#6B5D4F" }}
-            >
-              Pricing
-            </a>
-            <a
               href="/auth"
-              className="font-body text-sm font-medium transition-colors hover:text-foreground"
-              style={{ color: "#C4956A" }}
+              className="font-body text-sm font-medium text-primary transition-colors hover:text-primary/80"
             >
               Sign In
             </a>

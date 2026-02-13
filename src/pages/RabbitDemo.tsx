@@ -17,7 +17,7 @@ const RabbitDemo = () => {
   const [state, setState] = useState<RabbitState>("idle");
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-8" style={{ background: "#FDF8F0" }}>
+    <div className="min-h-screen flex flex-col items-center justify-center gap-8 bg-background">
       <RabbitCharacter state={state} size={200} />
 
       <div className="flex flex-wrap gap-2 justify-center max-w-md">
@@ -25,19 +25,18 @@ const RabbitDemo = () => {
           <button
             key={s}
             onClick={() => setState(s)}
-            className="px-4 py-2 rounded-xl text-sm font-body font-medium transition-all"
-            style={{
-              background: state === s ? "#C4956A" : "#F5EDE4",
-              color: state === s ? "white" : "#2C2417",
-              border: `1px solid ${state === s ? "#C4956A" : "#E8D5C0"}`,
-            }}
+            className={`px-4 py-2 rounded-xl text-sm font-body font-medium transition-all border ${
+              state === s
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card text-foreground border-border"
+            }`}
           >
             {s}
           </button>
         ))}
       </div>
 
-      <p className="font-body text-sm" style={{ color: "#6B5D4F" }}>
+      <p className="font-body text-sm text-muted-foreground">
         Click a state to see the rabbit react
       </p>
     </div>

@@ -4,89 +4,102 @@
 
 @layer base {
   :root {
-    /* Warm cream/ivory palette */
-    --background: 39 50% 97%;
-    --foreground: 25 30% 15%;
+    /* Clean warm off-white + coral accent palette */
+    --background: 50 20% 98%;
+    --foreground: 0 0% 10%;
 
-    --card: 36 40% 95%;
-    --card-foreground: 25 30% 15%;
+    --card: 40 18% 96%;
+    --card-foreground: 0 0% 10%;
 
-    --popover: 39 50% 97%;
-    --popover-foreground: 25 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
 
-    /* Warm amber/terracotta primary */
-    --primary: 25 65% 42%;
-    --primary-foreground: 39 50% 97%;
+    /* Warm coral primary */
+    --primary: 16 78% 60%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Soft sage secondary */
-    --secondary: 38 35% 90%;
-    --secondary-foreground: 25 30% 20%;
+    /* Soft warm secondary */
+    --secondary: 30 15% 93%;
+    --secondary-foreground: 0 0% 15%;
 
-    --muted: 36 25% 92%;
-    --muted-foreground: 25 15% 50%;
+    --muted: 30 10% 91%;
+    --muted-foreground: 25 5% 45%;
 
-    /* Warm gold accent */
-    --accent: 36 60% 50%;
-    --accent-foreground: 25 30% 12%;
+    /* Warm accent — softer coral for backgrounds */
+    --accent: 20 50% 94%;
+    --accent-foreground: 0 0% 10%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 36 30% 88%;
-    --input: 36 30% 88%;
-    --ring: 25 65% 42%;
+    --border: 30 12% 89%;
+    --input: 30 12% 89%;
+    --ring: 16 78% 60%;
 
     --radius: 0.75rem;
 
     /* Custom tokens */
-    --warm-gradient: linear-gradient(135deg, hsl(39 50% 97%), hsl(36 40% 92%));
-    --hero-gradient: linear-gradient(180deg, hsl(39 55% 96%) 0%, hsl(36 45% 93%) 50%, hsl(39 50% 97%) 100%);
-    --card-shadow: 0 4px 20px -4px hsl(25 30% 15% / 0.08);
-    --card-shadow-hover: 0 8px 30px -4px hsl(25 30% 15% / 0.12);
-    --glow-primary: 0 0 40px hsl(25 65% 42% / 0.15);
+    --warm-gradient: linear-gradient(135deg, hsl(50 20% 98%), hsl(30 15% 93%));
+    --hero-gradient: linear-gradient(180deg, hsl(50 20% 98%) 0%, hsl(40 18% 96%) 50%, hsl(50 20% 98%) 100%);
+    --card-shadow: 0 2px 12px -2px hsl(0 0% 10% / 0.06);
+    --card-shadow-hover: 0 6px 24px -4px hsl(0 0% 10% / 0.10);
+    --glow-primary: 0 0 40px hsl(16 78% 60% / 0.15);
 
-    --sidebar-background: 36 40% 95%;
-    --sidebar-foreground: 25 30% 20%;
-    --sidebar-primary: 25 65% 42%;
-    --sidebar-primary-foreground: 39 50% 97%;
-    --sidebar-accent: 36 35% 90%;
-    --sidebar-accent-foreground: 25 30% 20%;
-    --sidebar-border: 36 30% 88%;
-    --sidebar-ring: 25 65% 42%;
+    --sidebar-background: 40 18% 96%;
+    --sidebar-foreground: 0 0% 15%;
+    --sidebar-primary: 16 78% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 15% 93%;
+    --sidebar-accent-foreground: 0 0% 15%;
+    --sidebar-border: 30 12% 89%;
+    --sidebar-ring: 16 78% 60%;
 
     /* Font families */
     --font-display: 'Playfair Display', Georgia, serif;
-    --font-body: 'DM Sans', system-ui, sans-serif;
+    --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+
+    /* Chat-specific tokens */
+    --chat-user-bg: 16 78% 60%;
+    --chat-user-text: 0 0% 100%;
+    --chat-ai-bg: 30 20% 94%;
+    --chat-ai-text: 0 0% 10%;
+    --chat-ai-border: 30 15% 89%;
   }
 
   .dark {
-    --background: 25 25% 8%;
-    --foreground: 36 30% 92%;
-    --card: 25 20% 12%;
-    --card-foreground: 36 30% 92%;
-    --popover: 25 25% 8%;
-    --popover-foreground: 36 30% 92%;
-    --primary: 30 60% 55%;
-    --primary-foreground: 25 25% 8%;
-    --secondary: 25 15% 18%;
-    --secondary-foreground: 36 30% 92%;
-    --muted: 25 15% 18%;
-    --muted-foreground: 36 15% 60%;
-    --accent: 36 50% 45%;
-    --accent-foreground: 36 30% 92%;
+    --background: 0 0% 7%;
+    --foreground: 30 15% 92%;
+    --card: 0 0% 10%;
+    --card-foreground: 30 15% 92%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 30 15% 92%;
+    --primary: 16 72% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 30 15% 92%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 30 8% 55%;
+    --accent: 20 30% 15%;
+    --accent-foreground: 30 15% 92%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 25 15% 20%;
-    --input: 25 15% 20%;
-    --ring: 30 60% 55%;
-    --sidebar-background: 25 20% 10%;
-    --sidebar-foreground: 36 30% 92%;
-    --sidebar-primary: 30 60% 55%;
-    --sidebar-primary-foreground: 25 25% 8%;
-    --sidebar-accent: 25 15% 16%;
-    --sidebar-accent-foreground: 36 30% 92%;
-    --sidebar-border: 25 15% 20%;
-    --sidebar-ring: 30 60% 55%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 16 72% 55%;
+    --sidebar-background: 0 0% 9%;
+    --sidebar-foreground: 30 15% 92%;
+    --sidebar-primary: 16 72% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 13%;
+    --sidebar-accent-foreground: 30 15% 92%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-ring: 16 72% 55%;
+
+    --chat-user-bg: 16 72% 50%;
+    --chat-user-text: 0 0% 100%;
+    --chat-ai-bg: 0 0% 12%;
+    --chat-ai-text: 30 15% 92%;
+    --chat-ai-border: 0 0% 18%;
   }
 }
 
@@ -98,6 +111,8 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {

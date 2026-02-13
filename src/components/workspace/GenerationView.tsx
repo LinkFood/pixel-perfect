@@ -410,23 +410,25 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
               <div key={s.step} className="flex items-center">
                 {i > 0 && (
                   <div
-                    className="w-8 h-0.5 mx-1"
-                    style={{ background: isComplete || isActive ? "#C4956A" : "#E8D5C0" }}
+                    className={`w-8 h-0.5 mx-1 ${isComplete || isActive ? "bg-primary" : "bg-border"}`}
                   />
                 )}
                 <div className="flex items-center gap-1.5">
                   <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-body font-semibold shrink-0"
-                    style={{
-                      background: isComplete ? "#4CAF50" : isActive ? "#C4956A" : "#E8D5C0",
-                      color: isComplete || isActive ? "white" : "#9B8E7F",
-                    }}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-body font-semibold shrink-0 ${
+                      isComplete ? "bg-green-500 text-white"
+                        : isActive ? "bg-primary text-white"
+                        : "bg-border text-muted-foreground"
+                    }`}
                   >
                     {isComplete ? <Check className="w-3.5 h-3.5" /> : s.step}
                   </div>
                   <span
-                    className="font-body text-xs whitespace-nowrap"
-                    style={{ color: isActive ? "#C4956A" : isComplete ? "#4CAF50" : "#9B8E7F" }}
+                    className={`font-body text-xs whitespace-nowrap ${
+                      isActive ? "text-primary"
+                        : isComplete ? "text-green-500"
+                        : "text-muted-foreground"
+                    }`}
                   >
                     {s.label}
                     {s.count && <span className="ml-0.5">{s.count}</span>}
@@ -442,8 +444,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
           <div className="mt-2 max-w-xs mx-auto">
             <Progress
               value={progressPercent}
-              className="h-2 rounded-full"
-              style={{ background: "#F5EDE4" }}
+              className="h-2 rounded-full bg-secondary"
             />
           </div>
         )}
@@ -467,22 +468,19 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
               className="flex justify-center py-3"
             >
               <div
-                className="rounded-2xl overflow-hidden shadow-lg border-2 w-full"
-                style={{ borderColor: "#C4956A", maxWidth: 380 }}
+                className="rounded-2xl overflow-hidden shadow-lg border-2 border-primary w-full"
+                style={{ maxWidth: 380 }}
               >
                 <img
                   src={latestIllustration}
                   alt="Latest illustration"
                   className="w-full h-auto object-cover"
                 />
-                <div
-                  className="px-3 py-2 flex items-center justify-between"
-                  style={{ background: "#FAF4ED" }}
-                >
-                  <span className="font-body text-xs font-medium" style={{ color: "#C4956A" }}>
+                <div className="px-3 py-2 flex items-center justify-between bg-card">
+                  <span className="font-body text-xs font-medium text-primary">
                     Page {illustrationsGenerated} of {totalPages}
                   </span>
-                  <span className="font-body text-xs" style={{ color: "#9B8E7F" }}>
+                  <span className="font-body text-xs text-muted-foreground">
                     Just painted
                   </span>
                 </div>
@@ -494,7 +492,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
         {/* Previous illustrations — medium gallery row */}
         {completedIllustrations.length > 1 && (
           <div className="py-2">
-            <p className="font-body text-xs mb-2" style={{ color: "#9B8E7F" }}>
+            <p className="font-body text-xs mb-2 text-muted-foreground">
               Completed pages
             </p>
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
@@ -505,8 +503,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
                     initial={{ opacity: 0, scale: 0.8, y: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ delay: i * 0.03 }}
-                    className="shrink-0 w-20 h-20 rounded-xl overflow-hidden border"
-                    style={{ borderColor: "#E8D5C0" }}
+                    className="shrink-0 w-20 h-20 rounded-xl overflow-hidden border border-border"
                   >
                     <img src={url} alt={`Page ${i + 1}`} className="w-full h-full object-cover" />
                   </motion.div>
@@ -520,15 +517,14 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
         {(phase === "story" || phase === "illustrations") && (
           <div className="flex items-center gap-3 py-2">
             <motion.div
-              className="w-3 h-3 rounded-full shrink-0"
-              style={{ background: "#C4956A" }}
+              className="w-3 h-3 rounded-full shrink-0 bg-primary"
               animate={{ scale: [1, 1.4, 1], opacity: [1, 0.5, 1] }}
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
             />
-            <span className="font-body text-xs" style={{ color: "#9B8E7F" }}>
+            <span className="font-body text-xs text-muted-foreground">
               {phase === "story" ? "Writing story" : "Painting illustrations"}
             </span>
-            <span className="font-body text-xs ml-auto" style={{ color: "#B8A99A" }}>
+            <span className="font-body text-xs ml-auto text-muted-foreground">
               {formatElapsed(elapsedSeconds)}
             </span>
           </div>
@@ -541,9 +537,8 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl gap-2"
+            className="rounded-xl gap-2 border-border"
             onClick={handleStop}
-            style={{ borderColor: "#E8D5C0" }}
           >
             <StopCircle className="w-4 h-4" /> Stop
           </Button>
@@ -552,13 +547,12 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl gap-2"
+            className="rounded-xl gap-2 border-border"
             onClick={() => {
               cancelRef.current = true;
               updateStatus.mutate({ id: projectId, status: "review" });
               onComplete();
             }}
-            style={{ borderColor: "#E8D5C0" }}
           >
             <SkipForward className="w-4 h-4" /> Skip to Review
           </Button>
@@ -568,16 +562,14 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
             <Button
               variant="outline"
               size="sm"
-              className="rounded-xl gap-2"
+              className="rounded-xl gap-2 border-border"
               onClick={handleRetry}
-              style={{ borderColor: "#E8D5C0" }}
             >
               <RefreshCw className="w-4 h-4" /> Retry {failedCount} Failed
             </Button>
             <Button
               size="sm"
-              className="rounded-xl gap-2"
-              style={{ background: "#C4956A", color: "white" }}
+              className="rounded-xl gap-2 bg-primary text-primary-foreground"
               onClick={() => {
                 updateStatus.mutate({ id: projectId, status: "review" });
                 onComplete();
@@ -590,8 +582,7 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
         {phase === "done" && (
           <Button
             size="sm"
-            className="rounded-xl gap-2"
-            style={{ background: "#C4956A", color: "white" }}
+            className="rounded-xl gap-2 bg-primary text-primary-foreground"
             onClick={onComplete}
           >
             Review Your Book
