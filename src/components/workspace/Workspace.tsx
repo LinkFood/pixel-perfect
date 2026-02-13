@@ -148,7 +148,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
         navigate(`/project/${remaining[0].id}`);
       } else {
         setActiveProjectId(null);
-        navigate("/project");
+        navigate("/");
       }
     }
   };
