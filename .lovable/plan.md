@@ -1,37 +1,39 @@
 
 
-# Add Rename and Delete to Project Shelf Tabs
+# Fix Build Error + Flow Bug in Mood Selection
 
-## What Changes
+## Bugs Found
 
-The project tabs at the bottom of the workspace currently only let you switch between projects. We'll add the ability to **rename** and **delete** projects directly from those tabs via a right-click/long-press context menu or tap-accessible controls.
+### Bug 1: Build Error (Critical)
+`handleMoodSelect` calls `setShowMoodPicker(false)` on line 228 -- this state variable was removed in the flow refactor. This completely breaks the build.
 
-## UX Design
+### Bug 2: Wrong Flow After Mood Selection
+`handleMoodSelect` calls `startInterview()` immediately after picking a mood. This skips the photo upload step entirely. Per your intended flow, selecting a mood should just save the mood and let the view auto-resolve to "upload" (since the view logic already does `!project.mood ? "mood-picker" : status === "upload" ? "upload"`).
 
-Each project tab will get a small context menu (using Radix DropdownMenu) that appears when you click a "..." button on the active tab, or right-click any tab. The menu will have two options:
-
-- **Rename** -- opens an inline editable text field replacing the project name on the tab. Press Enter or blur to save.
-- **Delete** -- shows a confirmation dialog (reusing the existing AlertDialog pattern from the Dashboard) before permanently deleting the project and all its data.
-
-The "..." button only appears on the currently active tab to keep things clean. Inactive tabs can still be right-clicked for the menu.
-
-## Technical Details
-
-### File: `src/components/workspace/ProjectShelf.tsx`
-
-1. **Add new props**: `onRename(projectId, newName)` and `onDelete(projectId)`
-2. **Add local state**: `editingId` (which project is being renamed) and `editName` (current input value)
-3. **Add DropdownMenu** on each tab with "Rename" and "Delete" options
-4. **Rename mode**: When "Rename" is clicked, replace the name `<p>` with an `<input>` field. Enter/blur saves via `onRename`. Escape cancels.
-5. **Delete**: Show an AlertDialog confirmation before calling `onDelete`
-6. **Imports**: Add `DropdownMenu` components, `AlertDialog` components, `Input`, `Pencil`, `Trash2`, `MoreHorizontal` from lucide
+## Fix
 
 ### File: `src/components/workspace/Workspace.tsx`
 
-1. **Wire up `onRename`**: Call `updateProject.mutate({ id, pet_name: newName })` 
-2. **Wire up `onDelete`**: Call `deleteProject.mutate(projectId)` and clear `activeProjectId` if the deleted project was active
-3. **Pass both new callbacks** to all 4-5 `<ProjectShelf>` instances in the file
+Replace `handleMoodSelect` (lines 225-230) with a simpler version that only saves the mood and name to the database -- no `setShowMoodPicker`, no `startInterview`:
 
-### No database changes needed
-The existing `useUpdateProject` and `useDeleteProject` hooks already handle rename and delete operations -- we just need to surface them in the ProjectShelf UI.
+```typescript
+const handleMoodSelect = (mood: string, name: string) => {
+  if (!activeProjectId) return;
+  updateProject.mutate({ id: activeProjectId, mood, pet_name: name });
+  // View auto-resolves: mood is now set -> falls through to "upload" view
+};
+```
 
+That's it -- two lines removed, build error fixed, and the flow now correctly goes mood -> upload -> interview.
+
+## Your Vision (as I understand it)
+
+You're building a creative studio where users:
+1. Drop photos and create a project
+2. Pick a mood/tone for their book
+3. Upload more photos
+4. Chat with Rabbit about their memories
+5. Watch the book get illustrated
+6. Review and approve every page
+
+All of this happens in a single workspace with project tabs at the bottom for quick switching, renaming, and cleanup -- no need to navigate away to manage projects.
