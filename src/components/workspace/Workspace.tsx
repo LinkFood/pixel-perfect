@@ -408,41 +408,86 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
         </div>
 
         {/* Dev toolbar */}
-        {isDevMode() && phase === "interview" && (
-          <div className="flex items-center gap-2 px-4 py-1 text-xs text-muted-foreground">
+        {isDevMode() && ["upload", "mood-picker", "interview", "generating"].includes(phase) && (
+          <div className="flex items-center gap-2 px-4 py-1 text-xs text-muted-foreground flex-wrap">
             <span className="font-mono opacity-60">DEV</span>
-            <div className="relative">
-              <button
-                className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
-                onClick={() => setSeedMenuOpen(!seedMenuOpen)}
-              >
-                Auto-fill ▾
-              </button>
-              {seedMenuOpen && (
-                <div className="absolute bottom-full left-0 mb-1 bg-card rounded shadow-lg border border-border z-50 min-w-[140px]">
-                  {(["link", "luna", "max"] as SeedOption[]).map(seed => (
-                    <button
-                      key={seed}
-                      className="block w-full text-left px-3 py-1.5 hover:bg-black/5 font-mono text-xs"
-                      onClick={() => {
-                        setSeedMenuOpen(false);
-                        autoFill.mutate(seed, {
-                          onSuccess: () => setTimeout(() => setChatMessages([]), 300),
-                        });
-                      }}
-                    >
-                      {seed === "link" ? "Link (full)" : seed === "luna" ? "Luna (cat)" : "Max (short)"}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+
+            {/* Auto-fill DB interview */}
+            {(phase === "interview" || phase === "generating") && (
+              <div className="relative">
+                <button
+                  className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
+                  onClick={() => setSeedMenuOpen(!seedMenuOpen)}
+                >
+                  Auto-fill DB ▾
+                </button>
+                {seedMenuOpen && (
+                  <div className="absolute bottom-full left-0 mb-1 bg-card rounded shadow-lg border border-border z-50 min-w-[140px]">
+                    {(["link", "luna", "max"] as SeedOption[]).map(seed => (
+                      <button
+                        key={seed}
+                        className="block w-full text-left px-3 py-1.5 hover:bg-black/5 font-mono text-xs"
+                        onClick={() => {
+                          setSeedMenuOpen(false);
+                          autoFill.mutate(seed, {
+                            onSuccess: () => setTimeout(() => setChatMessages([]), 300),
+                          });
+                        }}
+                      >
+                        {seed === "link" ? "Link (full)" : seed === "luna" ? "Luna (cat)" : "Max (short)"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Auto-fill visible chat UI */}
+            <button
+              className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
+              onClick={() => {
+                const seed = [
+                  { role: "rabbit" as const, content: "Drop your photos — I'll study every detail." },
+                  { role: "user" as const, content: "Here's my dog Max, he's the best boy ever." },
+                  { role: "rabbit" as const, content: "I can already tell Max is a character! What's the most ridiculous thing he's ever done?" },
+                  { role: "user" as const, content: "He brings me his ball every morning and drops it on my face while I'm sleeping." },
+                  { role: "rabbit" as const, content: "A golden retriever alarm clock! Ball on the face is such a dedicated move. What does Max do after you wake up?" },
+                  { role: "user" as const, content: "Full body wiggle, he can't contain himself." },
+                  { role: "rabbit" as const, content: "The full body wiggle! Joy they literally can't keep inside. I have everything I need — let me paint this book!" },
+                ];
+                setChatMessages(seed);
+                scrollToBottom();
+              }}
+            >
+              Fill Chat UI
+            </button>
+
+            {/* Clear */}
             <button
               className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
               onClick={() => clearInterview.mutate(undefined, { onSuccess: () => setChatMessages([]) })}
             >
               Clear
             </button>
+
+            {/* Phase skip buttons */}
+            {(phase === "upload" || phase === "mood-picker") && (
+              <button
+                className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
+                onClick={() => activeProjectId && updateStatus.mutate({ id: activeProjectId, status: "interview" })}
+              >
+                → Interview
+              </button>
+            )}
+            {(phase === "upload" || phase === "mood-picker" || phase === "interview") && (
+              <button
+                className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
+                onClick={() => activeProjectId && updateStatus.mutate({ id: activeProjectId, status: "generating" })}
+              >
+                → Generating
+              </button>
+            )}
+
             {(autoFill.isPending || clearInterview.isPending) && <Loader2 className="w-3 h-3 animate-spin" />}
           </div>
         )}
