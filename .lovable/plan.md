@@ -1,39 +1,64 @@
 
 
-# Fix Build Error + Flow Bug in Mood Selection
+# Fix Critical Bugs & Clean Up Design System Inconsistencies
 
-## Bugs Found
+## Summary
 
-### Bug 1: Build Error (Critical)
-`handleMoodSelect` calls `setShowMoodPicker(false)` on line 228 -- this state variable was removed in the flow refactor. This completely breaks the build.
+You've built a **Universal Creative Engine** — a beautiful workspace where users can drop photos of anything (pets, kids, couples, moments) and chat with Rabbit to create a personalized illustrated book. The design system overhaul is solid, but there are **3 critical bugs + 2 design inconsistencies** breaking the flow:
 
-### Bug 2: Wrong Flow After Mood Selection
-`handleMoodSelect` calls `startInterview()` immediately after picking a mood. This skips the photo upload step entirely. Per your intended flow, selecting a mood should just save the mood and let the view auto-resolve to "upload" (since the view logic already does `!project.mood ? "mood-picker" : status === "upload" ? "upload"`).
+## Bugs Identified
 
-## Fix
+### Bug #1: `/project` Route 404 (Workspace.tsx)
+When a user deletes the active project, `handleDeleteProject` navigates to `/project`, which doesn't exist. Should navigate to `/` (home).
 
-### File: `src/components/workspace/Workspace.tsx`
+**Impact:** Users can't complete a deletion—they land on a 404 page.
 
-Replace `handleMoodSelect` (lines 225-230) with a simpler version that only saves the mood and name to the database -- no `setShowMoodPicker`, no `startInterview`:
+### Bug #2: Landing Page Still Shows Removed Sections
+The Landing.tsx still contains the testimonials and FAQ accordion that were supposed to be removed in the overhaul. The page should be clean: hero → How It Works → CTA.
 
-```typescript
-const handleMoodSelect = (mood: string, name: string) => {
-  if (!activeProjectId) return;
-  updateProject.mutate({ id: activeProjectId, mood, pet_name: name });
-  // View auto-resolves: mood is now set -> falls through to "upload" view
-};
-```
+**Impact:** Confuses the landing message and adds clutter.
 
-That's it -- two lines removed, build error fixed, and the flow now correctly goes mood -> upload -> interview.
+### Bug #3: Hardcoded Hex Colors (Design System Break)
+Despite the claim of "zero hardcoded hex colors," 45+ hex values remain across the codebase:
+- `MoodPicker.tsx`: mood card colors (`#F59E0B`, `#EC4899`, `#3B82F6`, `#8B5CF6`)
+- `RabbitCharacter.tsx`: SVG colors (body `#F5EDE4`, eyes `#2C2417`, nose `#D4956A`, etc. — this is OK, it's the rabbit SVG)
+- `chart.tsx`: recharts color handling (acceptable, library-specific)
 
-## Your Vision (as I understand it)
+**Impact:** Mood picker uses hardcoded colors instead of Tailwind design tokens, making future brand updates harder.
 
-You're building a creative studio where users:
-1. Drop photos and create a project
-2. Pick a mood/tone for their book
-3. Upload more photos
-4. Chat with Rabbit about their memories
-5. Watch the book get illustrated
-6. Review and approve every page
+## What Needs to Happen
 
-All of this happens in a single workspace with project tabs at the bottom for quick switching, renaming, and cleanup -- no need to navigate away to manage projects.
+### 1. Fix `/project` Route (Workspace.tsx)
+Line 152: change `navigate("/project")` to `navigate("/")`
+
+### 2. Clean Up Landing.tsx
+Remove the testimonials section and FAQ accordion. Keep only:
+- Hero section with "Drop photos. Get a book." headline
+- How It Works section (3 steps)
+- CTA button at the bottom
+
+### 3. Replace Hardcoded Colors in MoodPicker.tsx
+Instead of inline hex colors for mood cards, use Tailwind design tokens. Map each mood to a semantic color variable (e.g., `bg-amber-100`, `bg-rose-100`, etc.) that aligns with your coral/off-white palette.
+
+## Why This Matters
+
+**Consistency:** Your design system is the source of truth. Every color should come from Tailwind or CSS variables, not buried in component code.
+
+**Future Updates:** If you ever want to rebrand (different palette, different moods), you change one place — not 50+ files.
+
+**Flow:** Deleting a project should work smoothly. Navigating to a non-existent route breaks the user experience.
+
+## Files to Edit
+
+1. **src/components/workspace/Workspace.tsx** (1 line change)
+2. **src/pages/Landing.tsx** (remove ~30 lines of testimonials/FAQ)
+3. **src/components/workspace/MoodPicker.tsx** (replace hardcoded color hex values with Tailwind utilities)
+
+## Test Plan
+
+After fixes:
+- Create a new project, delete it → should land on home `/`, not a 404
+- Visit landing page → should see clean hero + How It Works + CTA, no testimonials
+- Pick a mood in the Mood Picker → colors should match your brand palette
+- Full flow: home → create project → mood picker → upload photos → interview → generation
+
