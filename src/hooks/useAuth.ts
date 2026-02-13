@@ -16,17 +16,20 @@ export const useAuth = () => {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
 
       // Anonymous sign-in: if no session exists, auto-create one
+      // Keep loading=true until anon auth resolves so photo drops aren't lost
       if (!session) {
-        supabase.auth.signInAnonymously().catch((err) => {
+        try {
+          await supabase.auth.signInAnonymously();
+        } catch (err) {
           console.error("Anonymous sign-in failed:", err);
-        });
+        }
       }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

@@ -45,7 +45,7 @@ const ChatInput = ({
               className="sr-only"
               accept="image/*"
               multiple
-              onChange={e => handlePhotoSelect(e.target.files)}
+              onChange={e => { handlePhotoSelect(e.target.files); e.target.value = ""; }}
             />
             <motion.button
               type="button"

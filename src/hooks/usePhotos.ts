@@ -43,28 +43,44 @@ export const useUploadPhoto = () => {
 
   const describePhoto = useCallback(async (photoId: string, projectId: string) => {
     setCaptioningIds(prev => new Set(prev).add(photoId));
-    try {
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/describe-photo`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ photoId, projectId }),
-      });
-      if (!resp.ok) {
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/describe-photo`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ photoId, projectId }),
+        });
+        if (resp.ok) {
+          queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+          break;
+        }
+        if (resp.status === 429 && attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
         console.error("describe-photo failed:", resp.status);
+        if (attempt === MAX_RETRIES) {
+          toast.error("Couldn't caption a photo — story may miss some details");
+        }
+        break;
+      } catch (e) {
+        console.error("describe-photo error:", e);
+        if (attempt === MAX_RETRIES) {
+          toast.error("Couldn't caption a photo — story may miss some details");
+        } else {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        }
       }
-      queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
-    } catch (e) {
-      console.error("describe-photo error:", e);
-    } finally {
-      setCaptioningIds(prev => {
-        const next = new Set(prev);
-        next.delete(photoId);
-        return next;
-      });
     }
+    setCaptioningIds(prev => {
+      const next = new Set(prev);
+      next.delete(photoId);
+      return next;
+    });
   }, [queryClient]);
 
   // Upload a single file — returns the photo record or null on failure
@@ -102,13 +118,13 @@ export const useUploadPhoto = () => {
       batchQueueRef.current = [];
 
       const CONCURRENCY = 3;
-      let completed = 0;
-      let failed = 0;
+      let batchCompleted = 0;
+      let batchFailed = 0;
       const total = queue.length;
       const failedItems: { projectId: string; file: File; sortOrder: number }[] = [];
       const successfulIds: { id: string; projectId: string }[] = [];
 
-      setUploadProgress({ total, completed: 0, failed: 0 });
+      setUploadProgress(prev => ({ total: prev.total + total, completed: prev.completed, failed: prev.failed }));
 
       // Get current count for sort_order
       const projectId = queue[0]?.projectId;
@@ -127,18 +143,22 @@ export const useUploadPhoto = () => {
           chunk.map((item, j) => uploadSingleFile(item.projectId, item.file, sortBase + i + j))
         );
 
+        let chunkOk = 0;
+        let chunkFail = 0;
         for (let r = 0; r < results.length; r++) {
           const result = results[r];
           if (result.status === "fulfilled" && result.value) {
-            completed++;
+            batchCompleted++;
+            chunkOk++;
             successfulIds.push({ id: result.value.id, projectId });
           } else {
-            failed++;
+            batchFailed++;
+            chunkFail++;
             failedItems.push({ projectId: chunk[r].projectId, file: chunk[r].file, sortOrder: sortBase + i + r });
           }
         }
 
-        setUploadProgress({ total, completed, failed });
+        setUploadProgress(prev => ({ ...prev, completed: prev.completed + chunkOk, failed: prev.failed + chunkFail }));
 
         // Refresh photo list every 10 uploads
         if (completed % 10 === 0 || i + CONCURRENCY >= queue.length) {
@@ -160,16 +180,18 @@ export const useUploadPhoto = () => {
             chunk.map(item => uploadSingleFile(item.projectId, item.file, item.sortOrder))
           );
 
+          let retryOk = 0;
           for (let r = 0; r < results.length; r++) {
             const result = results[r];
             if (result.status === "fulfilled" && result.value) {
-              completed++;
-              failed--;
+              batchCompleted++;
+              batchFailed--;
+              retryOk++;
               successfulIds.push({ id: result.value.id, projectId });
             }
           }
 
-          setUploadProgress({ total, completed, failed });
+          if (retryOk > 0) setUploadProgress(prev => ({ ...prev, completed: prev.completed + retryOk, failed: prev.failed - retryOk }));
 
           if (i + CONCURRENCY < failedItems.length) {
             await new Promise(r => setTimeout(r, 300));
@@ -186,8 +208,8 @@ export const useUploadPhoto = () => {
         await new Promise(r => setTimeout(r, 500));
       }
 
-      if (failed > 0) {
-        toast.error(`${failed} of ${total} photos failed to upload`);
+      if (batchFailed > 0) {
+        toast.error(`${batchFailed} of ${total} photos failed to upload`);
       } else {
         toast.success(`All ${total} photos uploaded!`);
       }
@@ -199,13 +221,15 @@ export const useUploadPhoto = () => {
     // Pick up any files queued while this batch was running
     if (batchQueueRef.current.length > 0) {
       processBatchQueue();
+    } else {
+      // All batches done — reset progress for next upload session
+      setUploadProgress({ total: 0, completed: 0, failed: 0 });
     }
   }, [queryClient, describePhoto, uploadSingleFile]);
 
   // Queue files for batch upload
   const uploadBatch = useCallback((projectId: string, files: File[]) => {
     batchQueueRef.current.push(...files.map(file => ({ projectId, file })));
-    setUploadProgress(prev => ({ ...prev, total: prev.total + files.length }));
     processBatchQueue();
   }, [processBatchQueue]);
 

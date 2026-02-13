@@ -245,6 +245,15 @@
     z-index: 1;
   }
 
+  /* Hide scrollbars while preserving scroll */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
   @media (max-width: 767px) {
     .workspace-split {
       flex-direction: column;

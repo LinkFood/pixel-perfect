@@ -59,14 +59,19 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
   // ─── Eye tracking ──────────────────────────────────────
   const [eyeOffset, setEyeOffset] = useState({ x: 0, y: 0 });
 
+  const rafRef = useRef<number>(0);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!heroRef.current) return;
-    const rect = heroRef.current.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height * 0.25; // rabbit is upper quarter
-    const dx = (e.clientX - centerX) / (rect.width / 2);
-    const dy = (e.clientY - centerY) / (rect.height / 2);
-    setEyeOffset({ x: Math.max(-1, Math.min(1, dx)), y: Math.max(-1, Math.min(1, dy)) });
+    if (rafRef.current) return; // throttle to rAF
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      if (!heroRef.current) return;
+      const rect = heroRef.current.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height * 0.25;
+      const dx = (e.clientX - centerX) / (rect.width / 2);
+      const dy = (e.clientY - centerY) / (rect.height / 2);
+      setEyeOffset({ x: Math.max(-1, Math.min(1, dx)), y: Math.max(-1, Math.min(1, dy)) });
+    });
   }, []);
 
   // ─── Speech bubble rotation ────────────────────────────
@@ -81,14 +86,15 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
 
   useEffect(() => {
     if (!showBubble) return;
+    let innerTimeout: ReturnType<typeof setTimeout>;
     const interval = setInterval(() => {
       setShowBubble(false);
-      setTimeout(() => {
+      innerTimeout = setTimeout(() => {
         setLineIndex(prev => (prev + 1) % rabbitLines.length);
         setShowBubble(true);
       }, 400);
     }, 7000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); clearTimeout(innerTimeout); };
   }, [showBubble]);
 
   // ─── Flipbook auto-play ────────────────────────────────
@@ -124,6 +130,7 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
     if (!e.target.files) return;
     const files = Array.from(e.target.files).filter(f => f.type.startsWith("image/"));
     if (files.length > 0) onPhotoDrop(files);
+    e.target.value = "";
   };
 
   const currentSpread = showcaseSpreads[spreadIndex];

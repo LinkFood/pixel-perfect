@@ -343,10 +343,14 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       if (data?.error) throw new Error(data.error);
       const url = `${window.location.origin}/book/${data.shareToken}`;
       setShareUrl(url);
-      await navigator.clipboard.writeText(url);
-      setShareCopied(true);
-      toast.success("Share link copied to clipboard!");
-      setTimeout(() => setShareCopied(false), 3000);
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareCopied(true);
+        toast.success("Share link copied to clipboard!");
+        setTimeout(() => setShareCopied(false), 3000);
+      } catch {
+        toast("Link created! Copy it: " + url, { duration: 8000 });
+      }
     } catch {
       toast.error("Failed to create share link");
     } finally {

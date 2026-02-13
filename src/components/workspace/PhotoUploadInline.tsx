@@ -45,8 +45,8 @@ const PhotoUploadInline = ({
 
   // Random but stable rotations per photo
   const getRotation = (index: number) => {
-    const seed = (index * 7 + 3) % 7;
-    return (seed - 3) * 1;
+    const seed = (index * 13 + 5) % 7;
+    return (seed - 3) * 1.2;
   };
 
   return (
@@ -77,7 +77,12 @@ const PhotoUploadInline = ({
           className="sr-only"
           accept="image/*"
           multiple
-          onChange={e => e.target.files && onUpload(Array.from(e.target.files).filter(f => f.type.startsWith("image/")))}
+          onChange={e => {
+            if (e.target.files) {
+              onUpload(Array.from(e.target.files).filter(f => f.type.startsWith("image/")));
+              e.target.value = "";
+            }
+          }}
         />
         <motion.div
           animate={isDragOver ? { y: -4 } : { y: 0 }}

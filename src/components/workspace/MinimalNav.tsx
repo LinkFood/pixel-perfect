@@ -1,7 +1,6 @@
 import { LogOut, Coins, X } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, useCredits } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
 import { isDevMode, disableDevMode } from "@/lib/devMode";
 
 interface MinimalNavProps {
@@ -11,19 +10,7 @@ interface MinimalNavProps {
 
 const MinimalNav = ({ showAuth = true, isHero = false }: MinimalNavProps) => {
   const { user, loading, isAnonymous, signOut } = useAuth();
-  const [credits, setCredits] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!user) { setCredits(null); return; }
-    supabase
-      .from("user_credits" as any)
-      .select("balance")
-      .eq("user_id", user.id)
-      .single()
-      .then(({ data }) => {
-        setCredits((data as any)?.balance ?? 0);
-      });
-  }, [user]);
+  const { balance: credits } = useCredits();
 
   return (
     <nav className={`flex items-center justify-between px-6 lg:px-12 h-14 shrink-0 transition-colors ${isHero ? "border-b border-transparent bg-transparent" : "border-b border-border/50"}`}>

@@ -426,11 +426,15 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
     run();
   }, [projectId, generateIllustrations, addMessage, petName]);
 
+  const isRetryingRef = useRef(false);
   const handleRetry = () => {
+    if (isRetryingRef.current) return;
+    isRetryingRef.current = true;
     cancelRef.current = false;
     setFailedCount(0);
+    setElapsedSeconds(0);
     prevIllCountRef.current = 0;
-    generateIllustrations();
+    generateIllustrations().finally(() => { isRetryingRef.current = false; });
   };
 
   const handleStop = () => {
