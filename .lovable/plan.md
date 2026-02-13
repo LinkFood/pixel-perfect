@@ -1,23 +1,28 @@
 
 
-# Show All Photos with Scroll (Instead of Capping at 12)
+# Fix: Interview Photo Strip Still Capped at 12
 
-## Problem
+## What's Already Done
 
-The `PhotoUploadInline` component hard-caps the photo grid at 12 items (`photos.slice(0, 12)`) and shows a "+67" badge for the rest. You can't see, favorite, or delete the hidden photos.
+Your git push successfully implemented the full mood picker flow:
+- MoodPicker component -- working
+- Mood-aware interview prompts in `interview-chat` edge function -- working
+- Mood-aware story generation in `generate-story` edge function -- working  
+- `mood` column exists in the database (confirmed in types.ts)
+- Workspace flow (upload -> mood picker -> interview -> generating -> review) -- working
+- Interview model switched to `openai/gpt-5-mini` -- done
+- Adaptive interview length with self-assessment -- done
 
-## Solution
+## One Remaining Bug
 
-Remove the `slice(0, 12)` limit and render all photos in a scrollable grid. Add a max-height container with overflow scroll so the grid doesn't take over the whole page.
+The interview view's collapsible photo strip in `Workspace.tsx` still caps at 12 photos with a "+N more" badge. This was fixed in the upload grid but missed here.
 
-## Changes
+## Change
 
-### File: `src/components/workspace/PhotoUploadInline.tsx`
+### File: `src/components/workspace/Workspace.tsx`
 
-1. **Remove the `.slice(0, 12)`** on line 79 -- render all photos instead of just the first 12
-2. **Remove the "+N" overflow badge** (the block at lines 120-129 that shows "+67")
-3. **Wrap the grid in a scrollable container** with `max-h-[400px] overflow-y-auto` so that when there are many photos, the grid scrolls instead of pushing everything else off screen
-4. Optionally bump grid to 5 columns on larger screens for better density (`grid-cols-4 sm:grid-cols-5 lg:grid-cols-6`)
+1. **Line 416**: Change `photos.slice(0, 12).map(...)` to `photos.map(...)` -- show all photos in the horizontal strip
+2. **Lines 429-436**: Remove the "+N more" overflow badge block entirely
 
-This way you can see every photo, hover to delete or favorite any of them, and the upload zone + "let's go" button remain accessible above/below the scrollable area.
+That's it -- one small fix. Everything else from your feature spec is already live and working.
 
