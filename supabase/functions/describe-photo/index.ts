@@ -135,6 +135,16 @@ Return ONLY valid JSON, no markdown fences.`,
 
     console.log(`Analysis for ${photoId}: ${caption}`);
 
+    // Build log: photo caption complete
+    await supabase.from("build_log").insert({
+      project_id: projectId,
+      phase: "caption",
+      level: "milestone",
+      message: `Photo analyzed: ${caption.slice(0, 80)}${caption.length > 80 ? "..." : ""}`,
+      technical_message: `Photo ${photoId} | Model: google/gemini-2.5-flash`,
+      metadata: { photo_id: photoId, model: "google/gemini-2.5-flash" },
+    });
+
     // Save both caption (backward compat) and structured ai_analysis
     const { error: updateErr } = await supabase
       .from("project_photos")

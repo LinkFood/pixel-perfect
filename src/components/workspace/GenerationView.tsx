@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
 import ChatMessage from "./ChatMessage";
+import BuildLog from "./BuildLog";
 import { supabase } from "@/integrations/supabase/client";
 import { useUpdateProjectStatus } from "@/hooks/useProject";
 import { toast } from "sonner";
@@ -529,6 +530,9 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
             </span>
           </div>
         )}
+
+        {/* Build Log — collapsible "Under the Hood" */}
+        <BuildLog projectId={projectId} />
       </div>
 
       {/* Action buttons */}

@@ -105,7 +105,20 @@ serve(async (req) => {
 
     const captions = (photos || []).filter(p => p.caption).map(p => p.caption).join(", ");
 
-    console.log(`Generating ${project.product_type || "storybook"} for ${project.pet_name}, mood=${project.mood || "none"}, ${interview?.length || 0} interview messages, ${photos?.length || 0} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
+    const interviewCount = interview?.length || 0;
+    const photoCount = photos?.length || 0;
+    console.log(`Generating ${project.product_type || "storybook"} for ${project.pet_name}, mood=${project.mood || "none"}, ${interviewCount} interview messages, ${photoCount} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
+
+    // Build log: story starting
+    const startTime = Date.now();
+    await supabase.from("build_log").insert({
+      project_id: projectId,
+      phase: "story",
+      level: "milestone",
+      message: `Found ${interviewCount} interview messages and ${photoCount} photos. Writing the story...`,
+      technical_message: `Model: openai/gpt-5.2 | Mood: ${project.mood || "none"} | Appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`,
+      metadata: { model: "openai/gpt-5.2", interview_messages: interviewCount, photos: photoCount },
+    });
 
     const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, project.product_type, project.mood);
 
@@ -190,7 +203,18 @@ Generate all pages now using the generate_pages function.`;
     if (!toolCall) throw new Error("No tool call in response");
 
     const { pages } = JSON.parse(toolCall.function.arguments);
-    console.log(`Generated ${pages.length} pages`);
+    const elapsedMs = Date.now() - startTime;
+    console.log(`Generated ${pages.length} pages in ${elapsedMs}ms`);
+
+    // Build log: story complete
+    await supabase.from("build_log").insert({
+      project_id: projectId,
+      phase: "story",
+      level: "milestone",
+      message: `Story complete! ${pages.length} pages written in ${Math.round(elapsedMs / 1000)}s.`,
+      technical_message: `Generated ${pages.length} pages in ${elapsedMs}ms | Model: openai/gpt-5.2`,
+      metadata: { pages: pages.length, elapsed_ms: elapsedMs, model: "openai/gpt-5.2" },
+    });
 
     // Delete existing pages for this project (in case of regeneration)
     await supabase.from("project_pages").delete().eq("project_id", projectId);
