@@ -225,8 +225,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const handleMoodSelect = (mood: string, name: string) => {
     if (!activeProjectId) return;
     updateProject.mutate({ id: activeProjectId, mood, pet_name: name });
-    setShowMoodPicker(false);
-    startInterview(mood, name);
+    // View auto-resolves: mood is now set -> falls through to "upload" view
   };
 
   const startInterview = (mood: string, name?: string) => {
