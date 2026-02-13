@@ -94,7 +94,27 @@ function buildSystemPrompt(
 ): string {
   const product = productType || "storybook";
   const effectiveMood = mood || "heartfelt";
-  const moodPrompt = MOOD_PROMPTS[effectiveMood] || MOOD_PROMPTS.heartfelt;
+
+  // Handle custom moods: "custom: roast my friend" → dynamic prompt built from the vibe
+  let moodPrompt: string;
+  if (effectiveMood.startsWith("custom:")) {
+    const customVibe = effectiveMood.slice(7).trim();
+    moodPrompt = `You are a versatile, adaptive interviewer for PhotoRabbit — a service that turns real photos and memories into personalized illustrated storybooks.
+
+The user has requested a custom vibe: "${customVibe}"
+
+Your energy: Match the vibe they described. If it's funny, be funny. If it's chaotic, be chaotic. If it's nostalgic, be warm and reflective. Read the room from their description and embody it fully.
+
+Your job: Draw out the stories, moments, and details that fit the "${customVibe}" energy. Ask questions that pull out material matching their requested tone.
+
+Interview style:
+- Lean hard into the vibe they asked for — don't play it safe
+- Ask follow-ups that dig deeper into the specific energy they want
+- If their vibe is humorous, find the absurd details. If emotional, find the quiet moments. If chaotic, embrace the mess.
+- Match their language register — formal vibes get elegant questions, casual vibes get casual questions`;
+  } else {
+    moodPrompt = MOOD_PROMPTS[effectiveMood] || MOOD_PROMPTS.heartfelt;
+  }
 
   let prompt = `${moodPrompt}${SHARED_RULES}`;
 

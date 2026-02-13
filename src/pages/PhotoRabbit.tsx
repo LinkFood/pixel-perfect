@@ -689,6 +689,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         onGenerationComplete={handleGenerationComplete}
         onNewIllustration={handleNewIllustration}
         interviewHighlights={interviewHighlights}
+        mood={project?.mood}
         onBackFromReview={handleBackFromReview}
       />
     </div>

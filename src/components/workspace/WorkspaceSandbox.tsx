@@ -37,6 +37,7 @@ interface WorkspaceSandboxProps {
   onGenerationComplete: () => void;
   onNewIllustration?: (pageNum: number, url: string) => void;
   interviewHighlights?: string[];
+  mood?: string | null;
   // Review props
   onBackFromReview: () => void;
 }
@@ -61,6 +62,7 @@ const WorkspaceSandbox = ({
   onGenerationComplete,
   onNewIllustration,
   interviewHighlights,
+  mood,
   onBackFromReview,
 }: WorkspaceSandboxProps) => {
   const [photoStripOpen, setPhotoStripOpen] = useState(false);
@@ -305,6 +307,7 @@ const WorkspaceSandbox = ({
               hideRabbit={true}
               onNewIllustration={onNewIllustration}
               interviewHighlights={interviewHighlights}
+              mood={mood}
             />
           </motion.div>
         )}

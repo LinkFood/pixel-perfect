@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, MessageCircle, BookOpen } from "lucide-react";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface HeroLandingProps {
   onPhotoDrop: (files: File[]) => void;
@@ -38,12 +39,12 @@ const showcaseSpreads = [
 
 // ─── Social proof lines ────────────────────────────────────────
 const proofLines = [
-  "Just painted 'Why Brad Can't Cook' — 22 pages of kitchen disasters",
-  "New book: 'Grandma's Garden' — someone's going to cry reading this",
-  "Someone just sent 'The Sock Heist' to their entire family group chat",
-  "Just finished: 'Spring Break 2025' — 14 pages, no regrets",
-  "New book: 'Our First Year' — a couple's story in illustrations",
+  "New book: 'The Legend of Drunk Mike' — 18 pages of bad decisions",
+  "Someone just turned their Hawaii trip into a bedtime story for their kids",
+  "Just finished a retirement tribute — 22 pages, zero dry eyes",
+  "New book: 'Why We Don't Let Dad Cook' — sent to an entire family group chat",
   "Someone made a 6-page book from one photo of their dog. It's perfect.",
+  "Just painted a couple's first-year anniversary book — she cried on page 4",
 ];
 
 const steps = [
@@ -56,6 +57,7 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const isMobile = useIsMobile();
 
   // ─── Eye tracking ──────────────────────────────────────
   const [eyeOffset, setEyeOffset] = useState({ x: 0, y: 0 });
@@ -166,7 +168,7 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
           <div className={`transition-transform duration-300 ${isDragOver ? "scale-105" : ""}`}>
             <RabbitCharacter
               state={isDragOver ? "excited" : "idle"}
-              size={200}
+              size={isMobile ? 140 : 200}
               eyeOffset={eyeOffset}
             />
           </div>
@@ -194,9 +196,9 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
           </div>
 
           <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground leading-tight tracking-tight mt-2">
-            Every photo has a story
+            Your photos. My brush.
             <br />
-            <span className="text-primary">it never got to tell.</span>
+            <span className="text-primary">Zero rules.</span>
           </h1>
 
           <p className="font-body text-sm md:text-base text-muted-foreground max-w-md leading-relaxed">
@@ -204,9 +206,9 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
           </p>
         </motion.div>
 
-        {/* ── Flipbook Showcase ── */}
+        {/* ── Flipbook Showcase (hidden on mobile to keep CTA above fold) ── */}
         <motion.div
-          className="w-full max-w-lg"
+          className="w-full max-w-lg hidden md:block"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
@@ -285,13 +287,25 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
             multiple
             onChange={handleFileSelect}
           />
-          <button
+          <motion.button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-body text-sm font-semibold transition-all hover:brightness-95 active:scale-[0.99] shadow-md hover:shadow-lg"
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-primary to-primary/85 text-primary-foreground font-body text-sm font-semibold transition-all hover:brightness-105 active:scale-[0.99] shadow-elevated"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            animate={{
+              boxShadow: [
+                "0 0 0px hsl(var(--primary) / 0)",
+                "0 0 24px hsl(var(--primary) / 0.3)",
+                "0 0 0px hsl(var(--primary) / 0)",
+              ],
+            }}
+            transition={{
+              boxShadow: { duration: 2.5, repeat: Infinity, ease: "easeInOut" },
+            }}
           >
             Choose photos to start
-          </button>
+          </motion.button>
           <p className="text-center font-body text-[11px] text-muted-foreground/60 mt-2">
             or drag and drop anywhere on this page
           </p>
@@ -314,7 +328,7 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
               transition={{ duration: 0.3 }}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-primary/60 pulse-glow" />
-              <span className="font-body text-[11px] text-muted-foreground/50 truncate">
+              <span className="font-body text-[11px] text-muted-foreground/70 truncate">
                 {proofLines[proofIndex]}
               </span>
             </motion.div>

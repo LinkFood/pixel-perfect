@@ -20,6 +20,7 @@ interface GenerationViewProps {
   onRabbitStateChange?: (state: RabbitState) => void;
   onNewIllustration?: (pageNum: number, url: string) => void;
   interviewHighlights?: string[];
+  mood?: string | null;
 }
 
 function sleep(ms: number) {
@@ -32,9 +33,211 @@ function formatElapsed(seconds: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-const illustrationCycleStates: RabbitState[] = [
-  "painting", "thinking", "excited", "painting", "listening", "painting",
-];
+// Mood-aware rabbit state cycles during illustration phase
+function getIllustrationCycleStates(mood: string | null | undefined): RabbitState[] {
+  const normalized = normalizeMood(mood);
+  switch (normalized) {
+    case "memorial":
+      return ["painting", "sympathetic", "painting", "listening", "sympathetic", "painting"];
+    case "funny":
+      return ["painting", "excited", "painting", "excited", "painting", "excited"];
+    case "heartfelt":
+      return ["painting", "listening", "painting", "thinking", "painting", "listening"];
+    case "adventure":
+      return ["painting", "excited", "painting", "excited", "painting", "thinking"];
+    default: // custom or unknown
+      return ["painting", "thinking", "excited", "painting", "listening", "painting"];
+  }
+}
+
+// Normalize mood string — custom moods start with "custom:" prefix
+function normalizeMood(mood: string | null | undefined): string {
+  if (!mood) return "default";
+  if (mood.startsWith("custom:")) return "custom";
+  return mood;
+}
+
+// Mood-aware illustration reaction messages (when a new batch completes)
+function getIllustrationReactions(mood: string | null | undefined): string[] {
+  const normalized = normalizeMood(mood);
+  switch (normalized) {
+    case "memorial":
+      return [
+        "Painting this memory with care...",
+        "I want to honor every detail...",
+        "This one means a lot...",
+        "Taking my time with this one...",
+        "Holding this memory gently...",
+      ];
+    case "funny":
+      return [
+        "Oh wait till you see this one...",
+        "I may have gotten carried away with this page...",
+        "This is going to crack you up...",
+        "I'm giggling while I paint this...",
+        "This one has serious comedic timing...",
+      ];
+    case "heartfelt":
+      return [
+        "Putting all the love into this one...",
+        "I can feel how much they mean to you...",
+        "This page made me tear up a little...",
+        "Every brushstroke feels important here...",
+        "This one is full of warmth...",
+      ];
+    case "adventure":
+      return [
+        "Buckle up, this page is wild...",
+        "The action scene is coming together...",
+        "This one has serious main-character energy...",
+        "Epic moment incoming...",
+        "I'm painting this one with maximum drama...",
+      ];
+    default: // custom or unknown
+      return [
+        "Look at this one!",
+        "This page came out great!",
+        "Another one done!",
+        "I'm really happy with this one...",
+        "Coming together nicely...",
+      ];
+  }
+}
+
+// Mood-aware story phase messages
+function getStoryMessages(mood: string | null | undefined, petName: string, interviewHighlights: string[]): string[] {
+  const normalized = normalizeMood(mood);
+
+  if (interviewHighlights.length > 0) {
+    const highlightMsgs = interviewHighlights.slice(0, 4).map(h => `Writing about ${h}...`);
+    switch (normalized) {
+      case "memorial":
+        return [
+          `Reading everything you shared about ${petName}...`,
+          ...highlightMsgs,
+          `Choosing words that honor their memory...`,
+          `Writing with the care this story deserves...`,
+          `This is going to be something special...`,
+        ];
+      case "funny":
+        return [
+          `Reading everything you shared about ${petName}...`,
+          ...highlightMsgs,
+          `Finding the funniest angles...`,
+          `Writing the jokes in... this is good...`,
+          `This story is going to be a riot...`,
+        ];
+      case "heartfelt":
+        return [
+          `Reading everything you shared about ${petName}...`,
+          ...highlightMsgs,
+          `Weaving in all that love...`,
+          `Choosing the warmest words...`,
+          `This story is full of heart...`,
+        ];
+      case "adventure":
+        return [
+          `Reading everything you shared about ${petName}...`,
+          ...highlightMsgs,
+          `Building up the adventure arc...`,
+          `Adding some epic twists...`,
+          `This story has serious momentum...`,
+        ];
+      default:
+        return [
+          `Reading everything you shared about ${petName}...`,
+          ...highlightMsgs,
+          `Weaving your memories into prose...`,
+          `Choosing the perfect words...`,
+          `This is going to be a good one...`,
+        ];
+    }
+  }
+
+  switch (normalized) {
+    case "memorial":
+      return [
+        `Reading everything you shared about ${petName}...`,
+        `Getting to know ${petName}...`,
+        `Honoring every detail you told me...`,
+        `Choosing words that feel right...`,
+        `Writing this with the gentleness it deserves...`,
+        `Almost there... taking my time with this...`,
+        `This story will be something to treasure...`,
+      ];
+    case "funny":
+      return [
+        `Reading everything you shared about ${petName}...`,
+        `Getting to know ${petName}...`,
+        `Finding the funniest moments...`,
+        `Writing the comedy gold in...`,
+        `This story is cracking me up already...`,
+        `Polishing the punchlines...`,
+        `Oh this is going to be good...`,
+      ];
+    case "heartfelt":
+      return [
+        `Reading everything you shared about ${petName}...`,
+        `Getting to know ${petName}...`,
+        `Weaving in all the love...`,
+        `Choosing the warmest words I know...`,
+        `Writing page by page with care...`,
+        `This story is full of heart...`,
+        `Almost done... it's beautiful...`,
+      ];
+    case "adventure":
+      return [
+        `Reading everything you shared about ${petName}...`,
+        `Getting to know ${petName}...`,
+        `Building the adventure arc...`,
+        `Adding twists and epic moments...`,
+        `Writing the action sequences...`,
+        `This story has serious momentum...`,
+        `Hang on, the climax is coming together...`,
+      ];
+    default:
+      return [
+        `Reading everything you shared about ${petName}...`,
+        `Getting to know ${petName}...`,
+        `Crafting the narrative arc...`,
+        `Weaving your memories into prose...`,
+        `Writing the story page by page...`,
+        `Choosing the perfect words...`,
+        `Polishing the story...`,
+      ];
+  }
+}
+
+// Mood-aware first illustration message
+function getIllustrationIntroMessage(mood: string | null | undefined, interviewHighlights: string[]): string {
+  const normalized = normalizeMood(mood);
+  if (interviewHighlights.length > 0) {
+    switch (normalized) {
+      case "memorial":
+        return `Now I'm going to illustrate the story. I'll paint the ${interviewHighlights[0]} scene with extra care...`;
+      case "funny":
+        return `Now I'm going to illustrate the story. The ${interviewHighlights[0]} scene is going to be hilarious...`;
+      case "heartfelt":
+        return `Now I'm going to illustrate the story. Starting with the ${interviewHighlights[0]} scene... this one's special.`;
+      case "adventure":
+        return `Now I'm going to illustrate the story. The ${interviewHighlights[0]} scene is going to be epic...`;
+      default:
+        return `Now I'm going to illustrate the story. I can already picture the ${interviewHighlights[0]} scene...`;
+    }
+  }
+  switch (normalized) {
+    case "memorial":
+      return `Now I'm going to illustrate the story. I'll paint each memory with care.`;
+    case "funny":
+      return `Now I'm going to illustrate the story. This is going to be a blast!`;
+    case "heartfelt":
+      return `Now I'm going to illustrate the story. Every page will glow with warmth.`;
+    case "adventure":
+      return `Now I'm going to illustrate the story. Time to bring the action to life!`;
+    default:
+      return `Now I'm going to illustrate the story. This is my favorite part!`;
+  }
+}
 
 /** Component that loads an image hidden, then reveals blur → sharp */
 const IllustrationReveal = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -65,7 +268,7 @@ const IllustrationReveal = ({ src, alt, className }: { src: string; alt: string;
   );
 };
 
-const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitStateChange, onNewIllustration, interviewHighlights = [] }: GenerationViewProps) => {
+const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitStateChange, onNewIllustration, interviewHighlights = [], mood }: GenerationViewProps) => {
   const updateStatus = useUpdateProjectStatus();
   const [phase, setPhase] = useState<Phase>("loading");
   const [rabbitState, setRabbitState] = useState<RabbitState>("thinking");
@@ -118,16 +321,17 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
   }, [phase]);
 
   // ─── Rabbit personality cycling during illustration phase ────
+  const moodCycleStates = getIllustrationCycleStates(mood);
   useEffect(() => {
     if (phase !== "illustrations") return;
     let idx = 0;
     const timer = setInterval(() => {
       if (spotlightActiveRef.current) return;
-      idx = (idx + 1) % illustrationCycleStates.length;
-      setRabbitState(illustrationCycleStates[idx]);
+      idx = (idx + 1) % moodCycleStates.length;
+      setRabbitState(moodCycleStates[idx]);
     }, 8000);
     return () => clearInterval(timer);
-  }, [phase]);
+  }, [phase, moodCycleStates]);
 
   // ─── Rabbit personality flashes during story phase ───────────
   useEffect(() => {
@@ -143,24 +347,8 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
     return () => { clearTimeout(flash1); clearTimeout(flash2); };
   }, [phase]);
 
-  // Story phase rotating messages — use interview highlights when available
-  const storyMessages = interviewHighlights.length > 0
-    ? [
-        `Reading everything you shared about ${petName}...`,
-        ...interviewHighlights.slice(0, 4).map(h => `Writing about ${h}...`),
-        `Weaving your memories into prose...`,
-        `Choosing the perfect words...`,
-        `This is going to be a good one...`,
-      ]
-    : [
-        `Reading everything you shared about ${petName}...`,
-        `Getting to know ${petName}...`,
-        `Crafting the narrative arc...`,
-        `Weaving your memories into prose...`,
-        `Writing the story page by page...`,
-        `Choosing the perfect words...`,
-        `Polishing the story...`,
-      ];
+  // Story phase rotating messages — mood-aware, with interview highlights when available
+  const storyMessages = getStoryMessages(mood, petName, interviewHighlights);
 
   useEffect(() => {
     if (phase !== "story") return;
@@ -296,11 +484,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
 
     setPhase("illustrations");
     setRabbitState("painting");
-    addMessage(
-      interviewHighlights.length > 0
-        ? `Now I'm going to illustrate the story. I can already picture the ${interviewHighlights[0]} scene...`
-        : `Now I'm going to illustrate the story. This is my favorite part!`
-    );
+    addMessage(getIllustrationIntroMessage(mood, interviewHighlights));
 
     // ─── Parallel batches of 3 ──────────────────────────────────
     const CONCURRENCY = 3;
@@ -345,7 +529,9 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitSt
 
       if (batchSuccesses > 0) {
         setRabbitState("presenting");
-        addMessage(batchSuccesses === 1 ? "Look at this one!" : `${batchSuccesses} more pages done!`);
+        const reactions = getIllustrationReactions(mood);
+        const reactionMsg = reactions[Math.floor(Math.random() * reactions.length)];
+        addMessage(batchSuccesses === 1 ? reactionMsg : `${batchSuccesses} more pages done!`);
         setTimeout(() => setRabbitState("painting"), 2000);
       }
 

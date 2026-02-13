@@ -343,6 +343,23 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       if (data?.error) throw new Error(data.error);
       const url = `${window.location.origin}/book/${data.shareToken}`;
       setShareUrl(url);
+
+      // Try native share sheet first (mobile), then clipboard fallback
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: `${project?.pet_name}'s Book`,
+            text: "Check out this book I made!",
+            url,
+          });
+          toast.success("Shared!");
+          return;
+        } catch (e) {
+          // User cancelled native share — fall through to clipboard
+          if ((e as DOMException)?.name === "AbortError") return;
+        }
+      }
+
       try {
         await navigator.clipboard.writeText(url);
         setShareCopied(true);
@@ -669,6 +686,31 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
               <p className="font-body text-muted-foreground">No pages generated yet.</p>
             </div>
           )}
+        </motion.div>
+      </div>
+
+      {/* Sticky floating share button — visible when scrolled past the share bar */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ delay: 2, duration: 0.3 }}
+        >
+          <Button
+            size="sm"
+            className="rounded-full h-12 px-5 gap-2 shadow-float bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={shareUrl ? handleCopyShare : handleShare}
+            disabled={isCreatingShare}
+          >
+            {isCreatingShare ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : shareCopied ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Share2 className="w-4 h-4" />
+            )}
+            {isCreatingShare ? "..." : shareCopied ? "Copied!" : "Share"}
+          </Button>
         </motion.div>
       </div>
 

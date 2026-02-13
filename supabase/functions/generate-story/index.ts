@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const MOOD_TONE: Record<string, string> = {
   funny: "Make readers laugh. Use playful language, comedic timing, and exaggerated-but-truthful descriptions. The humor should feel warm and loving, never mean. Lean into the absurdity of their quirks.",
-  heartfelt: "Make readers cry happy tears. Use gentle, flowing language that captures the emotional bond. Focus on the quiet moments that speak volumes — the unspoken connection between pet and owner.",
+  heartfelt: "Make readers cry happy tears. Use gentle, flowing language that captures the emotional bond. Focus on the quiet moments that speak volumes — the unspoken connection between them.",
   adventure: "Grand expedition energy. Use dynamic, exciting language that turns the subject into a brave hero. Every outing is an adventure, every discovery is epic. The world is huge and they are fearless.",
   memorial: "Celebrate their life, not their death. Use warmth and gentle joy. Past tense is okay and natural. The tone should feel like a loving tribute that leaves the reader smiling through tears. End with comfort and peace.",
 };
@@ -19,9 +19,14 @@ function buildSystemPrompt(petName: string, appearanceProfile: string | null, pr
     ? `\n\nCHARACTER APPEARANCE (use in EVERY illustration_prompt):\n${appearanceProfile}\n\nCRITICAL: Every illustration_prompt you write MUST include ${petName}'s full physical description so the illustrator draws them consistently on every single page. Copy the key details into each illustration_prompt.`
     : "";
 
-  const moodGuidance = mood && MOOD_TONE[mood]
-    ? `\n\nTONE GUIDANCE (${mood.toUpperCase()} mood):\n${MOOD_TONE[mood]}`
-    : "";
+  // Handle custom moods: "custom: roast my friend" → dynamic tone guidance
+  let moodGuidance = "";
+  if (mood && mood.startsWith("custom:")) {
+    const customVibe = mood.slice(7).trim();
+    moodGuidance = `\n\nTONE GUIDANCE (CUSTOM mood — "${customVibe}"):\nThe user specifically requested "${customVibe}" energy for this book. Match that vibe in every page. Adapt your writing style, word choice, humor level, and emotional register to fit exactly what they asked for. If it's funny, be genuinely funny. If it's roast-style, roast with love. If it's nostalgic, lean into the warmth. The vibe "${customVibe}" is your north star — every sentence should feel like it belongs in a "${customVibe}" book.`;
+  } else if (mood && MOOD_TONE[mood]) {
+    moodGuidance = `\n\nTONE GUIDANCE (${mood.toUpperCase()} mood):\n${MOOD_TONE[mood]}`;
+  }
 
   return `You are a master children's book author for PhotoRabbit. You write personalized picture books that turn real photos and memories into illustrated stories that make families cry happy tears.
 ${characterBlock}${moodGuidance}
