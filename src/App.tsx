@@ -20,6 +20,9 @@ const ProjectReview = lazy(() => import("./pages/ProjectReview"));
 // Public shared book viewer
 const SharedBookViewer = lazy(() => import("./pages/SharedBookViewer"));
 
+// Pricing
+const Pricing = lazy(() => import("./pages/Pricing"));
+
 // Legacy routes redirect to new flow (keep for backwards compat)
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ProjectGenerating = lazy(() => import("./pages/ProjectGenerating"));
@@ -56,6 +59,9 @@ const App = () => (
 
             {/* Public shared book */}
             <Route path="/book/:shareToken" element={<SharedBookViewer />} />
+
+            {/* Pricing */}
+            <Route path="/pricing" element={<Pricing />} />
 
             {/* Dev */}
             <Route path="/rabbit-demo" element={<RabbitDemo />} />
