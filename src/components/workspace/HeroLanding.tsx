@@ -159,7 +159,7 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
       }}
       onDrop={handleDrop}
     >
-      <div className="max-w-2xl mx-auto px-6 pt-6 pb-6 flex flex-col items-center gap-8">
+      <div className="max-w-2xl mx-auto px-6 pt-3 pb-6 flex flex-col items-center gap-5">
 
         {/* ── Rabbit + Speech Bubble ── */}
         <motion.div
@@ -171,13 +171,13 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
           <div className={`transition-transform duration-300 ${isDragOver ? "scale-105" : ""}`}>
             <RabbitCharacter
               state={isDragOver ? "excited" : "idle"}
-              size={isMobile ? 140 : 200}
+              size={isMobile ? 120 : 140}
               eyeOffset={eyeOffset}
             />
           </div>
 
           {/* Speech bubble — below rabbit, centered */}
-          <div className="min-h-[52px] w-full max-w-sm">
+          <div className="min-h-[40px] w-full max-w-sm">
             <AnimatePresence mode="wait">
               {showBubble && (
                 <motion.div
