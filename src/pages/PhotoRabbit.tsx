@@ -9,6 +9,7 @@ import ChatInput from "@/components/workspace/ChatInput";
 import ProjectShelf from "@/components/workspace/ProjectShelf";
 import MinimalNav from "@/components/workspace/MinimalNav";
 import WorkspaceSandbox from "@/components/workspace/WorkspaceSandbox";
+import HeroLanding from "@/components/workspace/HeroLanding";
 import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus, useUpdateProject, useDeleteProject } from "@/hooks/useProject";
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto } from "@/hooks/usePhotos";
 import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
@@ -421,13 +422,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     .slice(0, 4);
   const canContinueToInterview = photos.length >= 1 && !isBatchUploading;
 
+  // Show hero landing when no active project and no photos
+  const showHero = phase === "home" && photos.length === 0;
+
   // Rabbit greeting based on phase
   const getRabbitGreeting = () => {
     if (!user) {
-      return "I'm Rabbit. Drop some photos and I'll turn them into a custom illustrated book — pets, kids, trips, anything.";
+      return "Hey — I'm Rabbit. Drop some photos and let's make a book together.";
     }
     if (phase === "home" && photos.length === 0) {
-      return "Drop your photos here — I'll study every detail so we can make something amazing.";
+      return "Ready when you are — drop some photos and let's get started.";
     }
     if ((phase === "home" || phase === "upload") && isBatchUploading) {
       return "I'm studying your photos right now...";
@@ -677,34 +681,73 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         if (files.length > 0) handlePhotoUpload(files);
       }}
     >
-      <MinimalNav />
+      <MinimalNav isHero={showHero} />
 
-      {isMobile ? (
-        /* Mobile: stacked layout — sandbox on top (collapsible), chat below */
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Sandbox section — collapsible on mobile */}
-          <div className={`shrink-0 ${mobileSandboxCollapsed ? "max-h-0 overflow-hidden" : "max-h-[50vh] overflow-y-auto border-b border-border"}`}>
+      <AnimatePresence mode="wait">
+        {showHero ? (
+          /* ── Hero Landing ── */
+          <motion.div
+            key="hero"
+            className="flex-1 flex flex-col min-h-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <HeroLanding onPhotoDrop={handlePhotoUpload} />
+
+            {/* Chat input at bottom — "the chat never leaves" */}
+            <ChatInput
+              value={input}
+              onChange={setInput}
+              onSend={handleSend}
+              onPhotos={handlePhotoUpload}
+              disabled={false}
+              placeholder="Drop photos or say hi..."
+              showPhotoButton
+            />
+          </motion.div>
+        ) : isMobile ? (
+          /* ── Mobile: stacked layout ── */
+          <motion.div
+            key="workspace-mobile"
+            className="flex-1 flex flex-col min-h-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            {/* Sandbox section — collapsible on mobile */}
+            <div className={`shrink-0 ${mobileSandboxCollapsed ? "max-h-0 overflow-hidden" : "max-h-[50vh] overflow-y-auto border-b border-border"}`}>
+              {sandboxPanel}
+            </div>
+            {/* Toggle button for sandbox */}
+            {(phase !== "home" || activeProjectId) && (
+              <button
+                onClick={() => setMobileSandboxCollapsed(prev => !prev)}
+                className="shrink-0 py-1.5 text-center font-body text-xs text-muted-foreground border-b border-border/50 hover:bg-secondary/50 transition-colors"
+              >
+                {mobileSandboxCollapsed ? "Show workspace ▼" : "Hide workspace ▲"}
+              </button>
+            )}
+            {/* Chat section */}
+            {chatPanel}
+          </motion.div>
+        ) : (
+          /* ── Desktop: side-by-side split ── */
+          <motion.div
+            key="workspace-desktop"
+            className="workspace-split"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            {chatPanel}
             {sandboxPanel}
-          </div>
-          {/* Toggle button for sandbox */}
-          {(phase !== "home" || activeProjectId) && (
-            <button
-              onClick={() => setMobileSandboxCollapsed(prev => !prev)}
-              className="shrink-0 py-1.5 text-center font-body text-xs text-muted-foreground border-b border-border/50 hover:bg-secondary/50 transition-colors"
-            >
-              {mobileSandboxCollapsed ? "Show workspace ▼" : "Hide workspace ▲"}
-            </button>
-          )}
-          {/* Chat section */}
-          {chatPanel}
-        </div>
-      ) : (
-        /* Desktop: side-by-side split */
-        <div className="workspace-split">
-          {chatPanel}
-          {sandboxPanel}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Project shelf — only for auth'd users */}
       {user && (
@@ -718,8 +761,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         />
       )}
 
-      {/* Footer for unauth */}
-      {!user && (
+      {/* Footer for unauth hero */}
+      {!user && showHero && (
         <div className="flex items-center justify-center gap-3 py-3 font-body text-[11px] text-muted-foreground/50">
           <span>PhotoRabbit</span>
           <span>&copy; {new Date().getFullYear()}</span>

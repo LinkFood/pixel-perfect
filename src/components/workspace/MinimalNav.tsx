@@ -6,9 +6,10 @@ import { isDevMode, disableDevMode } from "@/lib/devMode";
 
 interface MinimalNavProps {
   showAuth?: boolean;
+  isHero?: boolean;
 }
 
-const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
+const MinimalNav = ({ showAuth = true, isHero = false }: MinimalNavProps) => {
   const { user, loading, isAnonymous, signOut } = useAuth();
   const [credits, setCredits] = useState<number | null>(null);
 
@@ -25,7 +26,7 @@ const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
   }, [user]);
 
   return (
-    <nav className="flex items-center justify-between px-6 lg:px-12 h-14 shrink-0 border-b border-border/50">
+    <nav className={`flex items-center justify-between px-6 lg:px-12 h-14 shrink-0 transition-colors ${isHero ? "border-b border-transparent bg-transparent" : "border-b border-border/50"}`}>
       <a
         href="/"
         className="font-display text-lg font-semibold tracking-tight text-foreground"
