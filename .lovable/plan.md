@@ -1,64 +1,215 @@
 
+# Build Activity Log — Smart Transparency (No Noise)
 
-# Fix Critical Bugs & Clean Up Design System Inconsistencies
+## Core Philosophy
+Show what's *important*, hide what's not. The user sees a clean chat flow with Rabbit narrating the key moments, and power users can optionally drill into the technical log. No spam, no clutter.
 
-## Summary
+## How It Works (User Experience)
 
-You've built a **Universal Creative Engine** — a beautiful workspace where users can drop photos of anything (pets, kids, couples, moments) and chat with Rabbit to create a personalized illustrated book. The design system overhaul is solid, but there are **3 critical bugs + 2 design inconsistencies** breaking the flow:
+### Main Chat (Always Visible)
+Rabbit speaks naturally about progress, but **only for state changes**, not every API call:
 
-## Bugs Identified
+**Story Phase:**
+```
+Rabbit: Let me read through everything you shared about Link...
+(after a moment)
+Rabbit: Found 24 interview messages and 6 photos. Writing the story now...
+(after story completes)
+Rabbit: The story is written! 13 pages in 42 seconds. Now painting the illustrations...
+```
 
-### Bug #1: `/project` Route 404 (Workspace.tsx)
-When a user deletes the active project, `handleDeleteProject` navigates to `/project`, which doesn't exist. Should navigate to `/` (home).
+**Illustration Phase:**
+```
+Rabbit: Painting page 1: Link bursts through the back door...
+(when complete)
+Rabbit: Page 1 done! Moving to page 2...
+```
 
-**Impact:** Users can't complete a deletion—they land on a 404 page.
+**No spam**: Not every API call triggers a message. Only "meaningful" events:
+- ✅ Story started & completed
+- ✅ Each page illustration started & completed  
+- ✅ Batch completions ("3 more pages done!")
+- ❌ Every retry, every rate limit backoff, every token count
 
-### Bug #2: Landing Page Still Shows Removed Sections
-The Landing.tsx still contains the testimonials and FAQ accordion that were supposed to be removed in the overhaul. The page should be clean: hero → How It Works → CTA.
+### Under the Hood Log (Optional Collapsible)
+Below the chat, a **collapsed** "Under the Hood" section with a toggle. When expanded, shows detailed timestamps, model names, file sizes, retry counts — the technical stuff developers/curious users want.
 
-**Impact:** Confuses the landing message and adds clutter.
+```
+[Under the Hood] (collapsed by default)
 
-### Bug #3: Hardcoded Hex Colors (Design System Break)
-Despite the claim of "zero hardcoded hex colors," 45+ hex values remain across the codebase:
-- `MoodPicker.tsx`: mood card colors (`#F59E0B`, `#EC4899`, `#3B82F6`, `#8B5CF6`)
-- `RabbitCharacter.tsx`: SVG colors (body `#F5EDE4`, eyes `#2C2417`, nose `#D4956A`, etc. — this is OK, it's the rabbit SVG)
-- `chart.tsx`: recharts color handling (acceptable, library-specific)
+When expanded, shows:
+12:01:03 | story | Reading interview data (24 messages, 6 photos)
+12:01:05 | story | Sending to openai/gpt-5.2 (max_tokens: 4000)
+12:01:47 | story | Story generated: 2847 tokens, 13 pages in 44s
+12:01:48 | illust | Painting page 1 (cover) — prompt: 1256 chars
+12:02:10 | illust | Page 1 complete: 2.1MB PNG | model: google/gemini-3-pro-image-preview
+```
 
-**Impact:** Mood picker uses hardcoded colors instead of Tailwind design tokens, making future brand updates harder.
+## Database Schema
 
-## What Needs to Happen
+```sql
+CREATE TABLE build_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES projects(id),
+  phase text NOT NULL,        -- 'story', 'illustration', 'appearance', 'caption'
+  level text NOT NULL DEFAULT 'info', -- 'info', 'milestone', 'error'
+  message text NOT NULL,      -- user-facing friendly message
+  technical_message text,     -- dev-facing details (timestamps, sizes, etc.)
+  metadata jsonb DEFAULT '{}',-- {model, tokens, size_bytes, elapsed_ms, retry_count, etc.}
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 
-### 1. Fix `/project` Route (Workspace.tsx)
-Line 152: change `navigate("/project")` to `navigate("/")`
+-- RLS: project owner can read
+ALTER TABLE build_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own build logs"
+  ON build_log FOR SELECT
+  USING (EXISTS (
+    SELECT 1 FROM projects WHERE projects.id = build_log.project_id AND projects.user_id = auth.uid()
+  ));
 
-### 2. Clean Up Landing.tsx
-Remove the testimonials section and FAQ accordion. Keep only:
-- Hero section with "Drop photos. Get a book." headline
-- How It Works section (3 steps)
-- CTA button at the bottom
+-- Enable realtime for live updates
+ALTER PUBLICATION supabase_realtime ADD TABLE build_log;
+```
 
-### 3. Replace Hardcoded Colors in MoodPicker.tsx
-Instead of inline hex colors for mood cards, use Tailwind design tokens. Map each mood to a semantic color variable (e.g., `bg-amber-100`, `bg-rose-100`, etc.) that aligns with your coral/off-white palette.
+## Edge Function Changes (Minimal & Smart)
 
-## Why This Matters
+Edge functions **only log "milestone" events** — the state changes that matter:
 
-**Consistency:** Your design system is the source of truth. Every color should come from Tailwind or CSS variables, not buried in component code.
+### `generate-story/index.ts`
+```typescript
+// Only 2 inserts: start and complete
+await supabase.from("build_log").insert({
+  project_id: projectId,
+  phase: "story",
+  level: "milestone",
+  message: `Found ${interviewCount} messages and ${photoCount} photos. Writing story...`,
+  technical_message: `Model: openai/gpt-5.2 | Max tokens: 4000`,
+  metadata: {
+    model: "openai/gpt-5.2",
+    interview_messages: interviewCount,
+    photos: photoCount,
+  }
+});
 
-**Future Updates:** If you ever want to rebrand (different palette, different moods), you change one place — not 50+ files.
+// ... actual generation ...
 
-**Flow:** Deleting a project should work smoothly. Navigating to a non-existent route breaks the user experience.
+await supabase.from("build_log").insert({
+  project_id: projectId,
+  phase: "story",
+  level: "milestone",
+  message: `Story complete! ${pageCount} pages written.`,
+  technical_message: `Generated in ${elapsedMs}ms | Tokens used: ${tokensUsed}`,
+  metadata: {
+    pages: pageCount,
+    elapsed_ms: elapsedMs,
+    tokens_used: tokensUsed,
+  }
+});
+```
+
+### `generate-illustration/index.ts`
+```typescript
+// Log each page completion, not each retry
+await supabase.from("build_log").insert({
+  project_id: projectId,
+  phase: "illustration",
+  level: "milestone",
+  message: `Page ${pageNum} complete!`,
+  technical_message: `${contentType} | ${sizeBytes} bytes | Generated in ${elapsedMs}ms`,
+  metadata: {
+    page_number: pageNum,
+    size_bytes: sizeBytes,
+    model: "google/gemini-3-pro-image-preview",
+    elapsed_ms: elapsedMs,
+    retry_count: retries,
+  }
+});
+```
+
+### `build-appearance-profile/index.ts`, `describe-photo/index.ts`
+```typescript
+// Only one log per function call — completion
+await supabase.from("build_log").insert({
+  project_id: projectId,
+  phase: "appearance",
+  level: "milestone",
+  message: `Appearance profile built: ${summary}`,
+  technical_message: `Analyzed ${photoCount} photos | Model: google/gemini-2.5-flash`,
+  metadata: {
+    photos_analyzed: photoCount,
+    model: "google/gemini-2.5-flash",
+  }
+});
+```
+
+## Frontend Components
+
+### New: `src/components/workspace/BuildLog.tsx`
+A collapsible panel that:
+1. Subscribes to realtime `build_log` events
+2. Shows technical_message + timestamp for each milestone
+3. Collapsed by default, expandable via "Under the Hood" toggle
+4. Auto-scrolls to latest entry
+5. Only shows `level: 'milestone'` (no noise)
+
+```tsx
+// Pseudo-code
+<Collapsible defaultOpen={false}>
+  <CollapsibleTrigger>Under the Hood</CollapsibleTrigger>
+  <CollapsibleContent>
+    {buildLogEntries.map(entry => (
+      <div className="text-xs font-mono text-muted-foreground">
+        <span>{formatTime(entry.created_at)}</span>
+        <span className="text-primary ml-2">{entry.phase}</span>
+        <span className="ml-2">{entry.technical_message}</span>
+      </div>
+    ))}
+  </CollapsibleContent>
+</Collapsible>
+```
+
+### Updated: `src/components/workspace/GenerationView.tsx`
+1. Subscribe to realtime `build_log` for the current project
+2. Filter `level: 'milestone'` events
+3. Extract the `message` field and add it as a Rabbit chat message
+4. Render the new `BuildLog` component below the chat
+5. Remove the hardcoded message cycling — let the database drive it
+
+This way:
+- **Chat stays clean**: Only major state changes appear
+- **Transparency**: Power users can toggle "Under the Hood" to see every detail
+- **Maintainability**: Add logging later (retries, rate limits) without touching the UI
+- **No white noise**: Default experience is smooth and friendly, detail is optional
+
+## Files to Create
+- `src/components/workspace/BuildLog.tsx` (new component)
 
 ## Files to Edit
+- Create migration for `build_log` table
+- `src/components/workspace/GenerationView.tsx` (subscribe to realtime, render BuildLog)
+- `supabase/functions/generate-story/index.ts` (add milestone logs)
+- `supabase/functions/generate-illustration/index.ts` (add milestone logs)
+- `supabase/functions/build-appearance-profile/index.ts` (add milestone logs)
+- `supabase/functions/describe-photo/index.ts` (add milestone logs)
 
-1. **src/components/workspace/Workspace.tsx** (1 line change)
-2. **src/pages/Landing.tsx** (remove ~30 lines of testimonials/FAQ)
-3. **src/components/workspace/MoodPicker.tsx** (replace hardcoded color hex values with Tailwind utilities)
+## What the User Sees
 
-## Test Plan
+**Main Chat (default)**
+```
+Rabbit: Let me read everything about Link...
+Rabbit: Found 24 interview messages and 6 photos. Writing the story now...
+Rabbit: Story written! 13 pages in 42 seconds. Now painting...
+Rabbit: Painting page 1...
+[illustration thumbnail]
+Rabbit: Page 1 done! Moving to page 2...
+```
 
-After fixes:
-- Create a new project, delete it → should land on home `/`, not a 404
-- Visit landing page → should see clean hero + How It Works + CTA, no testimonials
-- Pick a mood in the Mood Picker → colors should match your brand palette
-- Full flow: home → create project → mood picker → upload photos → interview → generation
+**Toggle "Under the Hood"**
+```
+12:01:03 | story | Model: openai/gpt-5.2 | Max tokens: 4000
+12:01:47 | story | Generated in 44s | Tokens used: 2847
+12:01:48 | illust | Page 1 complete: 2.1MB PNG | google/gemini-3-pro-image-preview | 22s
+```
+
+No noise, no spam. Just clarity when you want it.
 
