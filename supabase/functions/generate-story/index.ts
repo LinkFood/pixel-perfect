@@ -7,50 +7,50 @@ const corsHeaders = {
 };
 
 const MOOD_TONE: Record<string, string> = {
-  funny: "Make readers laugh. Use playful language, comedic timing, and exaggerated-but-truthful descriptions. The humor should feel warm and loving, never mean. Lean into the absurdity of the pet's quirks.",
+  funny: "Make readers laugh. Use playful language, comedic timing, and exaggerated-but-truthful descriptions. The humor should feel warm and loving, never mean. Lean into the absurdity of their quirks.",
   heartfelt: "Make readers cry happy tears. Use gentle, flowing language that captures the emotional bond. Focus on the quiet moments that speak volumes — the unspoken connection between pet and owner.",
-  adventure: "Grand expedition energy. Use dynamic, exciting language that turns the pet into a brave hero. Every outing is an adventure, every discovery is epic. The world is huge and the pet is fearless.",
+  adventure: "Grand expedition energy. Use dynamic, exciting language that turns the subject into a brave hero. Every outing is an adventure, every discovery is epic. The world is huge and they are fearless.",
   memorial: "Celebrate their life, not their death. Use warmth and gentle joy. Past tense is okay and natural. The tone should feel like a loving tribute that leaves the reader smiling through tears. End with comfort and peace.",
 };
 
 function buildSystemPrompt(petName: string, appearanceProfile: string | null, productType?: string, mood?: string | null) {
   const product = productType || "storybook";
   const characterBlock = appearanceProfile
-    ? `\n\nCHARACTER APPEARANCE (use in EVERY illustration_prompt):\n${appearanceProfile}\n\nCRITICAL: Every illustration_prompt you write MUST include ${petName}'s full physical description so the illustrator draws the pet consistently on every single page. Copy the key details (breed, coat colors, markings, size) into each illustration_prompt.`
+    ? `\n\nCHARACTER APPEARANCE (use in EVERY illustration_prompt):\n${appearanceProfile}\n\nCRITICAL: Every illustration_prompt you write MUST include ${petName}'s full physical description so the illustrator draws them consistently on every single page. Copy the key details into each illustration_prompt.`
     : "";
 
   const moodGuidance = mood && MOOD_TONE[mood]
     ? `\n\nTONE GUIDANCE (${mood.toUpperCase()} mood):\n${MOOD_TONE[mood]}`
     : "";
 
-  return `You are a master children's book author for PhotoRabbit. You write picture books about real pets that make families cry happy tears.
+  return `You are a master children's book author for PhotoRabbit. You write personalized picture books that turn real photos and memories into illustrated stories that make families cry happy tears.
 ${characterBlock}${moodGuidance}
 
-Your task: Turn the interview transcript into a children's storybook that feels deeply personal — not generic. Every page should make the reader think "that's MY pet."
+Your task: Turn the interview transcript into a children's storybook that feels deeply personal — not generic. Every page should make the reader think "that's exactly right."
 
 STRUCTURE (12 story pages total):
-- Page 1: Cover (title with pet's name)
+- Page 1: Cover (title with subject's name)
 - Page 2: Dedication
-- Pages 3-4: INTRODUCTION — Meet ${petName} in their element. Show us who this pet IS through a specific moment, not a summary.
+- Pages 3-4: INTRODUCTION — Meet ${petName}. Show us who they are through a specific moment, not a summary.
 - Pages 5-9: THE GOOD TIMES — Specific memories, adventures, funny moments from the interview. Each page = ONE vivid scene.
-- Pages 10-11: THE DEEPER BOND — Quieter moments. Loyalty, comfort, the unspoken connection between pet and owner.
+- Pages 10-11: THE DEEPER BOND — Quieter moments. Loyalty, comfort, the unspoken connection.
 - Page 12: TENDER REFLECTION — What ${petName} meant/means. Create an emotional bridge to the real photos that follow: "Turn the page to see the real ${petName}..."
 - Page 13: Back cover
 
-IMPORTANT: After your story, the book features the family's real photos of ${petName} as a keepsake gallery. Your closing page should make the reader want to turn the page and see the real pet.
+IMPORTANT: After your story, the book features real photos of ${petName} as a keepsake gallery. Your closing page should make the reader want to turn the page and see the real moments.
 
 WRITING RULES — follow these exactly:
 1. Write as if reading aloud to a child at bedtime — every sentence should sound natural spoken aloud
-2. Use SPECIFIC details from the interview, not generic pet descriptions. If the owner said the dog steals socks, write about sock-stealing, not "playing with toys"
+2. Use SPECIFIC details from the interview, not generic descriptions. If they said the dog steals socks, write about sock-stealing, not "playing with toys"
 3. Vary sentence length: mix short punchy sentences with longer flowing ones
 4. Each page should have ONE clear moment or image, not a summary of multiple events
 5. Use sensory language: sounds, textures, smells — not just visuals
-6. The pet's personality should shine through every page — mischievous pets get playful language, gentle pets get softer rhythms
+6. The subject's personality should shine through every page — mischievous subjects get playful language, gentle ones get softer rhythms
 7. 2-4 sentences per page. No more.
-8. If the pet has passed, celebrate their life — don't dwell on loss
+8. If the subject has passed, celebrate their life — don't dwell on loss
 
 QUALITY EXAMPLE:
-BAD: "${petName} loved to play in the yard. He was a happy dog who enjoyed running around."
+BAD: "Everyone loved being around ${petName}. They were always so happy."
 GOOD: "${petName} would burst through the back door every morning like the yard had been waiting just for him — nose to the ground, tail a blur, checking every corner for overnight news."
 
 The BAD example is generic and tells. The GOOD example is specific and shows. Write like the GOOD example.
@@ -109,7 +109,10 @@ serve(async (req) => {
 
     const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, project.product_type, project.mood);
 
-    const userPrompt = `Create a children's storybook about ${project.pet_name}, a ${project.pet_breed || ""} ${project.pet_type}. Use as many pages as the story naturally needs — don't cut short, include every meaningful memory.
+    const petDesc = project.pet_type && project.pet_type !== "unknown" && project.pet_type !== "general"
+      ? `, a ${project.pet_breed || ""} ${project.pet_type}`
+      : "";
+    const userPrompt = `Create a children's storybook about ${project.pet_name}${petDesc}. Use as many pages as the story naturally needs — don't cut short, include every meaningful memory.
 
 INTERVIEW TRANSCRIPT:
 ${transcript}

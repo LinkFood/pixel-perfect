@@ -62,19 +62,20 @@ serve(async (req) => {
             content: [
               {
                 type: "text",
-                text: `Analyze this photo of a pet and return a JSON object with these fields:
+                text: `Analyze this photo and return a JSON object with these fields:
 {
   "scene_summary": "1-2 vivid sentences describing the overall scene",
-  "setting": "where this takes place (e.g. backyard, living room, beach, park trail)",
-  "activities": ["what the pet and any people are doing"],
-  "people_present": ["descriptions of any people visible, e.g. 'young girl in red jacket', 'older man sitting on bench'"],
-  "pet_mood": "the pet's apparent mood or expression (e.g. playful, sleepy, alert, content)",
-  "pet_appearance_notes": "specific appearance details visible in THIS photo (coat condition, accessories, posture)",
-  "notable_details": ["any interesting objects, toys, decorations, or environmental details"],
-  "potential_story_hooks": ["1-2 ideas for story moments inspired by this scene"]
+  "setting": "where this takes place",
+  "subject_type": "what the main subject is (e.g. dog, cat, child, couple, family, landscape)",
+  "activities": ["what the subjects are doing"],
+  "people_present": ["descriptions of people visible"],
+  "subject_mood": "the main subject's apparent mood or expression",
+  "subject_appearance_notes": "specific appearance details of the main subject",
+  "notable_details": ["interesting objects, decorations, environmental details"],
+  "potential_story_hooks": ["1-2 story moment ideas inspired by this scene"]
 }
-
-Be specific and vivid. Return ONLY valid JSON, no markdown fences.`,
+Be specific and vivid. The subject could be a person, pet, place, or anything.
+Return ONLY valid JSON, no markdown fences.`,
               },
               {
                 type: "image_url",

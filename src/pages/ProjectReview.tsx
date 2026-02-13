@@ -212,7 +212,7 @@ const ProjectReview = () => {
   const virtualPages: VirtualPage[] = [
     ...pages.map(p => ({ type: "story" as const, page: p })),
     ...(galleryPhotos.length > 0 ? [
-      { type: "photo_gallery_title" as const, petName: project?.pet_name || "Your Pet" },
+      { type: "photo_gallery_title" as const, petName: project?.pet_name || "Your Story" },
       ...galleryGridPages.map(photos => ({
         type: "photo_gallery_grid" as const,
         photos,

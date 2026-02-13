@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, PawPrint, Dog, Cat, Bird, Fish, Trash2, ImagePlus } from "lucide-react";
+import { Plus, PawPrint, Dog, Cat, Bird, Fish, Trash2, ImagePlus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -57,7 +57,7 @@ const Dashboard = () => {
         ) : projects && projects.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((project, i) => {
-              const Icon = petIcons[project.pet_type] || PawPrint;
+              const Icon = petIcons[project.pet_type] || (project.pet_type === "unknown" || project.pet_type === "general" ? Sparkles : PawPrint);
               const displayName = getDisplayName(project);
               return (
                 <motion.div key={project.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
@@ -83,7 +83,9 @@ const Dashboard = () => {
                             {displayName}
                           </h3>
                           <p className="font-body text-sm text-muted-foreground mt-1">
-                            {project.pet_breed ? `${project.pet_breed} · ` : ""}{project.pet_type !== "unknown" ? project.pet_type : ""}
+                            {project.pet_type !== "unknown" && project.pet_type !== "general"
+                              ? `${project.pet_breed ? `${project.pet_breed} · ` : ""}${project.pet_type}`
+                              : "Illustrated book"}
                           </p>
                         </div>
                         <p className="font-body text-xs text-muted-foreground">

@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, Heart, Compass, Star } from "lucide-react";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
 
 interface MoodPickerProps {
   petName: string;
-  onSelect: (mood: string) => void;
+  onSelect: (mood: string, name: string) => void;
 }
 
 const moods = [
@@ -51,6 +52,8 @@ const card = {
 };
 
 const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
+  const [subjectName, setSubjectName] = useState(petName === "New Project" ? "" : petName);
+
   return (
     <div className="flex flex-col items-center gap-6 px-4 py-6">
       {/* Rabbit prompt */}
@@ -62,8 +65,24 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
           className="rounded-2xl rounded-tl-sm px-4 py-3 font-body text-sm"
           style={{ background: "#F5EDE4", color: "#4A3728" }}
         >
-          What kind of book should we make for {petName}?
+          Great photos! Give me a name, pick a mood, and let's make something.
         </div>
+      </div>
+
+      {/* Name input */}
+      <div className="w-full max-w-md">
+        <input
+          type="text"
+          value={subjectName}
+          onChange={(e) => setSubjectName(e.target.value)}
+          placeholder="e.g. Max, Mom, Our Trip to Japan..."
+          className="w-full rounded-xl border-2 px-4 py-3 font-body text-sm outline-none transition-colors focus:border-[#C4956A]"
+          style={{ borderColor: "#E8D5C0", background: "white", color: "#4A3728" }}
+          autoFocus
+        />
+        <p className="font-body text-xs mt-1.5 text-center" style={{ color: "#9B8E7F" }}>
+          A pet, person, place, or memory
+        </p>
       </div>
 
       {/* 2x2 grid */}
@@ -81,7 +100,7 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
               variants={card}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => onSelect(m.key)}
+              onClick={() => onSelect(m.key, subjectName.trim() || "My Story")}
               className="flex flex-col items-center gap-2 rounded-2xl border-2 p-5 cursor-pointer transition-colors"
               style={{
                 borderColor: "#E8D5C0",

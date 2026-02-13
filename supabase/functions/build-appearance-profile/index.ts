@@ -61,7 +61,8 @@ serve(async (req) => {
       .filter(p => p.ai_analysis && typeof p.ai_analysis === "object")
       .map((p, i) => {
         const a = p.ai_analysis as Record<string, unknown>;
-        return `Photo ${i + 1}: ${a.scene_summary || p.caption || ""}${a.pet_appearance_notes ? ` | Appearance: ${a.pet_appearance_notes}` : ""}`;
+        const appearanceNotes = a.subject_appearance_notes || a.pet_appearance_notes;
+        return `Photo ${i + 1}: ${a.scene_summary || p.caption || ""}${appearanceNotes ? ` | Appearance: ${appearanceNotes}` : ""}`;
       })
       .join("\n");
 
@@ -84,21 +85,22 @@ serve(async (req) => {
     const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
       {
         type: "text",
-        text: `Create a visual character reference for a children's book illustrator. Analyze these ${photos.length} photos of a pet named ${project.pet_name} (a ${project.pet_breed || ""} ${project.pet_type}).
+        text: `Create a visual character reference for a children's book illustrator. Analyze these ${photos.length} photos of a subject named ${project.pet_name}.${project.pet_type && project.pet_type !== "unknown" && project.pet_type !== "general" ? ` They are a ${project.pet_breed || ""} ${project.pet_type}.` : " Determine what the subject is from the photos."}
 
 ${analyses ? `Photo analyses:\n${analyses}` : captions ? `Photo descriptions: ${captions}` : ""}
 ${physicalMentions ? `Owner's description: ${physicalMentions.slice(0, 2000)}` : ""}
 
 Focus ONLY on physical appearance synthesis — do not re-describe scenes or activities.
 
-Describe this pet's exact appearance in a single detailed paragraph starting with "${project.pet_name} is a..." Include:
-- Exact breed, size, and build
-- Coat colors, patterns, and texture
-- Face shape, ear style, eye color
-- Distinctive markings (patches, spots, stripes)
-- Tail style and any unique physical features
+Describe this subject's exact appearance in a single detailed paragraph starting with "${project.pet_name} is a..." Include:
+- What they are (breed, species, age range, etc.)
+- Size and build
+- Colors, patterns, and textures (coat, hair, skin, clothing)
+- Face shape, eye color, distinguishing features
+- Distinctive markings or accessories
+- Any unique physical features
 
-Be extremely specific — an illustrator should be able to draw this pet identically on every page of a book from your description alone.`,
+Be extremely specific — an illustrator should be able to draw this subject identically on every page of a book from your description alone.`,
       },
     ];
 
@@ -162,7 +164,8 @@ Be extremely specific — an illustrator should be able to draw this pet identic
       if (a.setting) parts.push(`Setting: ${a.setting}`);
       if (Array.isArray(a.activities) && a.activities.length > 0) parts.push(`Activities: ${(a.activities as string[]).join(", ")}`);
       if (Array.isArray(a.people_present) && a.people_present.length > 0) parts.push(`People: ${(a.people_present as string[]).join(", ")}`);
-      if (a.pet_mood) parts.push(`Mood: ${a.pet_mood}`);
+      const mood = a.subject_mood || a.pet_mood;
+      if (mood) parts.push(`Mood: ${mood}`);
       if (Array.isArray(a.potential_story_hooks) && a.potential_story_hooks.length > 0) parts.push(`Story hooks: ${(a.potential_story_hooks as string[]).join("; ")}`);
       if (parts.length > 0) briefParts.push(`Photo ${i + 1}: ${parts.join(". ")}`);
     });

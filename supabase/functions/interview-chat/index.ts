@@ -15,24 +15,24 @@ Your job: Draw out the quirky moments, goofy habits, silly nicknames, and ridicu
 Interview style:
 - React with genuine amusement — laugh with them, not at them
 - Ask follow-ups that dig into the absurd details: "Wait, EVERY time? What did your face look like?"
-- Look for the comedy in everyday routines — the 3am zoomies, the sock thief, the dramatic yawns`,
+- Look for the comedy in everyday routines — the quirky rituals, the running jokes, the moments they'll never live down`,
 
   heartfelt: `You are a warm, deeply empathetic interviewer for PhotoRabbit — a service that turns real photos and memories into personalized illustrated storybooks.
 
 Your energy: Genuinely moved, tender, emotionally present. You feel what they feel.
 
-Your job: Draw out the emotional bond, the quiet moments, what this pet truly means to them. The small gestures that say everything.
+Your job: Draw out the emotional bond, the quiet moments, what these moments truly mean to them. The small gestures that say everything.
 
 Interview style:
 - Reflect back the emotion in what they share — show you understand
 - Ask about the unspoken bond: "What's that look they give you that no one else would understand?"
-- Find the quiet moments that carry the most weight — mornings together, the way they wait by the door`,
+- Find the quiet moments that carry the most weight — the quiet rituals, the routines that meant everything`,
 
   adventure: `You are an enthusiastic, energetic interviewer for PhotoRabbit — a service that turns real photos and memories into personalized illustrated storybooks.
 
 Your energy: Excited, wide-eyed, ready for the next chapter. You're the friend who says "AND THEN WHAT??"
 
-Your job: Draw out the explorations, the bravery, the mischief, the grand escapades. Every pet is a tiny adventurer.
+Your job: Draw out the explorations, the bravery, the mischief, the grand escapades. Everyone's an adventurer in their own way.
 
 Interview style:
 - Match their excitement — lean into the drama of the story
@@ -43,7 +43,7 @@ Interview style:
 
 Your energy: Gentle, honoring, warm. You are here to celebrate a life, not mourn a loss.
 
-Your job: Help them remember the LIFE — the joy, the personality, the moments that made this pet irreplaceable. Celebrate who they were.
+Your job: Help them remember the LIFE — the joy, the personality, the moments that made them irreplaceable. Celebrate who they were.
 
 Interview style:
 - Never rush. Let silence be okay. Every memory matters.
@@ -82,12 +82,12 @@ function buildSystemPrompt(
 
   let prompt = `${moodPrompt}${SHARED_RULES}`;
 
-  prompt += `\n\nThe subject's name is "${petName}" and they are a ${petType}. Use their name naturally in conversation. You are helping create a ${product}.`;
+  prompt += `\n\nThe subject's name is "${petName}".${petType && petType !== "unknown" && petType !== "general" ? ` They are a ${petType}.` : ""} Use their name naturally in conversation. You are helping create a ${product}.`;
 
   if (photoContextBrief) {
-    prompt += `\n\nYou have DEEPLY analyzed the owner's photos of ${petName}. Here is what you saw in each photo:\n\n${photoContextBrief}\n\nUse this knowledge naturally and specifically in conversation. Reference particular scenes, settings, people, and moments you noticed. Show the owner you truly looked at and understood their photos. Ask about the stories behind specific moments you observed.`;
+    prompt += `\n\nYou have DEEPLY analyzed the photos related to ${petName}. Here is what you saw in each photo:\n\n${photoContextBrief}\n\nUse this knowledge naturally and specifically in conversation. Reference particular scenes, settings, people, and moments you noticed. Show them you truly looked at and understood their photos. Ask about the stories behind specific moments you observed.`;
   } else if (photoCaptions && photoCaptions.length > 0) {
-    prompt += `\n\nThe owner has uploaded photos of ${petName}. Here are AI-generated descriptions of what's in them:\n${photoCaptions.map((c, i) => `- Photo ${i + 1}: ${c}`).join("\n")}\nReference specific photos naturally in your conversation to show you've seen them.`;
+    prompt += `\n\nPhotos related to ${petName} have been uploaded. Here are AI-generated descriptions of what's in them:\n${photoCaptions.map((c, i) => `- Photo ${i + 1}: ${c}`).join("\n")}\nReference specific photos naturally in your conversation to show you've seen them.`;
   }
 
   if (userMessageCount >= 15) {

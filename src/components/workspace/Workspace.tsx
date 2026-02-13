@@ -197,7 +197,15 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     setChatMessages(restored);
   }, [view, interviewMessages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const moodGreetings: Record<string, string> = {
+  // Adaptive greetings based on photo count
+  const shortGreetings: Record<string, string> = {
+    funny: `Tell me about this — what's the funniest thing about ${project?.pet_name || "them"}?`,
+    heartfelt: `Tell me about this moment — what makes it special?`,
+    adventure: `What's the story behind this? I want to hear it all.`,
+    memorial: `Tell me about them — what do you want people to remember?`,
+  };
+
+  const fullGreetings: Record<string, string> = {
     funny: `I've studied all your photos — I can already tell ${project?.pet_name || "they"} is a character! What's the most ridiculous thing they've ever done?`,
     heartfelt: `I've studied all your photos — I can see the bond you share with ${project?.pet_name || "them"}. Take your time — tell me about them.`,
     adventure: `I've studied all your photos — ${project?.pet_name || "they"} looks like a real explorer! What's their greatest adventure?`,
@@ -214,17 +222,18 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     startInterview(project.mood);
   };
 
-  const handleMoodSelect = (mood: string) => {
+  const handleMoodSelect = (mood: string, name: string) => {
     if (!activeProjectId) return;
-    updateProject.mutate({ id: activeProjectId, mood });
-    // After mood is selected, transition to upload view
-    // (view will auto-resolve to "upload" since mood is now set and status is "upload")
+    updateProject.mutate({ id: activeProjectId, mood, pet_name: name });
+    setShowMoodPicker(false);
+    startInterview(mood, name);
   };
 
-  const startInterview = (mood: string) => {
+  const startInterview = (mood: string, name?: string) => {
     if (!activeProjectId) return;
     updateStatus.mutate({ id: activeProjectId, status: "interview" });
-    const greeting = moodGreetings[mood] || moodGreetings.heartfelt;
+    const greetings = photos.length <= 3 ? shortGreetings : fullGreetings;
+    const greeting = greetings[mood] || greetings.heartfelt;
     setChatMessages([{ role: "rabbit", content: greeting }]);
     setRabbitState("listening");
     scrollToBottom();
@@ -235,7 +244,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     updateStatus.mutate({ id: activeProjectId, status: "generating" });
     setChatMessages(prev => [...prev, {
       role: "rabbit",
-      content: `I have everything I need. Watch this — I'm going to paint ${project?.pet_name || "their"}'s book!`,
+      content: `I have everything I need. Watch this — I'm going to paint ${project?.pet_name || "your"} book!`,
     }]);
   };
 
@@ -245,8 +254,8 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   };
 
   const userInterviewCount = interviewMessages.filter(m => m.role === "user").length;
-  const canFinish = userInterviewCount >= 2;
-  const canContinueToInterview = photos.length >= 5 && !isBatchUploading;
+  const canFinish = photos.length <= 3 ? userInterviewCount >= 1 : userInterviewCount >= 2;
+  const canContinueToInterview = photos.length >= 1 && !isBatchUploading;
 
   // ─── Loading state (prevents flash of wrong view) ────────────
   if (view === "loading") {
@@ -274,7 +283,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
         <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto">
           <GenerationView
             projectId={activeProjectId!}
-            petName={project?.pet_name || "your pet"}
+            petName={project?.pet_name || "your story"}
             onComplete={handleGenerationComplete}
           />
         </div>
@@ -310,10 +319,10 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
               content={
                 photos.length === 0
                   ? "Drop your photos here — I'll study every detail so we can make something amazing."
-                  : photos.length < 5
-                  ? `${photos.length} photo${photos.length !== 1 ? "s" : ""} so far — a few more will really help me tell the story.`
                   : isBatchUploading
                   ? "I'm studying your photos right now..."
+                  : photos.length < 3
+                  ? `${photos.length} photo${photos.length !== 1 ? "s" : ""} — add more for a richer story, or continue when you're ready.`
                   : `${photos.length} photos! I can already picture the book. Ready when you are.`
               }
             />
@@ -375,7 +384,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
             <RabbitCharacter state="excited" size={160} />
           </div>
           <MoodPicker
-            petName={project?.pet_name || "your pet"}
+            petName={project?.pet_name || "your subject"}
             onSelect={handleMoodSelect}
           />
         </div>

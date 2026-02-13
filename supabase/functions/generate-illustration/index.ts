@@ -177,7 +177,7 @@ serve(async (req) => {
 
     const scenePrompt = page.illustration_prompt || page.scene_description || "A cute pet illustration";
     const appearanceProfile = project.pet_appearance_profile || "";
-    const breed = project.pet_breed || project.pet_type || "dog";
+    const breed = project.pet_breed || (project.pet_type !== "unknown" && project.pet_type !== "general" ? project.pet_type : "");
 
     // Extract key visual traits for reinforcement
     const breedUpper = breed.toUpperCase();
@@ -186,8 +186,8 @@ serve(async (req) => {
     // Build the full illustration prompt with character consistency at TOP and BOTTOM
     const fullPrompt = appearanceProfile
       ? `CRITICAL CHARACTER REQUIREMENT — READ THIS FIRST:
-${petNameUpper} MUST be drawn as a ${breedUpper}. ${appearanceProfile}
-DO NOT draw any other breed. DO NOT change the colors. DO NOT add a collar unless specified above.
+${petNameUpper} MUST be drawn exactly as described. ${breedUpper ? `They are a ${breedUpper}. ` : ""}${appearanceProfile}
+DO NOT change the appearance. DO NOT add accessories unless specified above.
 
 ---
 
@@ -204,7 +204,7 @@ STYLE RULES:
 ---
 
 REMINDER — CHARACTER MUST MATCH EXACTLY:
-The ${project.pet_type} in this image MUST be a ${breed}. ${appearanceProfile.split('.').slice(0, 3).join('.')}. NEVER draw a different breed, color, or body type.`
+${petNameUpper} in this image MUST match the description above. ${appearanceProfile.split('.').slice(0, 3).join('.')}. NEVER change the appearance.`
       : `Create a children's book illustration in warm watercolor style.
 
 SCENE (Page ${page.page_number}):
@@ -213,7 +213,7 @@ ${scenePrompt}
 STYLE RULES:
 - Soft watercolor with gentle ink outlines
 - Warm golden lighting, amber/cream/green/blue palette
-- The pet should look friendly and appealing
+- The subject should look friendly and appealing
 - Square 1:1 composition for 8.5"x8.5" book
 - No text or words in the image
 - Children's picture book quality, suitable for printing`;

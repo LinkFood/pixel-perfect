@@ -88,7 +88,7 @@ export const useCreateMinimalProject = () => {
       if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("projects")
-        .insert({ pet_name: "New Project", pet_type: "unknown", user_id: user.id } as any)
+        .insert({ pet_name: "New Project", pet_type: "general", user_id: user.id } as any)
         .select()
         .single();
       if (error) throw error;

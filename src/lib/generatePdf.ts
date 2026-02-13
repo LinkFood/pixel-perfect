@@ -229,7 +229,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
     doc.setFont("helvetica", "italic");
     doc.setFontSize(14);
     doc.setTextColor(120, 110, 100);
-    doc.text("Just as they really were", PAGE_SIZE / 2, PAGE_SIZE / 2 + 20, { align: "center" });
+    doc.text("The real moments behind the story", PAGE_SIZE / 2, PAGE_SIZE / 2 + 20, { align: "center" });
 
     // Photo grid pages — 4 photos per page (2x2)
     for (let i = 0; i < galleryPhotos.length; i += 4) {

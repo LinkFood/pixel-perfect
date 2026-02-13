@@ -73,7 +73,7 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are rewriting a single page of a children's picture book about a pet named ${project.pet_name} (a ${project.pet_breed || ""} ${project.pet_type}). Keep the same page type and position in the story but write fresh text and a new illustration prompt. Output JSON with text_content and illustration_prompt fields only.${appearanceNote}`,
+            content: `You are rewriting a single page of a children's picture book about ${project.pet_name}${project.pet_type && project.pet_type !== "unknown" && project.pet_type !== "general" ? ` (a ${project.pet_breed || ""} ${project.pet_type})` : ""}. Keep the same page type and position in the story but write fresh text and a new illustration prompt. Output JSON with text_content and illustration_prompt fields only.${appearanceNote}`,
           },
           {
             role: "user",
