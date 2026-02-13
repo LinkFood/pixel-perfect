@@ -100,11 +100,21 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
                         {name}
                       </p>
                     )}
-                    <p
-                      className={`font-body text-[10px] truncate ${isActive ? "text-white/70" : "text-muted-foreground"}`}
-                    >
-                      {project.status}
-                    </p>
+                    {(() => {
+                      const statusMap: Record<string, { dot: string; label: string }> = {
+                        upload: { dot: "bg-amber-400", label: "Photos" },
+                        interview: { dot: "bg-blue-400", label: "Chatting" },
+                        generating: { dot: "bg-primary animate-pulse", label: "Creating" },
+                        review: { dot: "bg-green-500", label: "Done" },
+                      };
+                      const s = statusMap[project.status] ?? { dot: "bg-muted-foreground", label: project.status };
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 font-body text-[10px] ${isActive ? "text-white/70" : "text-muted-foreground"}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                          {s.label}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {isActive && (onRename || onDelete) && !isEditing && (

@@ -29,6 +29,7 @@ interface WorkspaceSandboxProps {
   onMoodSelect: (mood: string, name: string) => void;
   // Interview props
   canFinish: boolean;
+  userInterviewCount?: number;
   onFinishInterview: () => void;
   // Generation props
   activeProjectId: string | null;
@@ -52,6 +53,7 @@ const WorkspaceSandbox = ({
   petName,
   onMoodSelect,
   canFinish,
+  userInterviewCount = 0,
   onFinishInterview,
   activeProjectId,
   onGenerationComplete,
@@ -225,36 +227,47 @@ const WorkspaceSandbox = ({
               </p>
             )}
 
-            {canFinish && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center py-4"
-              >
+            {canFinish && (() => {
+              const buttonText = userInterviewCount >= 8 ? "Paint my book!" : "Make my book!";
+              const subtitle = userInterviewCount >= 8
+                ? "I have everything I need. Let's make something incredible."
+                : userInterviewCount >= 6
+                  ? "You've shared great stuff. Ready when you are."
+                  : "Or keep sharing — the more you tell me, the richer the story.";
+              const glowSpread = userInterviewCount >= 8 ? "16px" : userInterviewCount >= 6 ? "12px" : "8px";
+              const glowOpacity = userInterviewCount >= 8 ? "0.25" : userInterviewCount >= 6 ? "0.2" : "0.15";
+
+              return (
                 <motion.div
-                  animate={{
-                    boxShadow: [
-                      "0 0 0 0 hsl(var(--primary) / 0.3)",
-                      "0 0 20px 8px hsl(var(--primary) / 0.15)",
-                      "0 0 0 0 hsl(var(--primary) / 0.3)",
-                    ],
-                  }}
-                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                  className="inline-block rounded-2xl"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center py-4"
                 >
-                  <Button
-                    size="lg"
-                    className="rounded-2xl gap-2 px-8 py-6 text-base bg-primary text-primary-foreground hover:bg-primary/90 shadow-elevated"
-                    onClick={onFinishInterview}
+                  <motion.div
+                    animate={{
+                      boxShadow: [
+                        "0 0 0 0 hsl(var(--primary) / 0.3)",
+                        `0 0 20px ${glowSpread} hsl(var(--primary) / ${glowOpacity})`,
+                        "0 0 0 0 hsl(var(--primary) / 0.3)",
+                      ],
+                    }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                    className="inline-block rounded-2xl"
                   >
-                    <CheckCircle className="w-5 h-5" /> Make my book!
-                  </Button>
+                    <Button
+                      size="lg"
+                      className="rounded-2xl gap-2 px-8 py-6 text-base bg-primary text-primary-foreground hover:bg-primary/90 shadow-elevated"
+                      onClick={onFinishInterview}
+                    >
+                      <CheckCircle className="w-5 h-5" /> {buttonText}
+                    </Button>
+                  </motion.div>
+                  <p className="font-body text-xs mt-2 text-muted-foreground">
+                    {subtitle}
+                  </p>
                 </motion.div>
-                <p className="font-body text-xs mt-2 text-muted-foreground">
-                  You can always come back and add more
-                </p>
-              </motion.div>
-            )}
+              );
+            })()}
           </motion.div>
         )}
 

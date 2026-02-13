@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Heart, Compass, Star } from "lucide-react";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
 
@@ -104,7 +104,6 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
               whileTap={{ scale: 0.97 }}
               onClick={() => {
                 setSelectedMood(m.key);
-                onSelect(m.key, subjectName.trim() || "My Story");
               }}
               className={`flex flex-col items-center gap-2 rounded-2xl border p-5 cursor-pointer transition-all glass-warm ${
                 isSelected
@@ -136,6 +135,42 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
           );
         })}
       </motion.div>
+
+      {/* Confirm button */}
+      <AnimatePresence>
+        {selectedMood && subjectName.trim() && (
+          <motion.div
+            className="flex flex-col items-center gap-2 w-full max-w-md"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.25 }}
+          >
+            <motion.button
+              onClick={() => onSelect(selectedMood, subjectName.trim())}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl px-8 py-4 text-base font-display font-semibold shadow-elevated cursor-pointer transition-colors"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              animate={{
+                boxShadow: [
+                  "0 0 0px hsl(16 78% 60% / 0)",
+                  "0 0 20px hsl(16 78% 60% / 0.35)",
+                  "0 0 0px hsl(16 78% 60% / 0)",
+                ],
+              }}
+              transition={{
+                boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+              }}
+            >
+              {{ funny: "😄", heartfelt: "💛", adventure: "🧭", memorial: "⭐" }[selectedMood] || "✨"}{" "}
+              Let's go!
+            </motion.button>
+            <p className="font-body text-xs text-muted-foreground text-center">
+              You can't change this later — choose what feels right.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

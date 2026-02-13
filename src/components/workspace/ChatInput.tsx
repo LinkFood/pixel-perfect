@@ -69,9 +69,10 @@ const ChatInput = ({
         <motion.button
           type="submit"
           disabled={disabled || !hasText}
-          className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all bg-primary text-primary-foreground disabled:opacity-30 hover:brightness-95 active:scale-95 ${hasText ? "pulse-glow" : ""}`}
+          className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all bg-primary text-primary-foreground disabled:opacity-30 hover:brightness-95 ${hasText ? "pulse-glow" : ""}`}
           animate={hasText ? { scale: [1, 1.05, 1] } : { scale: 1 }}
           transition={hasText ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
+          whileTap={{ scale: 0.88, rotate: -3 }}
         >
           <ArrowRight className="w-4 h-4" />
         </motion.button>

@@ -105,7 +105,15 @@ const PhotoUploadInline = ({
         <div className="flex items-center gap-2">
           <Camera className="w-4 h-4 text-primary" />
           <span className="font-body text-sm font-medium text-foreground">
-            {count} photo{count !== 1 ? "s" : ""}
+            <motion.span
+              key={count}
+              initial={{ scale: 1.3, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              className="text-primary"
+            >
+              {count}
+            </motion.span> photo{count !== 1 ? "s" : ""}
           </span>
         </div>
       )}

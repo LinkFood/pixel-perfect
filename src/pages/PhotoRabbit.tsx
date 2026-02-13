@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
-import ChatMessage from "@/components/workspace/ChatMessage";
+import ChatMessage, { TypingIndicator } from "@/components/workspace/ChatMessage";
 import ChatInput from "@/components/workspace/ChatInput";
 import ProjectShelf from "@/components/workspace/ProjectShelf";
 import MinimalNav from "@/components/workspace/MinimalNav";
@@ -449,6 +449,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
               <ChatMessage role="rabbit" content={streamingContent} isStreaming />
             )}
 
+            {!isStreaming && rabbitState === "thinking" && phase === "interview" && (
+              <TypingIndicator />
+            )}
+
             {/* Credit gate inline */}
             {showCreditGate && (
               <CreditGate
@@ -587,6 +591,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         petName={project?.pet_name || "your subject"}
         onMoodSelect={handleMoodSelect}
         canFinish={canFinish}
+        userInterviewCount={userInterviewCount}
         onFinishInterview={handleFinishInterview}
         activeProjectId={activeProjectId}
         onGenerationComplete={handleGenerationComplete}
