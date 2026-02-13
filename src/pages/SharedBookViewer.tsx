@@ -150,7 +150,7 @@ const SharedBookViewer = () => {
           <span className="font-display text-lg font-bold text-foreground">PhotoRabbit</span>
         </Link>
         <Link to="/">
-          <Button variant="outline" size="sm" className="rounded-xl gap-2 border border-border">
+          <Button size="sm" className="rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
             <BookOpen className="w-4 h-4" /> Make Your Own
           </Button>
         </Link>
@@ -215,14 +215,18 @@ const SharedBookViewer = () => {
         </div>
       </div>
 
-      {/* CTA footer */}
-      <div className="text-center py-8 border-t border-border">
-        <RabbitCharacter state="presenting" size={80} />
-        <p className="font-display text-lg font-bold mt-3 text-foreground">
-          Want to make one for someone you love?
+      {/* CTA footer — strong viral loop */}
+      <div className="text-center py-10 border-t border-border bg-gradient-to-b from-background to-primary/5">
+        <RabbitCharacter state="presenting" size={100} />
+        <h2 className="font-display text-2xl font-bold mt-4 text-foreground">
+          Make your own picture book
+        </h2>
+        <p className="font-body text-sm mt-2 text-muted-foreground max-w-md mx-auto">
+          Drop any photos — pets, kids, trips, couples — and I'll write and illustrate a custom book in minutes. Free to try.
         </p>
         <Link to="/">
-          <Button className="rounded-xl mt-3 px-6 bg-primary text-primary-foreground">
+          <Button size="lg" className="rounded-xl mt-5 px-10 gap-2 bg-primary text-primary-foreground hover:bg-primary/90 text-base shadow-lg hover:shadow-xl transition-all">
+            <Camera className="w-5 h-5" />
             Start With Your Photos
           </Button>
         </Link>

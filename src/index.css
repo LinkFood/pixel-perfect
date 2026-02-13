@@ -133,4 +133,43 @@
   .shadow-input {
     box-shadow: 0 2px 12px hsl(30 20% 0% / 0.06), 0 0 0 1px hsl(35 14% 90% / 0.5);
   }
+
+  /* Split layout */
+  .workspace-split {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .workspace-chat {
+    width: 380px;
+    min-width: 380px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid hsl(var(--border));
+  }
+
+  .workspace-sandbox {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media (max-width: 767px) {
+    .workspace-split {
+      flex-direction: column;
+    }
+
+    .workspace-chat {
+      width: 100%;
+      min-width: 100%;
+      border-right: none;
+    }
+
+    .workspace-sandbox {
+      border-top: 1px solid hsl(var(--border));
+    }
+  }
 }

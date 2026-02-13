@@ -9,7 +9,7 @@ interface MinimalNavProps {
 }
 
 const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, isAnonymous, signOut } = useAuth();
   const [credits, setCredits] = useState<number | null>(null);
 
   useEffect(() => {
@@ -55,12 +55,14 @@ const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
                 <span className="font-semibold text-foreground">{credits}</span>
               </div>
             )}
-            <button
-              onClick={signOut}
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            {!isAnonymous && (
+              <button
+                onClick={signOut}
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </>
         ) : null}
       </div>

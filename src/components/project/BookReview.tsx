@@ -407,8 +407,43 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
     <div className="flex-1 overflow-y-auto">
       <div className="pb-16 px-4 md:px-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          {/* Share bar — prominent top position */}
+          <div className="flex items-center gap-3 pt-4 mb-4 p-4 rounded-2xl bg-primary/5 border border-primary/20">
+            <Share2 className="w-5 h-5 text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-display text-sm font-bold text-foreground">Share this book with anyone</p>
+              {shareUrl && (
+                <p className="font-body text-xs text-muted-foreground truncate">{shareUrl}</p>
+              )}
+            </div>
+            {shareUrl ? (
+              <Button
+                size="sm"
+                className="rounded-xl gap-2 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={handleCopyShare}
+              >
+                {shareCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {shareCopied ? "Copied!" : "Copy Link"}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="rounded-xl gap-2 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={handleShare}
+                disabled={isCreatingShare}
+              >
+                {isCreatingShare ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Share2 className="w-4 h-4" />
+                )}
+                {isCreatingShare ? "Creating..." : "Share This Book"}
+              </Button>
+            )}
+          </div>
+
           {/* Header */}
-          <div className="flex items-end justify-between mb-8 pt-4">
+          <div className="flex items-end justify-between mb-8">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
@@ -454,32 +489,6 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                     <ImageIcon className="w-4 h-4" />
                   )}
                   {isGeneratingMissing ? "Generating..." : `Generate ${missingCount} Missing`}
-                </Button>
-              )}
-              {shareUrl ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl gap-2 border-primary"
-                  onClick={handleCopyShare}
-                >
-                  {shareCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {shareCopied ? "Copied!" : "Copy Link"}
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl gap-2"
-                  onClick={handleShare}
-                  disabled={isCreatingShare}
-                >
-                  {isCreatingShare ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Share2 className="w-4 h-4" />
-                  )}
-                  {isCreatingShare ? "Creating..." : "Share"}
                 </Button>
               )}
               <Button variant="outline" size="sm" className="rounded-xl gap-2" onClick={() => setPreviewOpen(true)}>

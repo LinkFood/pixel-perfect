@@ -20,10 +20,19 @@ export const useAuth = () => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      // Anonymous sign-in: if no session exists, auto-create one
+      if (!session) {
+        supabase.auth.signInAnonymously().catch((err) => {
+          console.error("Anonymous sign-in failed:", err);
+        });
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const isAnonymous = user?.is_anonymous ?? false;
 
   const signUp = async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({
@@ -43,22 +52,52 @@ export const useAuth = () => {
     await supabase.auth.signOut();
   };
 
-  return { user, session, loading, signUp, signIn, signOut };
+  return { user, session, loading, isAnonymous, signUp, signIn, signOut };
 };
 
 export const useCredits = () => {
   const { user } = useAuth();
+  const [balance, setBalance] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const fetchBalance = async (): Promise<number> => {
     if (!user) return 0;
-    const { data, error } = await supabase
-      .from("user_credits" as any)
-      .select("balance")
-      .eq("user_id", user.id)
-      .single();
-    if (error) return 0;
-    return (data as any)?.balance ?? 0;
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("user_credits" as any)
+        .select("balance")
+        .eq("user_id", user.id)
+        .single();
+      if (error) { setBalance(0); return 0; }
+      const bal = (data as any)?.balance ?? 0;
+      setBalance(bal);
+      return bal;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return { fetchBalance };
+  const deduct = async (amount: number = 1): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      const { data, error } = await supabase.rpc("deduct_credit" as any, {
+        p_user_id: user.id,
+        p_amount: amount,
+      });
+      if (error) return false;
+      // Refresh balance after deduction
+      await fetchBalance();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Fetch on mount when user available
+  useEffect(() => {
+    if (user) fetchBalance();
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { balance, fetchBalance, deduct, isLoading };
 };
