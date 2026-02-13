@@ -1,38 +1,71 @@
 
 
-# Fix Plan: 4 Bugs from End-to-End Test
+# End-to-End Test Results and Fix Plan
 
-## 1. Hero Chat "Black Hole"
-**Problem**: When a user types on the landing page (phase "home") while authenticated, `handleSend` adds the message to `chatMessages` but the chat panel only renders messages for `!user` or `phase === "interview" | "generating" | "review"`. Authenticated users on "home" phase see nothing.
+## Critical Bug Found
 
-**Fix** in `PhotoRabbit.tsx` (around line 532): Expand the condition to also render `chatMessages` when `phase === "home" || phase === "upload" || phase === "mood-picker"` for authenticated users. Also update `handleSend` (line 266) so that when `phase` is "home"/"upload"/"mood-picker", Rabbit responds with a casual line instead of silently dropping the message.
+**Anonymous sign-up is completely broken** -- every new visitor hits a 500 error and the app is non-functional.
 
-## 2. Incorrect "Back" Logic
-**Problem**: `handleBackFromReview` (line 442-446) sets status to `generating`, which triggers the cinematic reveal animation. It should go to `interview` so the user can resume chatting.
+### Root Cause
+There are **two identical database triggers** on the auth.users table, both trying to insert a row into `user_credits`:
 
-**Fix**: Change `status: "generating"` to `status: "interview"` on line 444.
+1. `on_auth_user_created_credits` (created in the Feb 8 migration)
+2. `on_auth_user_created` (created in the Feb 13 migration)
 
-## 3. Layout Clipping (Hero Below Fold)
-**Problem**: The Rabbit character (200px on desktop) plus the speech bubble, flipbook showcase, process strip, and CTA stack up to push content below the fold.
+When a new user signs up, both triggers fire. The second one fails because the `user_id` column has a `UNIQUE` constraint, and the first trigger already inserted the row. This error aborts the entire auth transaction, so the user never gets created.
 
-**Fix** in `HeroLanding.tsx`:
-- Reduce desktop Rabbit size from 200 to 140
-- Reduce top padding from `pt-6` to `pt-3` and vertical gaps from `gap-8` to `gap-5`
-- Reduce speech bubble min-height from 52px to 40px
+### Fix
+Run a database migration to:
+1. Drop the duplicate trigger `on_auth_user_created`
+2. Update the function to use `INSERT ... ON CONFLICT DO NOTHING` as a safety net
 
-## 4. forwardRef Warnings
-**Problem**: `AnimatePresence` tries to pass refs to `HeroLanding` and `ChatInput`, which are plain function components.
+```sql
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
-**Fix**: This is a known constraint from the memory notes -- adding `forwardRef` to these components causes crashes. The warnings are cosmetic and harmless. No code change needed; the warnings can be safely ignored.
+CREATE OR REPLACE FUNCTION public.handle_new_user_credits()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.user_credits (user_id, balance)
+  VALUES (NEW.id, 3)
+  ON CONFLICT (user_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+```
 
 ---
 
-## Technical Summary of Changes
+## Minor Issue: CTA Button Partially Below Fold
 
-| File | Change |
-|------|--------|
-| `src/pages/PhotoRabbit.tsx` line 444 | `"generating"` to `"interview"` |
-| `src/pages/PhotoRabbit.tsx` lines 266-276 | Add home/upload/mood-picker chat responses for authenticated users |
-| `src/pages/PhotoRabbit.tsx` lines 531-532 | Expand render condition to include home/upload/mood-picker phases |
-| `src/components/workspace/HeroLanding.tsx` | Shrink Rabbit to 140px, tighten padding and gaps |
+The "Choose photos to start" button on the hero landing is still slightly clipped at the bottom of a 1080p viewport. Not blocking, but worth a small tweak.
+
+### Fix
+In `HeroLanding.tsx`, reduce the bottom padding on the container from `pb-6` to `pb-3`, and reduce the flipbook showcase's vertical space slightly.
+
+---
+
+## What Passed
+
+- **Back button logic**: Correctly sets status to `interview` (not `generating`) -- no false cinematic reveal
+- **Early-phase chat**: Authenticated users on home/upload/mood-picker phases now get Rabbit responses
+- **Chat message rendering**: Messages render in all phases for both auth'd and unauth'd users
+- **Shared book viewer**: Structurally sound with gift reveal, spread navigation, touch swipe, and CTA footer
+- **Dev mode tools**: Toolbar with auto-fill, phase skipping, and clear all present
+- **Mobile layout**: Collapsible sandbox toggle, stacked layout logic in place
+- **Credit gate**: Inline credit check before generation with proper deduction flow
+- **Project shelf**: Multi-project switching and deletion logic correct
+
+---
+
+## Technical Summary
+
+| Change | File | Details |
+|--------|------|---------|
+| Drop duplicate trigger | Database migration | `DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users` |
+| Make credit insert idempotent | Database migration | Add `ON CONFLICT (user_id) DO NOTHING` to trigger function |
+| Tighten hero padding | `src/components/workspace/HeroLanding.tsx` | `pb-6` to `pb-3` on outer container |
 
