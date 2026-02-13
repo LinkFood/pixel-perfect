@@ -272,6 +272,19 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try sending that again?" }]);
         scrollToBottom();
       }
+    } else if (user && (phase === "home" || phase === "upload" || phase === "mood-picker")) {
+      // Casual responses for early phases
+      const earlyResponses = [
+        "Drop some photos and I'll show you what I can do!",
+        "I'm ready to paint — just need some photos to work with.",
+        "Got something good? Drag your photos in and let's make a book.",
+        "The more photos you give me, the better the story. Drop 'em in!",
+      ];
+      const idx = chatMessages.filter(m => m.role === "rabbit").length % earlyResponses.length;
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { role: "rabbit", content: earlyResponses[idx] }]);
+        scrollToBottom();
+      }, 500);
     }
   };
 
@@ -441,7 +454,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   const handleBackFromReview = () => {
     if (activeProjectId) {
-      updateStatus.mutate({ id: activeProjectId, status: "generating" });
+      updateStatus.mutate({ id: activeProjectId, status: "interview" });
     }
   };
 
@@ -529,7 +542,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         )}
 
         {/* Interview + generating chat messages */}
-        {user && (phase === "interview" || phase === "generating" || phase === "review") && (
+        {user && (phase === "interview" || phase === "generating" || phase === "review" || phase === "home" || phase === "upload" || phase === "mood-picker") && (
           <>
             <AnimatePresence initial={false}>
               {chatMessages.map((msg, i) => {
