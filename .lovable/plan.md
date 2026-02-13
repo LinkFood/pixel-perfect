@@ -1,48 +1,37 @@
 
 
-# Fix Dev Mode Exit + Reorder Flow (Mood Before Photos)
+# Add Rename and Delete to Project Shelf Tabs
 
-## Problem 1: Can't Exit Dev Mode
-Once dev mode is activated, the user auto-signs in and goes straight to Workspace -- they never see the Landing page (which has the only "Dev" button). There's no way to turn it off.
+## What Changes
 
-**Fix**: Add a small "Exit Dev Mode" button in the MinimalNav component (only visible when dev mode is active). Clicking it calls `disableDevMode()`, signs out, and reloads.
+The project tabs at the bottom of the workspace currently only let you switch between projects. We'll add the ability to **rename** and **delete** projects directly from those tabs via a right-click/long-press context menu or tap-accessible controls.
 
-## Problem 2: Mood Picker Should Come Before Photo Upload
-The user wants the flow to be: **create project -> pick mood -> upload photos -> interview**, not the current create project -> upload photos -> pick mood -> interview.
+## UX Design
 
-**Fix**: Restructure the Workspace view logic so:
-1. When a new project is created (home view), immediately show the mood picker
-2. After mood is selected, transition to the upload view
-3. After photos are uploaded and user clicks "That's all my photos," go straight to interview (skip mood picker since it's already done)
+Each project tab will get a small context menu (using Radix DropdownMenu) that appears when you click a "..." button on the active tab, or right-click any tab. The menu will have two options:
 
-## Problem 3: Missing `mood` Column in Database
-The code references `project.mood` but the column doesn't exist in the database, causing all mood saves to silently fail.
+- **Rename** -- opens an inline editable text field replacing the project name on the tab. Press Enter or blur to save.
+- **Delete** -- shows a confirmation dialog (reusing the existing AlertDialog pattern from the Dashboard) before permanently deleting the project and all its data.
 
-**Fix**: Add a database migration: `ALTER TABLE public.projects ADD COLUMN mood text;`
+The "..." button only appears on the currently active tab to keep things clean. Inactive tabs can still be right-clicked for the menu.
 
-## Changes Summary
+## Technical Details
 
-### Database Migration
-```sql
-ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS mood text;
-```
+### File: `src/components/workspace/ProjectShelf.tsx`
 
-### `src/components/workspace/MinimalNav.tsx`
-- Add a "Exit Dev Mode" button (only visible when `isDevMode()` is true)
-- On click: call `disableDevMode()`, sign out, reload page
+1. **Add new props**: `onRename(projectId, newName)` and `onDelete(projectId)`
+2. **Add local state**: `editingId` (which project is being renamed) and `editName` (current input value)
+3. **Add DropdownMenu** on each tab with "Rename" and "Delete" options
+4. **Rename mode**: When "Rename" is clicked, replace the name `<p>` with an `<input>` field. Enter/blur saves via `onRename`. Escape cancels.
+5. **Delete**: Show an AlertDialog confirmation before calling `onDelete`
+6. **Imports**: Add `DropdownMenu` components, `AlertDialog` components, `Input`, `Pencil`, `Trash2`, `MoreHorizontal` from lucide
 
-### `src/components/workspace/Workspace.tsx`
-- Reorder the view logic: after project creation, show mood picker first
-- After mood is selected, transition to "upload" status
-- `handleContinueToInterview`: remove the mood picker check (mood is already set), go straight to interview
-- Update `handleNewProject` / auto-create flow to show mood picker immediately
-- The view priority becomes: no project -> "home", project with no mood -> "mood-picker", project status "upload" -> "upload", etc.
+### File: `src/components/workspace/Workspace.tsx`
 
-### Flow Diagram (new)
+1. **Wire up `onRename`**: Call `updateProject.mutate({ id, pet_name: newName })` 
+2. **Wire up `onDelete`**: Call `deleteProject.mutate(projectId)` and clear `activeProjectId` if the deleted project was active
+3. **Pass both new callbacks** to all 4-5 `<ProjectShelf>` instances in the file
 
-```text
-[Home / Drop photos] --> [Mood Picker] --> [Photo Upload] --> [Interview] --> [Generating] --> [Review]
-```
-
-The mood picker appears right after the project is created (either by dropping first photos or clicking new project). Once mood is saved, the user moves to the upload view where they can add more photos. The "That's all my photos" button now goes directly to interview since mood is already set.
+### No database changes needed
+The existing `useUpdateProject` and `useDeleteProject` hooks already handle rename and delete operations -- we just need to surface them in the ProjectShelf UI.
 
