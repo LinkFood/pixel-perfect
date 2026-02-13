@@ -79,23 +79,27 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
   const [showBubble, setShowBubble] = useState(false);
 
   useEffect(() => {
-    // Initial delay before first line appears
-    const initTimer = setTimeout(() => setShowBubble(true), 1500);
-    return () => clearTimeout(initTimer);
-  }, []);
+    let initTimer: ReturnType<typeof setTimeout>;
+    let cycleInterval: ReturnType<typeof setInterval>;
+    let gapTimer: ReturnType<typeof setTimeout>;
 
-  useEffect(() => {
-    if (!showBubble) return;
-    let innerTimeout: ReturnType<typeof setTimeout>;
-    const interval = setInterval(() => {
-      setShowBubble(false);
-      innerTimeout = setTimeout(() => {
-        setLineIndex(prev => (prev + 1) % rabbitLines.length);
-        setShowBubble(true);
-      }, 400);
-    }, 7000);
-    return () => { clearInterval(interval); clearTimeout(innerTimeout); };
-  }, [showBubble]);
+    initTimer = setTimeout(() => {
+      setShowBubble(true);
+      cycleInterval = setInterval(() => {
+        setShowBubble(false);
+        gapTimer = setTimeout(() => {
+          setLineIndex(prev => (prev + 1) % rabbitLines.length);
+          setShowBubble(true);
+        }, 400);
+      }, 7000);
+    }, 1500);
+
+    return () => {
+      clearTimeout(initTimer);
+      clearInterval(cycleInterval);
+      clearTimeout(gapTimer);
+    };
+  }, []);
 
   // ─── Flipbook auto-play ────────────────────────────────
   const [spreadIndex, setSpreadIndex] = useState(0);

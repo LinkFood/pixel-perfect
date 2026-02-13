@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ImageIcon, Camera, AlertTriangle } from "lucide-react";
 
@@ -27,6 +27,12 @@ interface BookPageViewerProps {
 const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt, illustrationUrl, isApproved, onImageError, photoUrl, photoCaption, galleryPhotos, size = "full" }: BookPageViewerProps) => {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+
+  // Reset image state when illustration URL changes (e.g. variant selection)
+  useEffect(() => {
+    setImgLoaded(false);
+    setImgError(false);
+  }, [illustrationUrl]);
 
   const handleError = () => {
     setImgError(true);

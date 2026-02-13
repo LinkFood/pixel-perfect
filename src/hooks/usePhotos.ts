@@ -161,7 +161,7 @@ export const useUploadPhoto = () => {
         setUploadProgress(prev => ({ ...prev, completed: prev.completed + chunkOk, failed: prev.failed + chunkFail }));
 
         // Refresh photo list every 10 uploads
-        if (completed % 10 === 0 || i + CONCURRENCY >= queue.length) {
+        if (batchCompleted % 10 === 0 || i + CONCURRENCY >= queue.length) {
           queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
         }
 
