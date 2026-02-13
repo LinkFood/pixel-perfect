@@ -1,35 +1,62 @@
 
+# Push Verification: Split Layout + Anonymous Auth + Credit Gate
 
-# Add Dev Tools and Auto-Fill Chat
+## Build Status
+The app renders correctly with the split layout (chat left, sandbox right). No breaking errors in the console.
 
-## What This Does
-Expands the existing dev toolbar so it's available in more phases and adds the ability to auto-fill the chat conversation (not just the interview database messages). Right now the dev toolbar only appears during the "interview" phase -- this will make it accessible across all workspace phases.
+## Three Issues Found
 
-## Changes
+### 1. Anonymous Sign-Ins Disabled (BLOCKER)
+Auth logs show repeated `422: anonymous_provider_disabled` errors. The `useAuth` hook calls `signInAnonymously()` but anonymous sign-ins are not enabled in the backend auth settings. Without this, unauthenticated visitors get no session and can't upload photos or create projects.
 
-### 1. Expand Dev Toolbar Visibility
-Currently the dev toolbar (Auto-fill, Clear buttons) only shows when `phase === "interview"`. Update this condition so it shows in all active phases: `upload`, `mood-picker`, `interview`, and `generating`.
+**Fix:** Enable anonymous sign-ins in the authentication configuration. This is a config change, not a code change.
 
-### 2. Add "Auto-Fill Chat" to Dev Toolbar
-Add a button that populates the visible chat messages with seed data so you can quickly test the chat UI without waiting for AI responses. This will:
-- Insert pre-built chat messages into the `chatMessages` state
-- Work alongside the existing database-level auto-fill (which seeds `project_interview` table rows)
+### 2. `deduct_credit` Function Signature Mismatch (WILL CRASH)
+The code in `useAuth.ts` calls:
+```
+supabase.rpc("deduct_credit", { p_user_id: user.id, p_amount: amount })
+```
+But the actual database function signature is:
+```
+deduct_credit(p_user_id uuid, p_project_id uuid, p_description text)
+```
+It expects `p_project_id` and `p_description`, not `p_amount`. The function always deducts exactly 1 credit. This will fail when users try to generate a book.
 
-### 3. Add Phase Skip Buttons
-Add dev-only buttons to jump between phases:
-- "Skip to Interview" -- sets project status to `interview`
-- "Skip to Generating" -- sets project status to `generating`
-- These only show when relevant (e.g., skip to interview only shows during upload/mood-picker)
+**Fix:** Update the `deduct` function call to pass `p_project_id` and `p_description` instead of `p_amount`. The `handleFinishInterview` in `PhotoRabbit.tsx` also needs to pass `activeProjectId` to `deduct()`.
 
-### 4. Add Pricing Route (currently 404)
-The user is on `/pricing` which doesn't exist. Add a placeholder pricing page route.
+### 3. Missing `handle_new_user_credits` Trigger (NO AUTO-CREDITS)
+The database has the `handle_new_user_credits` function defined, but the triggers section shows "There are no triggers in the database." This means new users (including anonymous ones) will NOT automatically get 3 starter credits. They'll hit the credit gate immediately.
+
+**Fix:** Create the trigger:
+```sql
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user_credits();
+```
+
+## What's Working
+- Split layout renders correctly (380px chat left, flex sandbox right)
+- Rabbit character displays at correct size (80px desktop)
+- Upload zone, chat input, and footer all render
+- Dev toolbar code is in place (visible when dev mode activated)
+- Phase derivation logic is correct
+- Mobile responsive classes are set up
+- Share loop code is wired (BookReview, SharedBookViewer, auto share link)
+- Credit gate component exists and is wired into the chat flow
+
+## Implementation Steps
+
+1. Enable anonymous sign-ins in auth config
+2. Create the `on_auth_user_created` trigger so new users get 3 credits
+3. Fix `useAuth.ts` `deduct()` to match the actual DB function signature (pass project ID and description instead of amount)
+4. Update `handleFinishInterview` in `PhotoRabbit.tsx` to pass `activeProjectId` to `deduct()`
 
 ## Technical Details
 
-**Files modified:**
-- `src/components/workspace/Workspace.tsx` -- Expand dev toolbar condition from `phase === "interview"` to include `upload`, `mood-picker`, `interview`, `generating`. Add phase-skip buttons and chat auto-fill button.
-- `src/App.tsx` -- Add `/pricing` route pointing to a new Pricing page.
-- `src/pages/Pricing.tsx` (new) -- Simple placeholder pricing page.
+**Files to modify:**
+- `src/hooks/useAuth.ts` -- Change `deduct(amount)` to `deduct(projectId, description)` matching the DB function `deduct_credit(p_user_id, p_project_id, p_description)`
+- `src/pages/PhotoRabbit.tsx` -- Update `handleFinishInterview` to call `deduct(activeProjectId, "Book generation")` instead of `deduct(1)`
 
-**No database changes needed.** All dev tools use existing hooks (`useAutoFillInterview`, `useClearInterview`, `useUpdateProjectStatus`).
-
+**Database changes:**
+- Create trigger `on_auth_user_created` on `auth.users` table calling `handle_new_user_credits()`
+- Enable anonymous sign-ins in auth configuration
