@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
-import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace, Share2, Copy, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -13,8 +12,6 @@ import { usePhotos, getPhotoUrl } from "@/hooks/usePhotos";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import MinimalNav from "@/components/workspace/MinimalNav";
-// generatePdf is dynamically imported when user clicks Download
 
 type Page = {
   id: string;
@@ -36,7 +33,6 @@ type GalleryGridPhoto = {
   caption: string | null;
 };
 
-// Virtual page type for combined story + gallery view
 type VirtualPage = {
   type: "story";
   page: Page;
@@ -48,8 +44,13 @@ type VirtualPage = {
   photos: GalleryGridPhoto[];
 };
 
-const ProjectReview = () => {
-  const { id } = useParams<{ id: string }>();
+interface BookReviewProps {
+  projectId: string;
+  onBack: () => void;
+}
+
+const BookReview = ({ projectId, onBack }: BookReviewProps) => {
+  const id = projectId;
   const { data: project } = useProject(id);
   const { data: photos = [] } = usePhotos(id);
   const queryClient = useQueryClient();
@@ -77,7 +78,7 @@ const ProjectReview = () => {
       const { data, error } = await supabase
         .from("project_pages")
         .select("*")
-        .eq("project_id", id!)
+        .eq("project_id", id)
         .order("page_number", { ascending: true });
       if (error) throw error;
       return data as Page[];
@@ -91,7 +92,7 @@ const ProjectReview = () => {
       const { data, error } = await supabase
         .from("project_illustrations")
         .select("id, page_id, storage_path, is_selected")
-        .eq("project_id", id!)
+        .eq("project_id", id)
         .eq("is_selected", true);
       if (error) throw error;
       return data as (Illustration & { is_selected: boolean })[];
@@ -99,14 +100,13 @@ const ProjectReview = () => {
     enabled: !!id,
   });
 
-  // All illustrations (including non-selected variants) for the picker
   const { data: allIllustrations = [] } = useQuery({
     queryKey: ["all-illustrations", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("project_illustrations")
         .select("id, page_id, storage_path, is_selected")
-        .eq("project_id", id!)
+        .eq("project_id", id)
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data as (Illustration & { is_selected: boolean })[];
@@ -117,7 +117,6 @@ const ProjectReview = () => {
   const illustratedPageIds = new Set(illustrations.map(i => i.page_id));
   const missingCount = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id)).length;
 
-  // Memoize URL map so getPublicUrl isn't called on every render
   const illustrationUrlMap = useMemo(() => {
     const map = new Map<string, string>();
     illustrations.forEach(ill => {
@@ -127,7 +126,6 @@ const ProjectReview = () => {
     return map;
   }, [illustrations]);
 
-  // Build URL map for ALL illustrations (variants included)
   const allIllustrationUrlMap = useMemo(() => {
     const map = new Map<string, string>();
     allIllustrations.forEach(ill => {
@@ -137,7 +135,6 @@ const ProjectReview = () => {
     return map;
   }, [allIllustrations]);
 
-  // Group all illustrations by page_id
   const illustrationsByPage = useMemo(() => {
     const map = new Map<string, (Illustration & { is_selected: boolean })[]>();
     allIllustrations.forEach(ill => {
@@ -154,13 +151,11 @@ const ProjectReview = () => {
     if (!id) return;
     setIsSelectingIllustration(true);
     try {
-      // Deselect all for this page
       await supabase
         .from("project_illustrations")
         .update({ is_selected: false })
         .eq("page_id", pageId)
         .eq("project_id", id);
-      // Select the chosen one
       await supabase
         .from("project_illustrations")
         .update({ is_selected: true })
@@ -190,7 +185,6 @@ const ProjectReview = () => {
     return illustrationUrlMap.get(pageId) || null;
   }, [illustrationUrlMap]);
 
-  // Build virtual pages: story pages + photo gallery
   const galleryPhotos = [...photos]
     .sort((a, b) => {
       if (a.is_favorite && !b.is_favorite) return -1;
@@ -198,7 +192,6 @@ const ProjectReview = () => {
       return a.sort_order - b.sort_order;
     });
 
-  // Group gallery photos into pages of 6
   const galleryGridPages: GalleryGridPhoto[][] = [];
   for (let i = 0; i < galleryPhotos.length; i += 6) {
     galleryGridPages.push(
@@ -220,15 +213,12 @@ const ProjectReview = () => {
     ] : []),
   ];
 
-  // Build spreads for two-page view: [left, right] pairs
   const spreads: [VirtualPage | null, VirtualPage | null][] = [];
   if (virtualPages.length > 0) {
-    // Cover alone on right
     spreads.push([null, virtualPages[0]]);
     for (let i = 1; i < virtualPages.length; i += 2) {
       spreads.push([virtualPages[i], virtualPages[i + 1] || null]);
     }
-    // If we ended with an odd remaining, the last push already handled it
   }
 
   const [selectedSide, setSelectedSide] = useState<"left" | "right">("right");
@@ -250,7 +240,7 @@ const ProjectReview = () => {
     const { error } = await supabase
       .from("project_pages")
       .update({ is_approved: true })
-      .eq("project_id", id!);
+      .eq("project_id", id);
     if (error) { toast.error("Failed to approve all"); return; }
     queryClient.invalidateQueries({ queryKey: ["pages", id] });
     toast.success("All pages approved!");
@@ -280,10 +270,9 @@ const ProjectReview = () => {
     const missingPages = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id));
     let successes = 0;
 
-    // Delete broken illustration records first so they can be regenerated
     for (const p of missingPages) {
       if (brokenImagePageIds.has(p.id)) {
-        await supabase.from("project_illustrations").delete().eq("page_id", p.id).eq("project_id", id!);
+        await supabase.from("project_illustrations").delete().eq("page_id", p.id).eq("project_id", id);
       }
     }
 
@@ -388,7 +377,6 @@ const ProjectReview = () => {
     }
   };
 
-  // Build preview pages (story + gallery grids)
   const previewPages = [
     ...pages.map(p => ({
       pageNumber: p.page_number,
@@ -416,21 +404,31 @@ const ProjectReview = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <MinimalNav />
-      <main className="pt-24 pb-16 container mx-auto px-6 lg:px-12">
+    <div className="flex-1 overflow-y-auto">
+      <div className="pb-16 px-4 md:px-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           {/* Header */}
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <h1 className="font-display text-3xl font-bold text-foreground">
-                {project?.pet_name}'s Book
-              </h1>
-              <p className="font-body text-muted-foreground mt-1">Review and edit each page</p>
+          <div className="flex items-end justify-between mb-8 pt-4">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-xl gap-1.5"
+                onClick={onBack}
+              >
+                <ArrowLeft className="w-4 h-4" /> Back
+              </Button>
+              <div>
+                <h1 className="font-display text-2xl font-bold text-foreground">
+                  {project?.pet_name}'s Book
+                </h1>
+                <p className="font-body text-sm text-muted-foreground">Review and edit each page</p>
+              </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
               <Button
                 variant="outline"
+                size="sm"
                 className="rounded-xl gap-2"
                 onClick={handleRebuildProfile}
                 disabled={isRebuildingProfile}
@@ -445,6 +443,7 @@ const ProjectReview = () => {
               {missingCount > 0 && (
                 <Button
                   variant="destructive"
+                  size="sm"
                   className="rounded-xl gap-2"
                   onClick={handleGenerateMissing}
                   disabled={isGeneratingMissing}
@@ -460,6 +459,7 @@ const ProjectReview = () => {
               {shareUrl ? (
                 <Button
                   variant="outline"
+                  size="sm"
                   className="rounded-xl gap-2 border-primary"
                   onClick={handleCopyShare}
                 >
@@ -469,6 +469,7 @@ const ProjectReview = () => {
               ) : (
                 <Button
                   variant="outline"
+                  size="sm"
                   className="rounded-xl gap-2"
                   onClick={handleShare}
                   disabled={isCreatingShare}
@@ -481,11 +482,12 @@ const ProjectReview = () => {
                   {isCreatingShare ? "Creating..." : "Share"}
                 </Button>
               )}
-              <Button variant="outline" className="rounded-xl gap-2" onClick={() => setPreviewOpen(true)}>
+              <Button variant="outline" size="sm" className="rounded-xl gap-2" onClick={() => setPreviewOpen(true)}>
                 <Eye className="w-4 h-4" /> Preview
               </Button>
               <Button
                 variant="outline"
+                size="sm"
                 className="rounded-xl gap-2"
                 onClick={handleDownloadPdf}
                 disabled={isDownloadingPdf}
@@ -497,7 +499,7 @@ const ProjectReview = () => {
                 )}
                 {isDownloadingPdf ? "Generating PDF..." : "Download PDF"}
               </Button>
-              <Button variant="hero" className="rounded-xl gap-2" onClick={approveAll} disabled={approvedCount === pages.length}>
+              <Button variant="hero" size="sm" className="rounded-xl gap-2" onClick={approveAll} disabled={approvedCount === pages.length}>
                 <CheckCircle className="w-4 h-4" /> Approve All
               </Button>
             </div>
@@ -515,7 +517,6 @@ const ProjectReview = () => {
             <div className="space-y-8">
               {/* Two-page spread */}
               <div className="flex gap-1 max-w-4xl mx-auto relative">
-                {/* Left page */}
                 <div
                   className={cn(
                     "flex-1 cursor-pointer rounded-l-2xl overflow-hidden transition-shadow",
@@ -534,9 +535,7 @@ const ProjectReview = () => {
                     <div className="aspect-square bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 rounded-l-2xl" />
                   )}
                 </div>
-                {/* Spine shadow */}
                 <div className="w-1 bg-gradient-to-r from-black/10 via-black/5 to-black/10 flex-shrink-0" />
-                {/* Right page */}
                 <div
                   className={cn(
                     "flex-1 cursor-pointer rounded-r-2xl overflow-hidden transition-shadow",
@@ -570,11 +569,10 @@ const ProjectReview = () => {
                 </Button>
               </div>
 
-              {/* Editor panel below spread (full width) */}
+              {/* Editor panel */}
               <div className="max-w-2xl mx-auto">
                 {storyPage ? (
                   <>
-                    {/* Illustration variant picker */}
                     {(() => {
                       const variants = illustrationsByPage.get(storyPage.id) || [];
                       if (variants.length <= 1) return null;
@@ -637,14 +635,13 @@ const ProjectReview = () => {
             </div>
           )}
         </motion.div>
-      </main>
+      </div>
 
       <BookPreview open={previewOpen} onOpenChange={setPreviewOpen} pages={previewPages} petName={project?.pet_name || ""} />
     </div>
   );
 };
 
-// Helper to render a virtual page in the spread view
 const SpreadPageRenderer = ({
   vp,
   pagesCount,
@@ -698,4 +695,4 @@ const SpreadPageRenderer = ({
   return null;
 };
 
-export default ProjectReview;
+export default BookReview;

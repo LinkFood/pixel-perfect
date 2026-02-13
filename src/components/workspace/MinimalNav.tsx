@@ -55,27 +55,12 @@ const MinimalNav = ({ showAuth = true }: MinimalNavProps) => {
                 <span className="font-semibold text-foreground">{credits}</span>
               </div>
             )}
-            <a
-              href="/dashboard"
-              className="font-body text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              My Books
-            </a>
             <button
               onClick={signOut}
               className="text-muted-foreground transition-colors hover:text-foreground"
             >
               <LogOut className="w-4 h-4" />
             </button>
-          </>
-        ) : !loading && !user && showAuth ? (
-          <>
-            <a
-              href="/auth"
-              className="font-body text-sm font-medium text-primary transition-colors hover:text-primary/80"
-            >
-              Sign In
-            </a>
           </>
         ) : null}
       </div>

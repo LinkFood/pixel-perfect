@@ -16,6 +16,8 @@ interface GenerationViewProps {
   projectId: string;
   petName: string;
   onComplete: () => void;
+  hideRabbit?: boolean;
+  onRabbitStateChange?: (state: RabbitState) => void;
 }
 
 function sleep(ms: number) {
@@ -32,7 +34,7 @@ const illustrationCycleStates: RabbitState[] = [
   "painting", "thinking", "excited", "painting", "listening", "painting",
 ];
 
-const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps) => {
+const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onRabbitStateChange }: GenerationViewProps) => {
   const updateStatus = useUpdateProjectStatus();
   const [phase, setPhase] = useState<Phase>("loading");
   const [rabbitState, setRabbitState] = useState<RabbitState>("thinking");
@@ -397,9 +399,11 @@ const GenerationView = ({ projectId, petName, onComplete }: GenerationViewProps)
   return (
     <div className="flex flex-col h-full">
       {/* Rabbit at top */}
-      <div className="flex justify-center py-4">
-        <RabbitCharacter state={rabbitState} size={140} />
-      </div>
+      {!hideRabbit && (
+        <div className="flex justify-center py-4">
+          <RabbitCharacter state={rabbitState} size={140} />
+        </div>
+      )}
 
       {/* Step tracker */}
       <div className="px-4 md:px-0 pb-3 shrink-0">

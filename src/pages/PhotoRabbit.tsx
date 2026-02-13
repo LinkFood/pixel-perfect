@@ -1,42 +1,93 @@
-// Workspace – persistent chat interface. The rabbit is the sandbox.
+// PhotoRabbit – ONE screen, ONE rabbit, ONE chat. The entire app.
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, Loader2, ChevronDown, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
-import ChatMessage from "./ChatMessage";
-import ChatInput from "./ChatInput";
-import PhotoUploadInline from "./PhotoUploadInline";
-import ProjectShelf from "./ProjectShelf";
-import GenerationView from "./GenerationView";
-import MinimalNav from "./MinimalNav";
+import ChatMessage from "@/components/workspace/ChatMessage";
+import ChatInput from "@/components/workspace/ChatInput";
+import PhotoUploadInline from "@/components/workspace/PhotoUploadInline";
+import ProjectShelf from "@/components/workspace/ProjectShelf";
+import GenerationView from "@/components/workspace/GenerationView";
+import MinimalNav from "@/components/workspace/MinimalNav";
+import MoodPicker from "@/components/workspace/MoodPicker";
+import AuthInline from "@/components/workspace/AuthInline";
+import BookReview from "@/components/project/BookReview";
 import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus, useUpdateProject, useDeleteProject } from "@/hooks/useProject";
-import MoodPicker from "./MoodPicker";
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto, getPhotoUrl } from "@/hooks/usePhotos";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
-import { isDevMode } from "@/lib/devMode";
+import { isDevMode, enableDevMode } from "@/lib/devMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import AuthInline from "./AuthInline";
 
-type WorkspacePhase = "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
+type Phase = "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
 
-interface WorkspaceProps {
-  projectId?: string;
-}
+const DEV_EMAIL = "dev@photorabbit.test";
+const DEV_PASSWORD = "devmode123";
 
-const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
+const PhotoRabbit = () => {
   const navigate = useNavigate();
   const { id: paramId } = useParams<{ id: string }>();
-  const resolvedId = propProjectId || paramId;
+  const { user, loading: authLoading } = useAuth();
+
+  // ─── Dev mode auto-sign-in ─────────────────────────────────
+  const [devSigningIn, setDevSigningIn] = useState(false);
+
+  useEffect(() => {
+    if (!isDevMode() || user || authLoading || devSigningIn) return;
+    const autoSignIn = async () => {
+      setDevSigningIn(true);
+      try {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bootstrap-dev-user`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+          }
+        );
+        await supabase.auth.signInWithPassword({ email: DEV_EMAIL, password: DEV_PASSWORD });
+      } catch (e) {
+        console.error("Dev auto-sign-in failed:", e);
+      } finally {
+        setDevSigningIn(false);
+      }
+    };
+    autoSignIn();
+  }, [user, authLoading, devSigningIn]);
+
+  // Show loader while dev mode is signing in
+  if (isDevMode() && (!user || devSigningIn || authLoading)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return <PhotoRabbitInner paramId={paramId} />;
+};
+
+// ─── Inner component (after auth resolved) ─────────────────────
+interface InnerProps {
+  paramId?: string;
+}
+
+const PhotoRabbitInner = ({ paramId }: InnerProps) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const { data: projects = [] } = useProjects();
-  const { data: project, isLoading: projectLoading } = useProject(resolvedId);
-  const { data: photos = [] } = usePhotos(resolvedId);
-  const { data: interviewMessages = [] } = useInterviewMessages(resolvedId);
-  const { sendMessage, isStreaming, streamingContent, lastFinishedContent } = useInterviewChat(resolvedId);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(paramId || null);
+
+  const { data: project, isLoading: projectLoading } = useProject(activeProjectId || undefined);
+  const { data: photos = [] } = usePhotos(activeProjectId || undefined);
+  const { data: interviewMessages = [] } = useInterviewMessages(activeProjectId || undefined);
+  const { sendMessage, isStreaming, streamingContent, lastFinishedContent } = useInterviewChat(activeProjectId || undefined);
   const createProject = useCreateMinimalProject();
   const updateStatus = useUpdateProjectStatus();
   const updateProject = useUpdateProject();
@@ -48,26 +99,24 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
   const [input, setInput] = useState("");
   const [photoStripOpen, setPhotoStripOpen] = useState(false);
   const [seedMenuOpen, setSeedMenuOpen] = useState(false);
-  const autoFill = useAutoFillInterview(resolvedId);
-  const clearInterview = useClearInterview(resolvedId);
+  const autoFill = useAutoFillInterview(activeProjectId || undefined);
+  const clearInterview = useClearInterview(activeProjectId || undefined);
   const [rabbitState, setRabbitState] = useState<RabbitState>("idle");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(resolvedId || null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
   const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
   const unauthFileRef = useRef<HTMLInputElement>(null);
   const projectCreatedRef = useRef(false);
 
   // Sync activeProjectId with URL params
   useEffect(() => {
-    setActiveProjectId(resolvedId || null);
+    setActiveProjectId(paramId || null);
     projectCreatedRef.current = false;
-  }, [resolvedId]);
+  }, [paramId]);
 
   // Derive phase from project state
-  const phase: WorkspacePhase = resolvedId && projectLoading
-    ? "home" // show chat while loading
+  const phase: Phase = activeProjectId && projectLoading
+    ? "home"
     : !activeProjectId || !project
     ? "home"
     : !project.mood ? "mood-picker"
@@ -82,13 +131,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }, 100);
   }, []);
-
-  // Review redirect
-  useEffect(() => {
-    if (phase === "review" && activeProjectId) {
-      navigate(`/project/${activeProjectId}/review`);
-    }
-  }, [phase, activeProjectId, navigate]);
 
   // Update rabbit state based on phase
   useEffect(() => {
@@ -277,6 +319,13 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     scrollToBottom();
   };
 
+  const handleBackFromReview = () => {
+    // Return to generating/interview phase — set review back so chat shows
+    if (activeProjectId) {
+      updateStatus.mutate({ id: activeProjectId, status: "generating" });
+    }
+  };
+
   const userInterviewCount = interviewMessages.filter(m => m.role === "user").length;
   const canFinish = photos.length <= 3 ? userInterviewCount >= 1 : userInterviewCount >= 2;
   const canContinueToInterview = photos.length >= 1 && !isBatchUploading;
@@ -298,8 +347,36 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
     if ((phase === "home" || phase === "upload") && photos.length >= 3) {
       return `${photos.length} photos! I can already picture the book. Ready when you are.`;
     }
-    return null; // Chat messages handle everything in later phases
+    return null;
   };
+
+  // ─── Review phase renders BookReview instead of chat ─────────
+  if (phase === "review" && activeProjectId) {
+    return (
+      <div
+        className="h-screen flex flex-col bg-background overflow-hidden"
+        onDragOver={e => e.preventDefault()}
+        onDrop={e => {
+          e.preventDefault();
+          const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+          if (files.length > 0) handlePhotoUpload(files);
+        }}
+      >
+        <MinimalNav />
+        <BookReview projectId={activeProjectId} onBack={handleBackFromReview} />
+        {user && (
+          <ProjectShelf
+            projects={projects}
+            activeProjectId={activeProjectId}
+            onSelect={handleSelectProject}
+            onNew={handleNewProject}
+            onRename={handleRenameProject}
+            onDelete={handleDeleteProject}
+          />
+        )}
+      </div>
+    );
+  }
 
   // ─── Single unified layout ─────────────────────────────────
   return (
@@ -315,18 +392,21 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
       <MinimalNav />
 
       <div className="flex-1 flex flex-col max-w-[700px] w-full mx-auto overflow-hidden">
-        {/* Rabbit — always present, always centered */}
-        <div className="flex justify-center py-3 shrink-0">
-          <RabbitCharacter state={rabbitState} size={phase === "generating" ? 100 : 140} />
-        </div>
+        {/* Rabbit — always present */}
+        {phase !== "generating" && (
+          <div className="flex justify-center py-3 shrink-0">
+            <RabbitCharacter state={rabbitState} size={140} />
+          </div>
+        )}
 
-        {/* Generation progress — compact bar above chat during generation */}
+        {/* Generation progress — takes over rabbit area during generation */}
         {phase === "generating" && (
           <div className="shrink-0 px-4 md:px-0 pb-2">
             <GenerationView
               projectId={activeProjectId!}
               petName={project?.pet_name || "your story"}
               onComplete={handleGenerationComplete}
+              hideRabbit={false}
             />
           </div>
         )}
@@ -459,7 +539,7 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
           )}
 
           {/* Phase: Interview + Generating — chat messages */}
-          {(phase === "interview" || phase === "generating" || phase === "review") && (
+          {(phase === "interview" || phase === "generating") && (
             <>
               <AnimatePresence initial={false}>
                 {chatMessages.map((msg, i) => (
@@ -483,19 +563,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
                   </Button>
                 </motion.div>
               )}
-
-              {/* Review CTA */}
-              {phase === "review" && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center py-3">
-                  <Button
-                    size="lg"
-                    className="rounded-xl gap-2 px-8 bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={() => activeProjectId && navigate(`/project/${activeProjectId}/review`)}
-                  >
-                    Review your book
-                  </Button>
-                </motion.div>
-              )}
             </>
           )}
         </div>
@@ -505,7 +572,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
           <div className="flex items-center gap-2 px-4 py-1 text-xs text-muted-foreground flex-wrap">
             <span className="font-mono opacity-60">DEV</span>
 
-            {/* Auto-fill DB interview */}
             {(phase === "interview" || phase === "generating") && (
               <div className="relative">
                 <button
@@ -535,7 +601,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
               </div>
             )}
 
-            {/* Auto-fill visible chat UI */}
             <button
               className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
               onClick={() => {
@@ -555,7 +620,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
               Fill Chat UI
             </button>
 
-            {/* Clear */}
             <button
               className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
               onClick={() => clearInterview.mutate(undefined, { onSuccess: () => setChatMessages([]) })}
@@ -563,7 +627,6 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
               Clear
             </button>
 
-            {/* Phase skip buttons */}
             {(phase === "upload" || phase === "mood-picker") && (
               <button
                 className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
@@ -580,12 +643,20 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
                 → Generating
               </button>
             )}
+            {(phase === "upload" || phase === "mood-picker" || phase === "interview" || phase === "generating") && (
+              <button
+                className="px-2 py-0.5 rounded border border-border font-mono hover:bg-black/5"
+                onClick={() => activeProjectId && updateStatus.mutate({ id: activeProjectId, status: "review" })}
+              >
+                → Review
+              </button>
+            )}
 
             {(autoFill.isPending || clearInterview.isPending) && <Loader2 className="w-3 h-3 animate-spin" />}
           </div>
         )}
 
-        {/* Chat input — ALWAYS visible */}
+        {/* Chat input — always visible in non-review phases */}
         <ChatInput
           value={input}
           onChange={setInput}
@@ -614,8 +685,22 @@ const Workspace = ({ projectId: propProjectId }: WorkspaceProps) => {
           onDelete={handleDeleteProject}
         />
       )}
+
+      {/* Footer for unauth */}
+      {!user && (
+        <div className="flex items-center justify-center gap-3 py-3 font-body text-[11px] text-muted-foreground/60">
+          <span>PhotoRabbit</span>
+          <span>&copy; {new Date().getFullYear()}</span>
+          <button
+            onClick={() => { enableDevMode(); window.location.reload(); }}
+            className="opacity-0 hover:opacity-100 transition-opacity"
+          >
+            Dev
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Workspace;
+export default PhotoRabbit;
