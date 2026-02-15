@@ -3,6 +3,23 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Camera, Upload, X, Star } from "lucide-react";
 import { type ProjectPhoto, getPhotoUrl } from "@/hooks/usePhotos";
 
+const PhotoThumb = ({ storagePath, alt }: { storagePath: string; alt: string }) => {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <>
+      {!loaded && <div className="absolute inset-0 animate-pulse rounded-xl bg-muted" />}
+      <img
+        src={getPhotoUrl(storagePath)}
+        alt={alt}
+        className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+      />
+    </>
+  );
+};
+
 interface PhotoUploadInlineProps {
   photos: ProjectPhoto[];
   isUploading: boolean;
@@ -156,12 +173,7 @@ const PhotoUploadInline = ({
                   {isUploading && index >= (photos.length - (uploadProgress?.total || 0)) && index >= (photos.length - (uploadProgress?.total || 0) + (uploadProgress?.completed || 0)) ? (
                     <div className="absolute inset-0 shimmer rounded-xl" />
                   ) : null}
-                  <img
-                    src={getPhotoUrl(photo.storage_path)}
-                    alt={photo.caption || "Photo"}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
+                  <PhotoThumb storagePath={photo.storage_path} alt={photo.caption || "Photo"} />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
                     {onToggleFavorite && (
                       <button
