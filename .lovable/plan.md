@@ -1,69 +1,71 @@
 
 
-# Fix: Visible Chat Bubbles + Working Mood Flow
+# Fix: Broken Flow, Stale Greeting, and Add Dev Error Visibility
 
-## Problem 1: Chat bubbles are invisible
+## What's Actually Broken
 
-The rabbit's bubble color (`--chat-ai-bg: 35 18% 96%`) is nearly identical to the page background (`40 20% 98.5%`). There's only a 2.5% lightness difference -- the bubble disappears.
+### 1. Stale greeting bubble
+`getRabbitGreeting()` returns `null` for `interview` and `mood-picker` phases (lines 650-678). The `useEffect` that injects the greeting skips when greeting is `null`, so the first chat message stays as "Ready when you are -- drop some photos" even after photos are uploaded and the phase changes. The user sees a lie.
 
-**Fix:**
-- Darken `--chat-ai-bg` from `35 18% 96%` to `35 20% 92%` (visible warm gray, like iMessage's light gray)
-- Darken `--chat-ai-border` from `35 14% 91%` to `35 16% 86%` (subtle but clear edge)
-- This creates a ~6.5% lightness contrast which is clearly visible
+**Fix:** Remove the greeting injection mechanism entirely. It's causing more problems than it solves -- it overwrites the first message on every phase change. Instead, inject greeting messages at the correct moments (project creation, photo analysis completion, phase transitions) as one-time events.
 
-**File: `src/index.css`** (lines 65-67)
+### 2. No error visibility for development
+When things fail (edge functions, mutations, phase transitions), there's zero feedback. The user stares at a screen that looks frozen.
 
-## Problem 2: Mood flow doesn't trigger
+**Fix:** Add a persistent dev status bar (only in dev mode) at the top of the workspace showing:
+- Current phase (color-coded)
+- Project status from DB
+- Photo count
+- Mood value
+- Last error (if any)
 
-When you click "That's all my photos", `handleContinueToInterview` fires and checks `!project?.mood`. If mood is unset, it injects a mood picker message into chat. BUT the rabbit's initial greeting ("I see: a sleepy brown and white puppy...") is set via `getRabbitGreeting()` which renders as a static element ABOVE the chat messages array. The mood picker message gets added to `chatMessages` but may not be visible if the user isn't scrolling down, OR the `chatMoodPending` state isn't persisting correctly across re-renders triggered by the status mutation.
+Also add `toast.error()` calls to all failure paths that currently fail silently.
 
-**Fix:**
-- After `handleContinueToInterview` sets status to "interview" AND injects the mood picker message, ensure `scrollToBottom()` fires after the state updates settle (use a small delay)
-- Add a defensive check: if phase becomes "mood-picker" (derived from `!project.mood`) AND `chatMoodPending` is false AND no mood picker message exists in chat, auto-inject one
-- This catches the case where the component re-renders and loses the pending state
+### 3. Interview greeting never fires on fresh flow
+When `startInterview(mood)` is called (line 472), it sets `chatMessages` to a single greeting. But `getRabbitGreeting` `useEffect` (line 683) immediately overwrites it because the greeting changed (phase is now interview, returning `null`). This race condition can clear the interview greeting.
 
-**File: `src/pages/PhotoRabbit.tsx`**
-
-## Problem 3: Rabbit greeting is static, not conversational
-
-The `rabbitGreeting` renders as a permanent static message above all chat messages. This means it never goes away and the rabbit appears to say the same thing forever while new messages stack below it. It should be part of the chat flow, not a fixed element.
-
-**Fix:**
-- Remove the static `rabbitGreeting` `ChatMessage` from the JSX
-- Instead, when the component mounts or photos change, inject the greeting as the FIRST message in `chatMessages` (only if chatMessages is empty)
-- This makes the rabbit's words part of the conversation timeline, not a frozen header
-
-**File: `src/pages/PhotoRabbit.tsx`** (lines 650-681 for `getRabbitGreeting`, lines 694-696 for the static render)
+**Fix:** Same as #1 -- remove the auto-updating greeting useEffect. One-time injections only.
 
 ---
 
-## Technical Details
+## Technical Changes
 
-### CSS changes (src/index.css)
-```css
---chat-ai-bg: 35 20% 92%;      /* was 35 18% 96% */
---chat-ai-text: 240 10% 8%;     /* unchanged */
---chat-ai-border: 35 16% 86%;   /* was 35 14% 91% */
-```
+### File: `src/pages/PhotoRabbit.tsx`
 
-### Greeting as chat message (src/pages/PhotoRabbit.tsx)
-- Add a `useEffect` that watches `phase` and `photos.length`
-- When `chatMessages` is empty and we have a greeting to show, push it as `{ role: "rabbit", content: greeting }` into `chatMessages`
-- Remove the static `{rabbitGreeting && <ChatMessage .../>}` from JSX (line 694-696)
-- This makes ALL rabbit text appear as proper bubbles in the conversation flow
-
-### Mood picker auto-recovery (src/pages/PhotoRabbit.tsx)
-- Add a `useEffect` watching `phase`:
+**Remove the `getRabbitGreeting` + auto-injection system (lines 649-697)**
+- Delete `getRabbitGreeting` callback
+- Delete `lastGreetingRef` and the useEffect that uses it
+- Instead, inject a welcome message ONCE when a project is first loaded and chatMessages is empty:
   ```
-  if phase === "mood-picker" && !chatMoodPending && no mood picker in chatMessages:
-    setChatMoodPending(true)
-    inject mood picker message
+  useEffect: if chatMessages.length === 0 && project exists:
+    if phase is "interview" and mood is set: inject interview greeting
+    if phase is "mood-picker": inject mood picker message
+    if phase is "upload" or "home": inject "drop photos" message
+    if phase is "generating": inject "painting your book" message
+    if phase is "review": inject "book is ready" message
   ```
-- This handles page refreshes and re-renders that might lose the mood picker state
+  This runs once per project load, not on every re-render.
 
-### Summary of files changed
+**Add error toasts to silent failure paths:**
+- `handlePhotoUpload` catch block (line 266): already has toast -- good
+- `handleMoodSelect` (line 463): wrap in try/catch, add `toast.error("Couldn't save mood -- try again")`
+- `handleContinueToInterview` (line 442): add error handling for `updateStatus.mutate`
+- `handleFinishInterview` catch paths: already have chat messages -- also add toasts
+
+**Add dev status bar:**
+- New component `DevStatusBar` rendered at top of workspace (inside `WorkspaceSandbox` or at the layout level)
+- Shows: `phase | status: {db_status} | mood: {mood} | photos: {count} | errors: {last_error}`
+- Only renders when `isDevMode()` is true
+- Bright colored background so it's impossible to miss
+
+### File: `src/components/workspace/WorkspaceSandbox.tsx`
+
+**No structural changes needed** -- the workspace layout is correct (photos visible during interview). Just need the dev status bar added.
+
+### Summary
+
 | File | Change |
 |------|--------|
-| `src/index.css` | Darken chat bubble background + border tokens |
-| `src/pages/PhotoRabbit.tsx` | Move greeting into chat flow, add mood picker auto-recovery |
+| `src/pages/PhotoRabbit.tsx` | Remove auto-updating greeting system, replace with one-time injection per project load. Add toast.error to failure paths. Add DevStatusBar component. |
+| `src/components/workspace/WorkspaceSandbox.tsx` | Add DevStatusBar rendering at top when in dev mode |
 
