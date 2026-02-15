@@ -261,6 +261,7 @@ export type Database = {
           pet_type: string
           photo_context_brief: string | null
           product_type: string | null
+          share_token: string | null
           status: string
           updated_at: string
           user_id: string | null
@@ -275,6 +276,7 @@ export type Database = {
           pet_type?: string
           photo_context_brief?: string | null
           product_type?: string | null
+          share_token?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
@@ -289,6 +291,7 @@ export type Database = {
           pet_type?: string
           photo_context_brief?: string | null
           product_type?: string | null
+          share_token?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
