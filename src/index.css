@@ -62,9 +62,9 @@
     /* Chat tokens */
     --chat-user-bg: 12 85% 56%;
     --chat-user-text: 0 0% 100%;
-    --chat-ai-bg: 35 18% 96%;
+    --chat-ai-bg: 35 20% 92%;
     --chat-ai-text: 240 10% 8%;
-    --chat-ai-border: 35 14% 91%;
+    --chat-ai-border: 35 16% 86%;
   }
 
   .dark {

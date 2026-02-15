@@ -646,8 +646,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   // Show hero landing when no active project and no photos
   const showHero = phase === "home" && photos.length === 0;
 
-  // Rabbit greeting based on phase
-  const getRabbitGreeting = () => {
+  // Rabbit greeting — injected into chatMessages instead of static render
+  const getRabbitGreeting = useCallback(() => {
     if (phase === "home" && photos.length === 0) {
       return "Ready when you are — drop some photos and let's get started.";
     }
@@ -676,9 +676,40 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       return "Your book is ready! Review it on the right, then share it with anyone.";
     }
     return null;
-  };
+  }, [phase, photos, isBatchUploading]);
 
-  const rabbitGreeting = getRabbitGreeting();
+  // Inject greeting as first chat message (replaces static element)
+  const lastGreetingRef = useRef<string | null>(null);
+  useEffect(() => {
+    const greeting = getRabbitGreeting();
+    if (!greeting) return;
+    if (greeting === lastGreetingRef.current) return;
+    lastGreetingRef.current = greeting;
+    // Replace the first message if it was a previous greeting, otherwise prepend
+    setChatMessages(prev => {
+      if (prev.length === 0) return [{ role: "rabbit", content: greeting }];
+      // If first message is a rabbit greeting (no photos, no moodPicker), update it
+      if (prev[0].role === "rabbit" && !prev[0].photos && !prev[0].moodPicker) {
+        return [{ role: "rabbit", content: greeting }, ...prev.slice(1)];
+      }
+      return [{ role: "rabbit", content: greeting }, ...prev];
+    });
+  }, [getRabbitGreeting]);
+
+  // Auto-recover mood picker if phase is mood-picker but no picker in chat
+  useEffect(() => {
+    if (phase !== "mood-picker") return;
+    if (chatMoodPending) return;
+    const hasMoodPicker = chatMessages.some(m => m.moodPicker);
+    if (hasMoodPicker) return;
+    setChatMoodPending(true);
+    setChatMessages(prev => [...prev, {
+      role: "rabbit" as const,
+      content: "Nice photos! Before we dive in — what's the vibe for this book?",
+      moodPicker: true,
+    }]);
+    scrollToBottom();
+  }, [phase, chatMoodPending, chatMessages, scrollToBottom]);
 
   // ─── Chat panel content (used for both layouts) ─────────
   const chatPanel = (
@@ -690,10 +721,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
       {/* Chat scroll area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 space-y-5 pb-4">
-        {/* Rabbit greeting */}
-        {rabbitGreeting && (
-          <ChatMessage role="rabbit" content={rabbitGreeting} />
-        )}
+        {/* Greeting is now injected into chatMessages — no static element */}
 
         {/* Interview + generating chat messages */}
         {user && (phase === "interview" || phase === "generating" || phase === "review" || phase === "home" || phase === "upload" || phase === "mood-picker") && (
