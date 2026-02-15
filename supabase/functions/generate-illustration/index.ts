@@ -74,7 +74,7 @@ function extractImageData(message: any): { base64: string | null; contentType: s
 async function tryGenerate(
   apiKey: string,
   model: string,
-  prompt: string,
+  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>,
   maxAttempts: number,
   temperature = 0.8
 ): Promise<{ base64: string | null; contentType: string; error: string | null; retryable: boolean }> {
@@ -89,7 +89,7 @@ async function tryGenerate(
         body: JSON.stringify({
           model,
           modalities: ["text", "image"],
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content }],
           temperature,
         }),
       });
@@ -179,15 +179,35 @@ serve(async (req) => {
     const appearanceProfile = project.pet_appearance_profile || "";
     const breed = project.pet_breed || (project.pet_type !== "unknown" && project.pet_type !== "general" ? project.pet_type : "");
 
+    // Fetch reference photos (up to 3, favorites first) so the model can SEE the subject
+    const { data: refPhotos } = await supabase
+      .from("project_photos")
+      .select("storage_path")
+      .eq("project_id", projectId)
+      .order("is_favorite", { ascending: false })
+      .order("sort_order", { ascending: true })
+      .limit(3);
+
+    const refImageUrls: string[] = [];
+    if (refPhotos && refPhotos.length > 0) {
+      for (const photo of refPhotos) {
+        const { data } = supabase.storage.from("pet-photos").getPublicUrl(photo.storage_path);
+        if (data?.publicUrl) refImageUrls.push(data.publicUrl);
+      }
+    }
+
+    console.log(`Using ${refImageUrls.length} reference photos for illustration`);
+
     // Extract key visual traits for reinforcement
     const breedUpper = breed.toUpperCase();
     const petNameUpper = project.pet_name.toUpperCase();
 
-    // Build the full illustration prompt with character consistency at TOP and BOTTOM
-    const fullPrompt = appearanceProfile
+    // Build the text portion of the prompt
+    const textPrompt = appearanceProfile
       ? `CRITICAL CHARACTER REQUIREMENT — READ THIS FIRST:
-${petNameUpper} MUST be drawn exactly as described. ${breedUpper ? `They are a ${breedUpper}. ` : ""}${appearanceProfile}
-DO NOT change the appearance. DO NOT add accessories unless specified above.
+The reference photos above show the REAL ${petNameUpper}. Study them carefully.
+${breedUpper ? `They are a ${breedUpper}. ` : ""}${appearanceProfile}
+The illustration MUST look like THIS specific subject — not a generic version. Match their exact coloring, markings, proportions, and features from the reference photos.
 
 ---
 
@@ -203,9 +223,10 @@ STYLE RULES:
 
 ---
 
-REMINDER — CHARACTER MUST MATCH EXACTLY:
-${petNameUpper} in this image MUST match the description above. ${appearanceProfile.split('.').slice(0, 3).join('.')}. NEVER change the appearance.`
+REMINDER — MATCH THE REFERENCE PHOTOS:
+${petNameUpper} in this image MUST look like the subject in the reference photos above. ${appearanceProfile.split('.').slice(0, 3).join('.')}. NEVER deviate from their real appearance.`
       : `Create a children's book illustration in warm watercolor style.
+${refImageUrls.length > 0 ? "Use the reference photos above as the basis for the subject's appearance. The illustration should look like THIS specific subject." : ""}
 
 SCENE (Page ${page.page_number}):
 ${scenePrompt}
@@ -222,20 +243,34 @@ STYLE RULES:
     const variantSuffix = variant
       ? "\n\nIMPORTANT: Create a DIFFERENT composition and camera angle from other versions of this scene. Try a fresh perspective — closer, further, different angle, or different moment in the action."
       : "";
-    const finalPrompt = fullPrompt + variantSuffix;
+    const finalText = textPrompt + variantSuffix;
     const temperature = variant ? 0.95 : 0.8;
+
+    // Build multimodal content: reference photos FIRST, then text prompt
+    const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+
+    // Add reference photos so the model sees what the subject actually looks like
+    for (const url of refImageUrls) {
+      contentParts.push({ type: "image_url", image_url: { url } });
+    }
+
+    // Add the text prompt after the images
+    contentParts.push({ type: "text", text: finalText });
+
+    // If no reference photos, fall back to text-only string
+    const finalContent = contentParts.length > 1 ? contentParts : finalText;
 
     console.log(`Generating illustration${variant ? " (variant)" : ""} for page ${page.page_number} (${page.page_type}): ${scenePrompt.slice(0, 80)}...`);
 
     const illStartTime = Date.now();
 
     // Try primary model (3 attempts)
-    let result = await tryGenerate(LOVABLE_API_KEY, PRIMARY_MODEL, finalPrompt, 3, temperature);
+    let result = await tryGenerate(LOVABLE_API_KEY, PRIMARY_MODEL, finalContent, 3, temperature);
 
     // If primary failed for ANY reason, try fallback model
     if (!result.base64) {
       console.log(`Primary model failed (${result.error}), trying fallback model`);
-      result = await tryGenerate(LOVABLE_API_KEY, FALLBACK_MODEL, finalPrompt, 2, temperature);
+      result = await tryGenerate(LOVABLE_API_KEY, FALLBACK_MODEL, finalContent, 2, temperature);
     }
 
     if (!result.base64) {
