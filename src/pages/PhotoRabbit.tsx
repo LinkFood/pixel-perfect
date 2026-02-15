@@ -122,6 +122,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const [rabbitState, setRabbitState] = useState<RabbitState>("idle");
   const [isFinishing, setIsFinishing] = useState(false);
   const [chatMoodPending, setChatMoodPending] = useState(false);
+  const [chatNamePending, setChatNamePending] = useState(false);
+  const [pendingPetName, setPendingPetName] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[]; moodPicker?: boolean }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
@@ -327,6 +329,24 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     const text = input.trim();
     if (!text) return;
     resetIdleTimer();
+
+    // Intercept name input before mood picker
+    if (chatNamePending) {
+      setChatMessages(prev => [...prev, { role: "user", content: text }]);
+      setInput("");
+      setPendingPetName(text);
+      setChatNamePending(false);
+      // Now show mood picker
+      setChatMoodPending(true);
+      setChatMessages(prev => [...prev, {
+        role: "rabbit",
+        content: `"${text}" — love it! Now, what's the vibe for this book?`,
+        moodPicker: true,
+      }]);
+      scrollToBottom();
+      return;
+    }
+
     setChatMessages(prev => [...prev, { role: "user", content: text }]);
     setInput("");
     scrollToBottom();
@@ -442,7 +462,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const handleContinueToInterview = () => {
     if (!activeProjectId) return;
     if (!project?.mood) {
-      // No mood yet — inject inline mood picker into chat instead of navigating away
+      // No mood yet — first ask for the name, then mood
       updateStatus.mutate(
         { id: activeProjectId, status: "interview" },
         {
@@ -452,11 +472,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           },
         }
       );
-      setChatMoodPending(true);
+      setChatNamePending(true);
       setChatMessages(prev => [...prev, {
         role: "rabbit",
-        content: "Nice photos! Before we dive in — what's the vibe for this book?",
-        moodPicker: true,
+        content: "Love these! Who's the star of this book? (Type their name)",
       }]);
       scrollToBottom();
       return;
@@ -811,7 +830,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                                 onClick={() => {
                                   setChatMoodPending(false);
                                   setChatMessages(prev => [...prev, { role: "user", content: label }]);
-                                  handleMoodSelect(mood, project?.pet_name || "New Project");
+                                  handleMoodSelect(mood, pendingPetName || project?.pet_name || "New Project");
                                 }}
                                 className="px-4 py-2 rounded-full text-sm font-body font-medium bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors border border-primary/20 hover:border-primary shadow-sm"
                               >

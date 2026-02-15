@@ -20,7 +20,7 @@ const phaseColors: Record<Phase, string> = {
 };
 
 const DevStatusBar = ({ phase, dbStatus, mood, photoCount, projectId }: DevStatusBarProps) => {
-  if (!isDevMode()) return null;
+  // Always visible during development
 
   return (
     <div className="bg-foreground/90 text-background text-[11px] font-mono px-3 py-1.5 flex items-center gap-3 flex-wrap shrink-0 z-50">
