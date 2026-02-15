@@ -1,69 +1,72 @@
 
 
-# Fix: Chat Not Responding + Tabs Alignment
+# Fix: Chat Bubbles, Mood Flow, and Layout Stability
 
-## Issue 1: Chat Messages Go Into a Black Hole
+## Problem 1: Chat bubbles look like block text (not iMessage)
 
-When you type a message in the upload phase, the code calls the AI interview function. But if that call fails for any reason (network hiccup, edge function timeout, etc.), the error gets swallowed silently -- your message appears but Rabbit never responds.
+The rabbit's bubble color (`bg-secondary` = warm gray 95%) is almost identical to the page background (warm white 98.5%). There's essentially no contrast -- the bubble disappears into the page.
 
-The root cause is a gap in error handling: `sendMessage` can resolve without producing content (e.g., empty stream, early return), and when that happens, no rabbit reply is ever added to the chat. There is also no timeout -- if the AI takes too long, you just wait forever.
+**Fix:**
+- Give rabbit bubbles a visible background: `bg-[hsl(var(--chat-ai-bg))]` with a subtle border (`border border-[hsl(var(--chat-ai-border))]`) -- these CSS tokens already exist but aren't being used
+- Give user bubbles the coral primary color (already correct)
+- Add slightly more padding and a subtle shadow to both bubble types to create the "floating bubble" effect
+- Increase max-width from 82% to 78% so bubbles don't stretch wall-to-wall
 
-### Fix
-- After `sendMessage` completes in the upload/home/mood-picker phase, check if a reply actually came back. If not, show a fallback canned response so the chat never goes silent.
-- Add a try/catch that always produces a rabbit reply, even on failure.
-- Add a console.log before and after the `sendMessage` call so we can see exactly what happens in future debugging.
+**File: `src/components/workspace/ChatMessage.tsx`**
 
-**File: `src/pages/PhotoRabbit.tsx`** (lines 346-362 in `handleSend`)
+## Problem 2: Mood picker is invisible / flow freezes
 
-```tsx
-// Before sendMessage
-console.log("[Chat] Sending message in upload phase, projectId:", activeProjectId);
+The bug flow:
+1. User clicks "That's all my photos -- let's go!"
+2. `handleContinueToInterview` sets project status to `"interview"`
+3. Phase derivation sees `!project.mood` is true, so phase becomes `"mood-picker"`
+4. MoodPicker renders in the **right panel** (WorkspaceSandbox), but the user is staring at the **left panel** (chat) where nothing changes -- it looks frozen
+5. When user clicks "Make it funny" in the right panel, `handleMoodSelect` fires correctly, but if the mutation is slow, the UI appears stuck
 
-try {
-  setRabbitState("thinking");
-  await sendMessage(text, interviewMessages, ...);
-  
-  // If sendMessage resolved but produced no content,
-  // the lastFinishedContent effect won't fire.
-  // Give it a moment, then check.
-  setTimeout(() => {
-    setChatMessages(prev => {
-      const lastMsg = prev[prev.length - 1];
-      if (lastMsg?.role === "user") {
-        // No rabbit reply came -- use fallback
-        return [...prev, { role: "rabbit" as const, content: "I'm still getting to know your photos! Drop more in or hit 'That's all my photos' when you're ready." }];
-      }
-      return prev;
-    });
-  }, 8000); // 8 second safety net
-} catch {
-  setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try that again?" }]);
-  scrollToBottom();
-}
-```
+**Fix:**
+- Move mood selection INTO the chat flow as inline tappable bubbles, so the rabbit asks "what's the vibe?" directly in the conversation
+- When the user taps a mood bubble in chat, it calls `handleMoodSelect` directly
+- Remove the separate MoodPicker panel from WorkspaceSandbox for this phase
+- This makes the flow: photos drop -> rabbit reacts -> "what's the vibe?" with inline mood buttons -> interview begins
+- The right panel (workspace) stays showing the uploaded photos the whole time -- no page jump
 
----
+**Files: `src/pages/PhotoRabbit.tsx`, `src/components/workspace/ChatMessage.tsx`, `src/components/workspace/WorkspaceSandbox.tsx`**
 
-## Issue 2: Tabs at the Bottom Look Crooked
+## Problem 3: Layout jumps / pages move around
 
-The project shelf tabs intentionally rotate each tab by a few degrees (a "stack of papers" effect). This was a design choice, but it makes the tabs look broken/misaligned rather than charming at this size.
+Currently the right panel (WorkspaceSandbox) swaps its entire content between phases (upload grid, mood picker, interview strip, generation view, book review) using AnimatePresence. This causes the "page movement" feeling.
 
-### Fix
-Remove the rotation animation from the project tabs so they sit flat and aligned.
+**Fix:**
+- During upload and interview phases, keep the photo grid always visible in the right panel
+- Remove the mood-picker case from WorkspaceSandbox (it's now inline in chat)
+- The right panel only changes content for `generating` and `review` phases (which are genuinely different views)
 
-**File: `src/components/workspace/ProjectShelf.tsx`**
-
-- Remove the `getRotation` function (lines 46-49)
-- Remove `animate={{ rotate: getRotation(index) }}` from the motion.button (line 72)
-- Keep the hover and tap animations
+**File: `src/components/workspace/WorkspaceSandbox.tsx`**
 
 ---
 
-## Summary
+## Technical Details
 
-| Change | File | What |
-|--------|------|------|
-| Chat fallback response | `src/pages/PhotoRabbit.tsx` | Add timeout safety net so Rabbit always replies |
-| Debug logging | `src/pages/PhotoRabbit.tsx` | Console logs to trace chat flow |
-| Fix tab alignment | `src/components/workspace/ProjectShelf.tsx` | Remove rotation from project tabs |
+### ChatMessage.tsx changes
+- Rabbit bubbles: `bg-[hsl(var(--chat-ai-bg))] border border-[hsl(var(--chat-ai-border))] shadow-chat` with `rounded-2xl rounded-bl-md`
+- User bubbles: `bg-primary text-primary-foreground shadow-chat` with `rounded-2xl rounded-br-md`
+- Both get `px-4 py-3` padding (slightly more vertical breathing room)
+- Max width reduced to `max-w-[78%]`
+
+### Inline mood picker in chat
+- New `ChatMessage` variant that accepts `children` prop (already supported) to render mood buttons inline
+- When phase becomes `mood-picker`, the rabbit posts a greeting with 4 tappable mood pill buttons below it
+- Each pill is styled as a rounded capsule with the mood icon + label
+- Tapping one calls `handleMoodSelect(mood, petName)` and transitions to interview
+- A name input appears inline above the mood pills if name is still "New Project"
+
+### WorkspaceSandbox changes
+- Remove the `phase === "mood-picker"` block entirely
+- During `interview` phase, show the full photo grid (same as upload view) instead of just a collapsible strip -- photos stay visible as context while chatting
+- The "That's all my photos" button and "Make my book" button remain in the right panel
+
+### PhotoRabbit.tsx changes
+- When `handleContinueToInterview` fires and mood is not set, instead of silently setting status to interview, inject a rabbit chat message with inline mood selection buttons
+- Add a `chatMoodPending` state that tracks whether we're waiting for mood selection in chat
+- When mood is selected via chat pill, call existing `handleMoodSelect` which transitions to interview
 
