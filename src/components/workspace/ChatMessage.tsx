@@ -15,15 +15,15 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(({ role, conten
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      initial={{ opacity: 0, y: 10, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: "spring", stiffness: 300, damping: 28 }}
-      className={`flex ${isRabbit ? "items-start" : "justify-end"}`}
+      transition={{ type: "spring", stiffness: 340, damping: 28 }}
+      className={`flex ${isRabbit ? "justify-start" : "justify-end"}`}
     >
       {children ? (
-        <div className="max-w-[85%]">{children}</div>
+        <div className="max-w-[82%]">{children}</div>
       ) : (
-        <div className="max-w-[80%] space-y-2">
+        <div className={`max-w-[82%] space-y-2 ${!isRabbit ? "items-end flex flex-col" : ""}`}>
           {photos && photos.length > 0 && (
             <div className={`flex gap-2 flex-wrap ${!isRabbit ? "justify-end" : ""}`}>
               {photos.map((url, i) => (
@@ -31,7 +31,7 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(({ role, conten
                   key={i}
                   src={url}
                   alt="Photo"
-                  className="w-20 h-20 rounded-xl object-cover shadow-elevated"
+                  className="w-20 h-20 rounded-2xl object-cover shadow-md"
                   initial={{ rotate: (i % 2 === 0 ? 1 : -1) * (1 + Math.random() * 2) }}
                   animate={{ rotate: 0 }}
                   transition={{ type: "spring", stiffness: 200, damping: 20, delay: i * 0.05 }}
@@ -42,38 +42,22 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(({ role, conten
           )}
           {content && (
             <div
-              className={`rounded-2xl px-5 py-3.5 ${
+              className={`px-4 py-2.5 text-[15px] leading-relaxed font-body whitespace-pre-line ${
                 isRabbit
-                  ? "rounded-tl-md glass-warm glow-soft border-l-2 border-l-primary/30"
-                  : "rounded-tr-md ml-auto shadow-elevated hover:shadow-float transition-shadow"
+                  ? "rounded-2xl rounded-bl-md bg-secondary text-secondary-foreground"
+                  : "rounded-2xl rounded-br-md bg-primary text-primary-foreground"
               }`}
-              style={
-                isRabbit
-                  ? undefined
-                  : {
-                      background: "hsl(var(--chat-user-bg))",
-                    }
-              }
             >
-              <p
-                className="font-body text-[15px] leading-relaxed whitespace-pre-line"
-                style={{
-                  color: isRabbit
-                    ? "hsl(var(--chat-ai-text))"
-                    : "hsl(var(--chat-user-text))",
-                }}
-              >
-                {content}
-                {isStreaming && (
-                  <motion.span
-                    animate={{ opacity: [1, 0] }}
-                    transition={{ duration: 0.5, repeat: Infinity }}
-                    className="inline-block ml-0.5"
-                  >
-                    |
-                  </motion.span>
-                )}
-              </p>
+              {content}
+              {isStreaming && (
+                <motion.span
+                  animate={{ opacity: [1, 0] }}
+                  transition={{ duration: 0.5, repeat: Infinity }}
+                  className="inline-block ml-0.5"
+                >
+                  |
+                </motion.span>
+              )}
             </div>
           )}
         </div>
@@ -86,11 +70,11 @@ ChatMessage.displayName = "ChatMessage";
 
 export const TypingIndicator = () => (
   <div className="flex justify-start">
-    <div className="glass-warm glow-soft rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1">
+    <div className="bg-secondary rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1.5">
       {[0, 1, 2].map(i => (
         <motion.span
           key={i}
-          className="w-2 h-2 rounded-full bg-foreground/40"
+          className="w-2 h-2 rounded-full bg-muted-foreground/50"
           animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
           transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
         />
