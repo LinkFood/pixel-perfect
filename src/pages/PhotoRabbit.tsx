@@ -146,14 +146,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
   }, [isStaleGenerating, activeProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Loading spinner while project data is being fetched (prevents phase flash to "home")
-  if (activeProjectId && projectLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  // Loading state flag (early return moved to JSX to avoid hook ordering issues)
+  const isProjectLoading = activeProjectId && projectLoading;
 
   // Derive phase from project state
   const phase: Phase = !activeProjectId || !project
@@ -196,7 +190,6 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       if (prev === "sleeping" && currentPhase !== "generating") {
         setTimeout(() => {
           setRabbitState(() => {
-            if (currentPhase === "generating") return "painting";
             if (currentPhase === "interview") return "listening";
             if (currentPhase === "review") return "presenting";
             if ((currentPhase === "upload" || currentPhase === "home") && photos.length > 0) return "excited";
@@ -847,6 +840,12 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         if (files.length > 0) handlePhotoUpload(files);
       }}
     >
+      {isProjectLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+        </div>
+      ) : (
+        <>
       <MinimalNav isHero={showHero} />
 
       <AnimatePresence mode="wait">
@@ -927,6 +926,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         onDelete={handleDeleteProject}
       />
 
+        </>
+      )}
     </div>
   );
 };
