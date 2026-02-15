@@ -692,6 +692,49 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     greetingInjectedRef.current = null;
   }, [activeProjectId]);
 
+  // Reactively update the first greeting when photos arrive or get captioned
+  const prevPhotoCountRef = useRef(0);
+  useEffect(() => {
+    if (phase !== "upload" && phase !== "home") return;
+    if (photos.length === 0) return;
+    // Only update if photo count changed (new photos arrived)
+    if (photos.length === prevPhotoCountRef.current) {
+      // Check if captions just arrived (describe-photo completed)
+      const captioned = photos.filter(p => p.caption);
+      if (captioned.length > 0 && chatMessages.length >= 1 && chatMessages[0].role === "rabbit" && !chatMessages[0].photos && !chatMessages[0].moodPicker) {
+        const firstCaption = captioned[0].caption!;
+        const snippet = firstCaption.length > 60 ? firstCaption.slice(0, 60).replace(/\s+\S*$/, "") + "..." : firstCaption;
+        const newGreeting = photos.length < 3
+          ? `I see: "${snippet}" — add more photos for a richer story, or continue when you're ready.`
+          : `${photos.length} photos! I can see "${snippet}" and more. Ready when you are.`;
+        // Only update if different
+        if (chatMessages[0].content !== newGreeting) {
+          setChatMessages(prev => [{ role: "rabbit", content: newGreeting }, ...prev.slice(1)]);
+        }
+      }
+      return;
+    }
+    prevPhotoCountRef.current = photos.length;
+    // Photos arrived — update the first message
+    if (chatMessages.length >= 1 && chatMessages[0].role === "rabbit" && !chatMessages[0].photos && !chatMessages[0].moodPicker) {
+      const captioned = photos.filter(p => p.caption);
+      let newGreeting: string;
+      if (captioned.length > 0) {
+        const firstCaption = captioned[0].caption!;
+        const snippet = firstCaption.length > 60 ? firstCaption.slice(0, 60).replace(/\s+\S*$/, "") + "..." : firstCaption;
+        newGreeting = photos.length < 3
+          ? `I see: "${snippet}" — add more photos for a richer story, or continue when you're ready.`
+          : `${photos.length} photos! I can see "${snippet}" and more. Ready when you are.`;
+      } else if (isBatchUploading) {
+        newGreeting = "I'm studying your photos right now...";
+      } else {
+        newGreeting = `${photos.length} photo${photos.length !== 1 ? "s" : ""} — still reading them. Ready when you are.`;
+      }
+      setChatMessages(prev => [{ role: "rabbit", content: newGreeting }, ...prev.slice(1)]);
+      scrollToBottom();
+    }
+  }, [photos, phase, isBatchUploading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-recover mood picker if phase is mood-picker but no picker in chat
   useEffect(() => {
     if (phase !== "mood-picker") return;
