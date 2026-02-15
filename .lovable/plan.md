@@ -1,71 +1,74 @@
 
+# Fix: Inline Mood Flow Missing Name Input + Always-On Dev Bar
 
-# Fix: Broken Flow, Stale Greeting, and Add Dev Error Visibility
+## Problems Found (tested end-to-end)
 
-## What's Actually Broken
+1. **The inline chat mood picker skips the name question entirely.** When a user clicks "That's all my photos -- let's go!", the chat shows mood buttons (Funny, Heartfelt, etc.) but never asks "Who is this about?" The code at line 814 passes `project?.pet_name || "New Project"` -- which is always "New Project" since `useCreateMinimalProject` hard-codes that default. The rabbit then says "Tell me about New Project" which feels broken.
 
-### 1. Stale greeting bubble
-`getRabbitGreeting()` returns `null` for `interview` and `mood-picker` phases (lines 650-678). The `useEffect` that injects the greeting skips when greeting is `null`, so the first chat message stays as "Ready when you are -- drop some photos" even after photos are uploaded and the phase changes. The user sees a lie.
+2. **DevStatusBar only shows in dev mode** (`?dev=1`). During active development this should always be visible so you can see what phase/status the app thinks it's in.
 
-**Fix:** Remove the greeting injection mechanism entirely. It's causing more problems than it solves -- it overwrites the first message on every phase change. Instead, inject greeting messages at the correct moments (project creation, photo analysis completion, phase transitions) as one-time events.
-
-### 2. No error visibility for development
-When things fail (edge functions, mutations, phase transitions), there's zero feedback. The user stares at a screen that looks frozen.
-
-**Fix:** Add a persistent dev status bar (only in dev mode) at the top of the workspace showing:
-- Current phase (color-coded)
-- Project status from DB
-- Photo count
-- Mood value
-- Last error (if any)
-
-Also add `toast.error()` calls to all failure paths that currently fail silently.
-
-### 3. Interview greeting never fires on fresh flow
-When `startInterview(mood)` is called (line 472), it sets `chatMessages` to a single greeting. But `getRabbitGreeting` `useEffect` (line 683) immediately overwrites it because the greeting changed (phase is now interview, returning `null`). This race condition can clear the interview greeting.
-
-**Fix:** Same as #1 -- remove the auto-updating greeting useEffect. One-time injections only.
+3. **Photo thumbnails flash blank on first load** before storage URLs resolve. Minor but noticeable.
 
 ---
 
-## Technical Changes
+## Fix 1: Add Name Input to the Inline Chat Mood Flow
 
 ### File: `src/pages/PhotoRabbit.tsx`
 
-**Remove the `getRabbitGreeting` + auto-injection system (lines 649-697)**
-- Delete `getRabbitGreeting` callback
-- Delete `lastGreetingRef` and the useEffect that uses it
-- Instead, inject a welcome message ONCE when a project is first loaded and chatMessages is empty:
-  ```
-  useEffect: if chatMessages.length === 0 && project exists:
-    if phase is "interview" and mood is set: inject interview greeting
-    if phase is "mood-picker": inject mood picker message
-    if phase is "upload" or "home": inject "drop photos" message
-    if phase is "generating": inject "painting your book" message
-    if phase is "review": inject "book is ready" message
-  ```
-  This runs once per project load, not on every re-render.
+**Before the mood buttons appear, inject a name-input step into the chat flow.**
 
-**Add error toasts to silent failure paths:**
-- `handlePhotoUpload` catch block (line 266): already has toast -- good
-- `handleMoodSelect` (line 463): wrap in try/catch, add `toast.error("Couldn't save mood -- try again")`
-- `handleContinueToInterview` (line 442): add error handling for `updateStatus.mutate`
-- `handleFinishInterview` catch paths: already have chat messages -- also add toasts
+Current flow:
+```text
+User clicks "That's all my photos"
+  -> Chat shows mood buttons immediately
+  -> User picks mood
+  -> handleMoodSelect(mood, "New Project")  // BUG: always "New Project"
+```
 
-**Add dev status bar:**
-- New component `DevStatusBar` rendered at top of workspace (inside `WorkspaceSandbox` or at the layout level)
-- Shows: `phase | status: {db_status} | mood: {mood} | photos: {count} | errors: {last_error}`
-- Only renders when `isDevMode()` is true
-- Bright colored background so it's impossible to miss
+New flow:
+```text
+User clicks "That's all my photos"
+  -> Chat asks: "Love these! Who's the star of this book?"
+  -> User types a name (e.g. "Charlie")
+  -> Chat shows mood buttons
+  -> User picks mood
+  -> handleMoodSelect(mood, "Charlie")  // Correct name
+```
 
-### File: `src/components/workspace/WorkspaceSandbox.tsx`
+Changes:
+- Add a new state `chatNamePending` (boolean) and `pendingPetName` (string)
+- In `handleContinueToInterview`: instead of showing mood buttons first, inject a rabbit message asking for the name, and set `chatNamePending = true`
+- When user sends a message while `chatNamePending` is true, capture it as the pet name, set `pendingPetName`, clear `chatNamePending`, then show the mood buttons
+- When mood is selected (line 814), use `pendingPetName` instead of `project?.pet_name || "New Project"`
 
-**No structural changes needed** -- the workspace layout is correct (photos visible during interview). Just need the dev status bar added.
+### File: `src/pages/PhotoRabbit.tsx` (chat send handler)
 
-### Summary
+- In the `handleSendMessage` function, add a check at the top: if `chatNamePending` is true, treat the user's input as the name, store it, show the mood picker, and return early (don't send to the interview-chat edge function)
+
+---
+
+## Fix 2: Show DevStatusBar Always During Development
+
+### File: `src/components/workspace/DevStatusBar.tsx`
+
+- Remove the `isDevMode()` check (or make the bar always render but with a subtle style when not in dev mode)
+- During active development, the bar should always be visible at the top of the workspace showing: phase, db status, mood, photo count, project ID
+
+---
+
+## Fix 3: Photo Thumbnail Loading
+
+### File: `src/components/workspace/PhotoUploadInline.tsx`
+
+- Add a loading/skeleton state for photo thumbnails while storage URLs are being resolved
+- Use `onLoad` / `onError` handlers on img tags to transition from skeleton to loaded state
+
+---
+
+## Summary
 
 | File | Change |
 |------|--------|
-| `src/pages/PhotoRabbit.tsx` | Remove auto-updating greeting system, replace with one-time injection per project load. Add toast.error to failure paths. Add DevStatusBar component. |
-| `src/components/workspace/WorkspaceSandbox.tsx` | Add DevStatusBar rendering at top when in dev mode |
-
+| `src/pages/PhotoRabbit.tsx` | Add name-input step before mood picker in inline chat flow. Use captured name instead of "New Project". |
+| `src/components/workspace/DevStatusBar.tsx` | Always show during development (remove dev-mode-only gate). |
+| `src/components/workspace/PhotoUploadInline.tsx` | Add skeleton loading state for photo thumbnails. |
