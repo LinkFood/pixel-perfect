@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
-import { Paperclip, ArrowRight } from "lucide-react";
+import { Paperclip, PawPrint } from "lucide-react";
 
 interface ChatInputProps {
   value: string;
@@ -72,9 +72,9 @@ const ChatInput = ({
           className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all bg-primary text-primary-foreground disabled:opacity-30 hover:brightness-95 ${hasText ? "pulse-glow" : ""}`}
           animate={hasText ? { scale: [1, 1.05, 1] } : { scale: 1 }}
           transition={hasText ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
-          whileTap={{ scale: 0.88, rotate: -3 }}
+          whileTap={{ scale: 0.85, rotate: -8, transition: { type: "spring", stiffness: 500, damping: 15 } }}
         >
-          <ArrowRight className="w-4 h-4" />
+          <PawPrint className="w-4 h-4" />
         </motion.button>
       </form>
     </div>

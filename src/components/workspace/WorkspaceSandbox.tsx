@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { CheckCircle, Camera, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
@@ -66,6 +66,7 @@ const WorkspaceSandbox = ({
   mood,
   onBackFromReview,
 }: WorkspaceSandboxProps) => {
+  const shouldReduceMotion = useReducedMotion();
   const [photoStripOpen, setPhotoStripOpen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
@@ -403,20 +404,43 @@ const WorkspaceSandbox = ({
                 </p>
               </motion.div>
 
-              {/* Open button — fades in after 3 seconds */}
+              {/* Open button — fades in after 3 seconds, heartbeat glow beckons the user */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: revealReady ? 1 : 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <Button
-                  size="lg"
-                  className="rounded-2xl gap-2 px-10 py-6 text-base bg-background text-foreground hover:bg-background/90 shadow-2xl"
-                  onClick={dismissReveal}
-                  disabled={!revealReady}
+                <motion.div
+                  className="inline-block rounded-2xl"
+                  animate={
+                    revealReady && !shouldReduceMotion
+                      ? {
+                          boxShadow: [
+                            "0 0 0px 0px hsl(var(--primary) / 0)",
+                            "0 0 20px 25px hsl(var(--primary) / 0.3)",
+                            "0 0 0px 0px hsl(var(--primary) / 0)",
+                            "0 0 16px 20px hsl(var(--primary) / 0.2)",
+                            "0 0 0px 0px hsl(var(--primary) / 0)",
+                          ],
+                        }
+                      : undefined
+                  }
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    times: [0, 0.15, 0.35, 0.5, 0.7],
+                  }}
                 >
-                  Open Your Book
-                </Button>
+                  <Button
+                    size="lg"
+                    className="rounded-2xl gap-2 px-10 py-6 text-base bg-background text-foreground hover:bg-background/90 shadow-2xl"
+                    onClick={dismissReveal}
+                    disabled={!revealReady}
+                  >
+                    Open Your Book
+                  </Button>
+                </motion.div>
               </motion.div>
             </div>
           </motion.div>

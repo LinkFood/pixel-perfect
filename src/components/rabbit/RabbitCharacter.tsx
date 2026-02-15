@@ -17,6 +17,24 @@ interface RabbitCharacterProps {
   size?: number;
   className?: string;
   eyeOffset?: { x: number; y: number };
+  mood?: string;
+}
+
+// ─── Mood → subtle tint color ────────────────────────────────
+const MOOD_TINTS: Record<string, string> = {
+  heartfelt: "hsl(350, 60%, 65%)",   // soft rose
+  sweet: "hsl(350, 60%, 65%)",       // soft rose
+  memorial: "hsl(350, 60%, 65%)",    // soft rose
+  adventure: "hsl(175, 50%, 50%)",   // cool blue-green
+  funny: "hsl(25, 80%, 55%)",        // warm orange
+  roast: "hsl(25, 80%, 55%)",        // warm orange
+};
+const CUSTOM_MOOD_TINT = "hsl(270, 45%, 60%)"; // soft violet
+
+function getMoodTint(mood?: string): string | null {
+  if (!mood) return null;
+  if (mood.startsWith("custom:")) return CUSTOM_MOOD_TINT;
+  return MOOD_TINTS[mood] || null;
 }
 
 // ─── Color palette — gritty but warm ───────────────────────
@@ -307,10 +325,11 @@ const SleepZzz = () => (
 );
 
 // ─── Main Component ─────────────────────────────────────────
-const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: RabbitCharacterProps) => {
+const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset, mood }: RabbitCharacterProps) => {
   const blinkControls = useBlinkLoop();
   const shouldReduceMotion = useReducedMotion();
   const [currentState, setCurrentState] = useState(state);
+  const moodTint = getMoodTint(mood);
 
   useEffect(() => {
     setCurrentState(state);
@@ -531,6 +550,21 @@ const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: R
 
           {/* Sleeping ZZZs */}
           {isSleeping && <SleepZzz />}
+
+          {/* ── Mood tint overlay — barely visible color wash ── */}
+          <motion.rect
+            x="50"
+            y="0"
+            width="100"
+            height="270"
+            rx="40"
+            fill={moodTint || "transparent"}
+            style={{ mixBlendMode: "color" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: moodTint ? 0.1 : 0 }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
+            pointerEvents="none"
+          />
         </motion.g>
       </svg>
     </div>

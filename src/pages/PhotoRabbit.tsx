@@ -629,7 +629,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     <div ref={chatPanelRef} onMouseMove={handleMouseMove} className={isMobile ? "flex flex-col flex-1 min-h-0" : "workspace-chat"}>
       {/* Rabbit — smaller in split layout */}
       <div className="flex justify-center pt-4 pb-2 shrink-0">
-        <RabbitCharacter state={rabbitState} size={isMobile ? 120 : 80} eyeOffset={eyeOffset} />
+        <RabbitCharacter state={rabbitState} size={isMobile ? 120 : 80} eyeOffset={eyeOffset} mood={project?.mood} />
       </div>
 
       {/* Chat scroll area */}
