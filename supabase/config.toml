@@ -17,3 +17,12 @@ verify_jwt = false
 
 [functions.generate-logo]
 verify_jwt = false
+
+[functions.share-page]
+verify_jwt = false
+
+[functions.get-shared-book]
+verify_jwt = false
+
+[functions.create-share-link]
+verify_jwt = false
