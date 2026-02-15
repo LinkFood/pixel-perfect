@@ -754,6 +754,40 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
   }, [photos, phase, isBatchUploading]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── Instant magic: generate preview illustration once captions arrive ───
+  const previewTriggeredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (phase !== "upload" && phase !== "home") return;
+    if (!activeProjectId) return;
+    if (previewTriggeredRef.current === activeProjectId) return;
+    const captioned = photos.filter(p => p.caption);
+    if (captioned.length === 0) return;
+    // Trigger once per project
+    previewTriggeredRef.current = activeProjectId;
+    const generatePreview = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("generate-preview-illustration", {
+          body: { projectId: activeProjectId },
+        });
+        if (error || !data?.publicUrl) {
+          console.warn("Preview illustration failed:", error || "no URL");
+          return;
+        }
+        setChatMessages(prev => [...prev, {
+          role: "rabbit" as const,
+          content: "Here's a little taste of what your book could look like... ✨",
+          photos: [data.publicUrl],
+        }]);
+        setRabbitState("celebrating");
+        setTimeout(() => setRabbitState("excited"), 1500);
+        scrollToBottom();
+      } catch (err) {
+        console.warn("Preview illustration error:", err);
+      }
+    };
+    generatePreview();
+  }, [photos, phase, activeProjectId, scrollToBottom]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-recover mood picker if phase is mood-picker but no picker in chat
   useEffect(() => {
     if (phase !== "mood-picker") return;
