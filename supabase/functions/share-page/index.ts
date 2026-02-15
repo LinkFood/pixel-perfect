@@ -5,6 +5,7 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const token = url.searchParams.get("token");
+    const wrap = url.searchParams.get("wrap");
 
     if (!token) {
       return new Response("Missing token", { status: 400 });
@@ -31,6 +32,7 @@ serve(async (req) => {
         imageUrl: "",
         appUrl: APP_URL,
         token,
+        wrap,
       }), {
         status: 200,
         headers: { "Content-Type": "text/html; charset=utf-8" },
@@ -74,6 +76,7 @@ serve(async (req) => {
       imageUrl: coverImageUrl,
       appUrl: APP_URL,
       token,
+      wrap,
     }), {
       status: 200,
       headers: { "Content-Type": "text/html; charset=utf-8" },
@@ -90,8 +93,9 @@ function buildHtml(opts: {
   imageUrl: string;
   appUrl: string;
   token: string;
+  wrap: string | null;
 }): string {
-  const bookUrl = `${opts.appUrl}/book/${opts.token}`;
+  const bookUrl = `${opts.appUrl}/book/${opts.token}${opts.wrap ? `?wrap=${opts.wrap}` : ""}`;
   const imageTag = opts.imageUrl
     ? `<meta property="og:image" content="${escapeHtml(opts.imageUrl)}" />\n    <meta name="twitter:image" content="${escapeHtml(opts.imageUrl)}" />`
     : "";

@@ -158,8 +158,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   // Derive phase from project state
   const phase: Phase = !activeProjectId || !project
     ? "home"
-    : !project.mood ? "mood-picker"
     : project.status === "upload" ? "upload"
+    : !project.mood ? "mood-picker"
     : project.status === "interview" ? "interview"
     : project.status === "generating" ? (isStaleGenerating ? "review" : "generating")
     : project.status === "review" ? "review"
@@ -191,14 +191,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   const wakeRabbit = useCallback(() => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    const currentPhase: Phase = phase;
     setRabbitState(prev => {
-      if (prev === "sleeping" && phase !== "generating") {
+      if (prev === "sleeping" && currentPhase !== "generating") {
         setTimeout(() => {
           setRabbitState(() => {
-            if (phase === "generating") return "painting";
-            if (phase === "interview") return "listening";
-            if (phase === "review") return "presenting";
-            if ((phase === "upload" || phase === "home") && photos.length > 0) return "excited";
+            if (currentPhase === "generating") return "painting";
+            if (currentPhase === "interview") return "listening";
+            if (currentPhase === "review") return "presenting";
+            if ((currentPhase === "upload" || currentPhase === "home") && photos.length > 0) return "excited";
             return "idle";
           });
         }, 600);
@@ -478,31 +479,34 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       return;
     }
 
-    // Deduct credit
-    const success = await deduct(activeProjectId, "Book generation");
-    if (!success) {
-      setChatMessages(prev => [...prev, {
-        role: "rabbit",
-        content: "Something went wrong with credits. Try again?",
-      }]);
-      scrollToBottom();
-      return;
-    }
-
     setShowCreditGate(false);
 
-    // Wait for appearance profile to finish before generating (prevents race condition)
+    // Wait for appearance profile to finish before generating
     if (appearanceProfilePromise.current) {
       await appearanceProfilePromise.current.catch(() => {});
       appearanceProfilePromise.current = null;
     }
 
+    // Set status to generating FIRST (before deducting credit)
     try {
       await updateStatus.mutateAsync({ id: activeProjectId, status: "generating" });
     } catch {
       setChatMessages(prev => [...prev, {
         role: "rabbit",
         content: "Something went wrong starting the generation. Your credit is safe — try again?",
+      }]);
+      scrollToBottom();
+      return;
+    }
+
+    // Status updated successfully — NOW deduct credit
+    const success = await deduct(activeProjectId, "Book generation");
+    if (!success) {
+      // Roll back status
+      updateStatus.mutate({ id: activeProjectId, status: "interview" });
+      setChatMessages(prev => [...prev, {
+        role: "rabbit",
+        content: "Something went wrong with credits. Try again?",
       }]);
       scrollToBottom();
       return;
@@ -549,7 +553,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     // Save rabbit memory
     try {
       const memory = {
-        petName: project?.pet_name,
+        petName: project?.pet_name || "your subject",
         petType: project?.pet_type,
         mood: project?.mood,
         timestamp: Date.now(),

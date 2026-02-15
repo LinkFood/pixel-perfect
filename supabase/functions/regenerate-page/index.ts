@@ -103,7 +103,15 @@ serve(async (req) => {
 
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content;
-    const parsed = JSON.parse(content);
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return new Response(JSON.stringify({ error: "AI returned invalid response. Please try again.", retryable: true }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { error: updateErr } = await supabase
       .from("project_pages")

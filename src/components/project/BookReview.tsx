@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft, MoreHorizontal, Palette } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -74,6 +74,12 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [selectedWrap, setSelectedWrap] = useState("classic");
   const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
+
+  // Clear share URL when wrap changes so user re-shares with new wrap
+  useEffect(() => {
+    setShareUrl(null);
+    setShareCopied(false);
+  }, [selectedWrap]);
 
   const handleImageError = useCallback((pageId: string) => {
     setBrokenImagePageIds(prev => {

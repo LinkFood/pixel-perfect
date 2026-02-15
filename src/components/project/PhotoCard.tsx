@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Star, Trash2, Sparkles, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,10 +19,13 @@ const PhotoCard = ({ photo, isCaptioning, onUpdateCaption, onToggleFavorite, onD
   const url = getPhotoUrl(photo.storage_path);
 
   // Sync caption from prop when AI captioning completes
+  useEffect(() => {
+    if (!isCaptioning && photo.caption) {
+      setCaption(photo.caption);
+    }
+  }, [photo.caption, isCaptioning]);
+
   const displayCaption = isCaptioning ? "" : (photo.caption || caption);
-  if (!isCaptioning && photo.caption && caption !== photo.caption) {
-    setCaption(photo.caption);
-  }
 
   const analysis = photo.ai_analysis as Record<string, unknown> | null;
   const mood = analysis?.mood as string | undefined;

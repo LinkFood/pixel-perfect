@@ -202,9 +202,13 @@ Be extremely specific — an illustrator should be able to draw this subject ide
 
     if (updateErr) {
       console.error("Failed to save appearance profile:", updateErr);
-    } else {
-      console.log(`Appearance profile saved for ${project.pet_name}${photoContextBrief ? " (with photo context brief)" : ""}`);
+      return new Response(JSON.stringify({ success: false, error: "Failed to save profile to database" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    console.log(`Appearance profile saved for ${project.pet_name}${photoContextBrief ? " (with photo context brief)" : ""}`);
 
     return new Response(JSON.stringify({ success: true, profile, photoContextBrief }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

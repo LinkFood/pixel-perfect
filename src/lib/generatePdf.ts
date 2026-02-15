@@ -343,10 +343,20 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
           doc.roundedRect(x - 1, y - 1, cellSize + 2, cellSize + 2, 2, 2, "F");
 
           // Aspect-fit: center the image within the square cell
-          const img = new Image();
-          img.src = imgData;
-          const iw = img.naturalWidth || cellSize;
-          const ih = img.naturalHeight || cellSize;
+          let iw = cellSize;
+          let ih = cellSize;
+          try {
+            const img = new Image();
+            img.src = imgData;
+            await new Promise<void>((resolve, reject) => {
+              img.onload = () => resolve();
+              img.onerror = () => reject();
+            });
+            iw = img.naturalWidth || cellSize;
+            ih = img.naturalHeight || cellSize;
+          } catch {
+            // Fallback to square if image can't be decoded
+          }
           const ratio = Math.min(cellSize / iw, cellSize / ih);
           const drawW = iw * ratio;
           const drawH = ih * ratio;

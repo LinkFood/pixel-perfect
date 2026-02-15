@@ -85,6 +85,7 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
           value={subjectName}
           onChange={(e) => setSubjectName(e.target.value)}
           placeholder="e.g. Max, Mom, Brad, Spring Break '25..."
+          maxLength={100}
           className="w-full rounded-xl border border-border/60 px-4 py-3 font-body text-sm outline-none transition-all shadow-chat glass-warm text-foreground focus:border-primary/30 focus:glow-primary"
           autoFocus
         />
@@ -157,6 +158,7 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
               value={customVibe}
               onChange={(e) => setCustomVibe(e.target.value)}
               placeholder="e.g. roast my friend, nostalgic summer vibes, chaotic energy..."
+              maxLength={200}
               className="w-full rounded-xl border border-border/60 px-4 py-3 font-body text-sm outline-none transition-all shadow-chat glass-warm text-foreground focus:border-primary/30 focus:glow-primary"
               autoFocus
             />
