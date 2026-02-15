@@ -91,9 +91,9 @@ const SharedBookViewer = () => {
     photos: GalleryPhoto[];
   };
 
-  const virtualPages: VirtualPage[] = book ? [
+  const virtualPages: VirtualPage[] = book?.pages ? [
     ...book.pages.map(p => ({ type: "story" as const, page: p })),
-    ...(book.galleryPhotos.length > 0 ? [
+    ...(book.galleryPhotos?.length > 0 ? [
       { type: "gallery_title" as const, petName: book.petName },
       ...galleryGridPages.map(photos => ({ type: "gallery_grid" as const, photos })),
     ] : []),

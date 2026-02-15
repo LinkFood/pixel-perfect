@@ -97,17 +97,46 @@ serve(async (req) => {
 
     const sceneDescription = sceneParts.join(" | ");
 
-    const prompt = `Create a warm, whimsical children's picture book illustration inspired by these real photos:
+    // Fetch reference photos (up to 3, favorites first) so the model can SEE the subject
+    const { data: refPhotos } = await supabase
+      .from("project_photos")
+      .select("storage_path")
+      .eq("project_id", projectId)
+      .order("is_favorite", { ascending: false })
+      .order("sort_order", { ascending: true })
+      .limit(3);
 
+    const refImageUrls: string[] = [];
+    if (refPhotos && refPhotos.length > 0) {
+      for (const photo of refPhotos) {
+        const { data } = supabase.storage.from("pet-photos").getPublicUrl(photo.storage_path);
+        if (data?.publicUrl) refImageUrls.push(data.publicUrl);
+      }
+    }
+
+    console.log(`Using ${refImageUrls.length} reference photos for preview illustration`);
+
+    const textPrompt = `Create a warm, whimsical children's picture book illustration inspired by these real photos:
+${refImageUrls.length > 0 ? "\nUse the reference photos above as the basis for the subject's appearance. The illustration should look like THIS specific subject.\n" : ""}
 ${sceneDescription}
 
 STYLE:
 - Soft watercolor with gentle ink outlines
-- Warm golden lighting, amber/cream/green/blue palette  
+- Warm golden lighting, amber/cream/green/blue palette
 - Square 1:1 composition
 - No text or words in the image
 - Evocative and emotional — this is a preview of a storybook about someone's real life
 - Make it feel magical and personal`;
+
+    // Build multimodal content: reference photos FIRST, then text prompt
+    const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+    for (const url of refImageUrls) {
+      contentParts.push({ type: "image_url", image_url: { url } });
+    }
+    contentParts.push({ type: "text", text: textPrompt });
+
+    // If no reference photos, fall back to text-only string
+    const finalContent = contentParts.length > 1 ? contentParts : textPrompt;
 
     console.log(`Generating preview illustration for project ${projectId}`);
 
@@ -120,7 +149,7 @@ STYLE:
       body: JSON.stringify({
         model: MODEL,
         modalities: ["text", "image"],
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: "user", content: finalContent }],
         temperature: 0.85,
       }),
     });

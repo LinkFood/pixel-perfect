@@ -129,6 +129,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const projectCreatedRef = useRef(false);
   const pendingFilesRef = useRef<File[]>([]);
   const idleTimerRef = useRef<number>();
+  const fallbackTimerRef = useRef<number>();
   // Mobile sandbox collapsed state
   const [mobileSandboxCollapsed, setMobileSandboxCollapsed] = useState(false);
 
@@ -302,6 +303,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     setChatMessages([]);
     setActiveProjectId(id);
     navigate(`/project/${id}`);
+    prevCanFinish.current = false;
+    setChatNamePending(false);
+    setChatMoodPending(false);
+    setPendingPetName("");
   };
 
   const handleRenameProject = (id: string, newName: string) => {
@@ -380,7 +385,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           );
           console.log("[Chat] sendMessage resolved");
           // Safety net: if no rabbit reply arrives within 8s, show fallback
-          setTimeout(() => {
+          fallbackTimerRef.current = window.setTimeout(() => {
             setChatMessages(prev => {
               const lastMsg = prev[prev.length - 1];
               if (lastMsg?.role === "user") {
@@ -415,6 +420,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   useEffect(() => {
     if (lastFinishedContent) {
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = undefined;
+      }
       setChatMessages(prev => [...prev, { role: "rabbit", content: lastFinishedContent }]);
       setRabbitState(phase === "generating" ? "painting" : "listening");
       scrollToBottom();
@@ -461,6 +470,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   const handleContinueToInterview = () => {
     if (!activeProjectId) return;
+    if (updateStatus.isPending) return;
     if (!project?.mood) {
       // No mood yet — first ask for the name, then mood
       updateStatus.mutate(

@@ -148,10 +148,13 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
   const textArea = PAGE_SIZE - 2 * SAFE_MARGIN;
   let isFirstPage = true;
 
+  // Cap gallery photos at 30 for memory safety — loading 50+ as base64 can crash mobile browsers
+  const cappedGalleryPhotos = galleryPhotos.slice(0, 30);
+
   // Pre-fetch ALL images + fonts in parallel
   const allUrls = [
     ...storyPages.map(p => p.illustrationUrl),
-    ...galleryPhotos.map(p => p.photoUrl),
+    ...cappedGalleryPhotos.map(p => p.photoUrl),
   ];
   const [imageCache, fontsLoaded] = await Promise.all([
     preloadImages(allUrls),
@@ -296,7 +299,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
   }
 
   // --- Photo Gallery Section ---
-  if (galleryPhotos.length > 0) {
+  if (cappedGalleryPhotos.length > 0) {
     // Gallery title page
     doc.addPage([PAGE_SIZE, PAGE_SIZE]);
     doc.setFillColor(255, 250, 240); // warm cream
@@ -311,12 +314,12 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
     doc.text("The real moments behind the story", PAGE_SIZE / 2, PAGE_SIZE / 2 + 20, { align: "center" });
 
     // Photo grid pages — 6 photos per page (2x3)
-    for (let i = 0; i < galleryPhotos.length; i += 6) {
+    for (let i = 0; i < cappedGalleryPhotos.length; i += 6) {
       doc.addPage([PAGE_SIZE, PAGE_SIZE]);
       doc.setFillColor(255, 252, 248);
       doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
 
-      const batch = galleryPhotos.slice(i, i + 6);
+      const batch = cappedGalleryPhotos.slice(i, i + 6);
       const gridMargin = 36;
       const gridGapX = 14;
       const gridGapY = 10;

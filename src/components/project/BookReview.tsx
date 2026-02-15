@@ -307,6 +307,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
     setIsGeneratingMissing(true);
     const missingPages = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id));
     let successes = 0;
+    const succeededPageIds: string[] = [];
 
     for (const p of missingPages) {
       if (brokenImagePageIds.has(p.id)) {
@@ -319,7 +320,10 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
         const { error } = await supabase.functions.invoke("generate-illustration", {
           body: { pageId: p.id, projectId: id },
         });
-        if (!error) successes++;
+        if (!error) {
+          successes++;
+          succeededPageIds.push(p.id);
+        }
       } catch (e) {
         console.error(`Failed for page ${p.id}:`, e);
       }
@@ -327,7 +331,13 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
 
     queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
     setIsGeneratingMissing(false);
-    setBrokenImagePageIds(new Set());
+    setBrokenImagePageIds(prev => {
+      const next = new Set(prev);
+      for (const pageId of succeededPageIds) {
+        next.delete(pageId);
+      }
+      return next;
+    });
 
     if (successes === missingPages.length) {
       toast.success("All missing illustrations generated!");

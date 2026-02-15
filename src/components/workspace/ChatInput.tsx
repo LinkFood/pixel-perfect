@@ -22,6 +22,7 @@ const ChatInput = ({
   showPhotoButton = true,
 }: ChatInputProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isSendingRef = useRef(false);
   const hasText = value.trim().length > 0;
 
   const handlePhotoSelect = (files: FileList | null) => {
@@ -33,7 +34,12 @@ const ChatInput = ({
   return (
     <div className="px-4 pb-4">
       <form
-        onSubmit={e => { e.preventDefault(); onSend(); }}
+        onSubmit={e => {
+          e.preventDefault();
+          if (isSendingRef.current) return;
+          isSendingRef.current = true;
+          try { onSend(); } finally { isSendingRef.current = false; }
+        }}
         className="flex items-center gap-2 rounded-[20px] px-4 py-3 glass-warm border border-border/40 shadow-elevated transition-all focus-within:glow-primary focus-within:border-primary/30"
         style={{ minHeight: 48 }}
       >
@@ -63,6 +69,7 @@ const ChatInput = ({
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
+          aria-label="Type a message"
           className="flex-1 bg-transparent border-none outline-none font-body text-[15px] text-foreground placeholder:text-muted-foreground"
           disabled={disabled}
         />

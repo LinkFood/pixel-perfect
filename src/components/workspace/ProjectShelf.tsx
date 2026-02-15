@@ -120,7 +120,7 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
                       <DropdownMenuTrigger asChild>
                         <button
                           onClick={e => e.stopPropagation()}
-                          className="shrink-0 p-0.5 rounded hover:bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="shrink-0 p-0.5 rounded hover:bg-white/20 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                         >
                           <MoreHorizontal className="w-3.5 h-3.5 text-white" />
                         </button>

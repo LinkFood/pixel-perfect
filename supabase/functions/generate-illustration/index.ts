@@ -7,7 +7,6 @@ const corsHeaders = {
 };
 
 const PRIMARY_MODEL = "google/gemini-3-pro-image-preview";
-const FALLBACK_MODEL = "google/gemini-2.5-flash";
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -265,13 +264,11 @@ STYLE RULES:
     const illStartTime = Date.now();
 
     // Try primary model (3 attempts)
-    let result = await tryGenerate(LOVABLE_API_KEY, PRIMARY_MODEL, finalContent, 3, temperature);
+    const modelUsed = PRIMARY_MODEL;
+    let result = await tryGenerate(LOVABLE_API_KEY, modelUsed, finalContent, 3, temperature);
 
-    // If primary failed for ANY reason, try fallback model
-    if (!result.base64) {
-      console.log(`Primary model failed (${result.error}), trying fallback model`);
-      result = await tryGenerate(LOVABLE_API_KEY, FALLBACK_MODEL, finalContent, 2, temperature);
-    }
+    // Removed: fallback model (Gemini 2.5 Flash) cannot generate images
+    // If primary failed, report the error directly
 
     if (!result.base64) {
       const status = result.retryable ? 503 : 402;
@@ -338,12 +335,7 @@ STYLE RULES:
     if (uploadErr) throw new Error(`Upload failed: ${uploadErr.message}`);
 
     if (variant) {
-      // For variants: deselect existing illustrations, insert new as selected
-      await supabase
-        .from("project_illustrations")
-        .update({ is_selected: false })
-        .eq("page_id", pageId)
-        .eq("project_id", projectId);
+      // Don't deselect existing — user chose that selection
     } else {
       // For non-variant: delete previous illustration records for this page
       await supabase
@@ -361,7 +353,7 @@ STYLE RULES:
         project_id: projectId,
         storage_path: storagePath,
         generation_prompt: scenePrompt,
-        is_selected: true,
+        is_selected: !variant, // Only auto-select if not a variant
       });
     if (insertErr) throw new Error(`Insert failed: ${insertErr.message}`);
 
@@ -375,14 +367,14 @@ STYLE RULES:
         phase: "illustration",
         level: "milestone",
         message: `Page ${page.page_number} illustrated!`,
-        technical_message: `${detectedContentType} | ${bytes.length} bytes | ${illElapsedMs}ms | Model: ${PRIMARY_MODEL}`,
+        technical_message: `${detectedContentType} | ${bytes.length} bytes | ${illElapsedMs}ms | Model: ${modelUsed}`,
         metadata: {
           page_number: page.page_number,
           page_type: page.page_type,
           size_bytes: bytes.length,
           content_type: detectedContentType,
           elapsed_ms: illElapsedMs,
-          model: PRIMARY_MODEL,
+          model: modelUsed,
         },
       });
     }
