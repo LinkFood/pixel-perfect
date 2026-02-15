@@ -21,9 +21,9 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(({ role, conten
       className={`flex ${isRabbit ? "justify-start" : "justify-end"}`}
     >
       {children ? (
-        <div className="max-w-[82%]">{children}</div>
+        <div className="max-w-[78%]">{children}</div>
       ) : (
-        <div className={`max-w-[82%] space-y-2 ${!isRabbit ? "items-end flex flex-col" : ""}`}>
+        <div className={`max-w-[78%] space-y-2 ${!isRabbit ? "items-end flex flex-col" : ""}`}>
           {photos && photos.length > 0 && (
             <div className={`flex gap-2 flex-wrap ${!isRabbit ? "justify-end" : ""}`}>
               {photos.map((url, i) => (
@@ -42,10 +42,10 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(({ role, conten
           )}
           {content && (
             <div
-              className={`px-4 py-2.5 text-[15px] leading-relaxed font-body whitespace-pre-line ${
+              className={`px-4 py-3 text-[15px] leading-relaxed font-body whitespace-pre-line ${
                 isRabbit
-                  ? "rounded-2xl rounded-bl-md bg-secondary text-secondary-foreground"
-                  : "rounded-2xl rounded-br-md bg-primary text-primary-foreground"
+                  ? "rounded-2xl rounded-bl-md bg-[hsl(var(--chat-ai-bg))] text-[hsl(var(--chat-ai-text))] border border-[hsl(var(--chat-ai-border))] shadow-chat"
+                  : "rounded-2xl rounded-br-md bg-primary text-primary-foreground shadow-chat"
               }`}
             >
               {content}
@@ -70,7 +70,7 @@ ChatMessage.displayName = "ChatMessage";
 
 export const TypingIndicator = () => (
   <div className="flex justify-start">
-    <div className="bg-secondary rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1.5">
+    <div className="bg-[hsl(var(--chat-ai-bg))] border border-[hsl(var(--chat-ai-border))] rounded-2xl rounded-bl-md px-4 py-3 shadow-chat flex items-center gap-1.5">
       {[0, 1, 2].map(i => (
         <motion.span
           key={i}

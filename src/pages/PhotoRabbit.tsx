@@ -121,7 +121,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const clearInterview = useClearInterview(activeProjectId || undefined);
   const [rabbitState, setRabbitState] = useState<RabbitState>("idle");
   const [isFinishing, setIsFinishing] = useState(false);
-  const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[] }>>([]);
+  const [chatMoodPending, setChatMoodPending] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[]; moodPicker?: boolean }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
   const pendingFilesRef = useRef<File[]>([]);
@@ -441,8 +442,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const handleContinueToInterview = () => {
     if (!activeProjectId) return;
     if (!project?.mood) {
-      // No mood yet — advance status so phase derivation shows mood-picker
+      // No mood yet — inject inline mood picker into chat instead of navigating away
       updateStatus.mutate({ id: activeProjectId, status: "interview" });
+      setChatMoodPending(true);
+      setChatMessages(prev => [...prev, {
+        role: "rabbit",
+        content: "Nice photos! Before we dive in — what's the vibe for this book?",
+        moodPicker: true,
+      }]);
+      scrollToBottom();
       return;
     }
     // Mood already set (returning user) — go straight to interview
@@ -718,7 +726,37 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                         <div className="flex-1 h-px bg-border/40" />
                       </motion.div>
                     )}
-                    <ChatMessage role={msg.role} content={msg.content} photos={msg.photos} />
+                    {msg.moodPicker && chatMoodPending ? (
+                      <ChatMessage role={msg.role} content="">
+                        <div className="space-y-3">
+                          <div className="px-4 py-3 text-[15px] leading-relaxed font-body whitespace-pre-line rounded-2xl rounded-bl-md bg-[hsl(var(--chat-ai-bg))] text-[hsl(var(--chat-ai-text))] border border-[hsl(var(--chat-ai-border))] shadow-chat">
+                            {msg.content}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { mood: "funny", label: "😂 Funny" },
+                              { mood: "heartfelt", label: "💛 Heartfelt" },
+                              { mood: "adventure", label: "🗺️ Adventure" },
+                              { mood: "memorial", label: "🕊️ Memorial" },
+                            ].map(({ mood, label }) => (
+                              <button
+                                key={mood}
+                                onClick={() => {
+                                  setChatMoodPending(false);
+                                  setChatMessages(prev => [...prev, { role: "user", content: label }]);
+                                  handleMoodSelect(mood, project?.pet_name || "New Project");
+                                }}
+                                className="px-4 py-2 rounded-full text-sm font-body font-medium bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors border border-primary/20 hover:border-primary shadow-sm"
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </ChatMessage>
+                    ) : (
+                      <ChatMessage role={msg.role} content={msg.content} photos={msg.photos} />
+                    )}
                   </div>
                 );
               })}
