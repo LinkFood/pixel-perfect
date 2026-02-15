@@ -344,6 +344,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       if (captionedPhotos.length > 0 && activeProjectId) {
         // Photos exist with captions — use AI for context-aware response
         const photoCaptions = captionedPhotos.map(p => p.caption as string);
+        console.log("[Chat] Sending message in upload phase, projectId:", activeProjectId);
         try {
           setRabbitState("thinking");
           await sendMessage(
@@ -356,8 +357,22 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
             project?.product_type || "picture_book",
             project?.mood || "heartfelt"
           );
-        } catch {
+          console.log("[Chat] sendMessage resolved");
+          // Safety net: if no rabbit reply arrives within 8s, show fallback
+          setTimeout(() => {
+            setChatMessages(prev => {
+              const lastMsg = prev[prev.length - 1];
+              if (lastMsg?.role === "user") {
+                return [...prev, { role: "rabbit" as const, content: "I'm still getting to know your photos! Drop more in or hit 'That's all my photos' when you're ready." }];
+              }
+              return prev;
+            });
+            scrollToBottom();
+          }, 8000);
+        } catch (err) {
+          console.error("[Chat] sendMessage failed:", err);
           setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try that again?" }]);
+          setRabbitState("listening");
           scrollToBottom();
         }
       } else {
