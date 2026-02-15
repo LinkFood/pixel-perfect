@@ -202,20 +202,27 @@ export const useUploadPhoto = () => {
       // Final refresh
       queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
 
-      // Fire captioning AFTER all uploads are done (not during — saves bandwidth)
-      for (const item of successfulIds) {
-        await describePhoto(item.id, item.projectId);
-        await new Promise(r => setTimeout(r, 500));
-      }
-
       if (batchFailed > 0) {
         toast.error(`${batchFailed} of ${total} photos failed to upload`);
       } else {
         toast.success(`All ${total} photos uploaded!`);
       }
-    } finally {
+
+      // Mark uploading as done BEFORE captioning — so the continue button appears immediately
       batchActiveRef.current = false;
       setIsBatchUploading(false);
+
+      // Fire captioning in the background (not blocking the UI)
+      for (const item of successfulIds) {
+        await describePhoto(item.id, item.projectId);
+        await new Promise(r => setTimeout(r, 500));
+      }
+    } finally {
+      // Safety net in case of error — ensure flag is always cleared
+      if (batchActiveRef.current) {
+        batchActiveRef.current = false;
+        setIsBatchUploading(false);
+      }
     }
 
     // Pick up any files queued while this batch was running
