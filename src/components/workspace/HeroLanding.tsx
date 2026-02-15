@@ -159,9 +159,9 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
       }}
       onDrop={handleDrop}
     >
-      <div className="max-w-2xl mx-auto px-6 pt-3 pb-3 flex flex-col items-center gap-5">
+      <div className="max-w-2xl mx-auto px-6 pt-3 pb-3 flex flex-col items-center gap-3">
 
-        {/* ── Rabbit + Speech Bubble ── */}
+        {/* ── Rabbit + Speech Bubble + Headline ── */}
         <motion.div
           className="flex flex-col items-center gap-3 text-center"
           initial={{ opacity: 0, y: 20 }}
@@ -171,7 +171,7 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
           <div className={`transition-transform duration-300 ${isDragOver ? "scale-105" : ""}`}>
             <RabbitCharacter
               state={isDragOver ? "excited" : "idle"}
-              size={isMobile ? 120 : 140}
+              size={isMobile ? 110 : 110}
               eyeOffset={eyeOffset}
             />
           </div>
@@ -198,7 +198,7 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
             </AnimatePresence>
           </div>
 
-          <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground leading-tight tracking-tight mt-2">
+          <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground leading-tight tracking-tight mt-1">
             Your photos. My brush.
             <br />
             <span className="text-primary">Zero rules.</span>
@@ -209,12 +209,95 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
           </p>
         </motion.div>
 
-        {/* ── Flipbook Showcase (hidden on mobile to keep CTA above fold) ── */}
+        {/* ── Upload CTA — ABOVE the fold ── */}
+        <motion.div
+          className="w-full max-w-lg"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="sr-only"
+            accept="image/*"
+            multiple
+            onChange={handleFileSelect}
+          />
+          <motion.button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-primary to-primary/85 text-primary-foreground font-body text-sm font-semibold transition-all hover:brightness-105 active:scale-[0.99] shadow-elevated"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            animate={{
+              boxShadow: [
+                "0 0 0px hsl(var(--primary) / 0)",
+                "0 0 24px hsl(var(--primary) / 0.3)",
+                "0 0 0px hsl(var(--primary) / 0)",
+              ],
+            }}
+            transition={{
+              boxShadow: { duration: 2.5, repeat: Infinity, ease: "easeInOut" },
+            }}
+          >
+            Choose photos to start
+          </motion.button>
+          <p className="text-center font-body text-[11px] text-muted-foreground/60 mt-2">
+            or drag and drop anywhere on this page
+          </p>
+        </motion.div>
+
+        {/* ── Social Proof Ticker ── */}
+        <motion.div
+          className="w-full max-w-lg h-6 overflow-hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={proofIndex}
+              className="flex items-center justify-center gap-2"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-primary/60 pulse-glow" />
+              <span className="font-body text-[11px] text-muted-foreground/70 truncate">
+                {proofLines[proofIndex]}
+              </span>
+            </motion.div>
+          </AnimatePresence>
+        </motion.div>
+
+        {/* ── Process Strip ── */}
+        <motion.div
+          className="w-full max-w-lg"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            {steps.map((step, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center text-center gap-2">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <step.icon className="w-5 h-5 text-primary" />
+                </div>
+                <span className="font-body text-xs font-semibold text-foreground">{step.label}</span>
+                <span className="font-body text-[10px] text-muted-foreground leading-snug">{step.detail}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ── Flipbook Showcase (hidden on mobile, below fold on desktop) ── */}
         <motion.div
           className="w-full max-w-lg hidden md:block"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
+          transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
         >
           <div className="relative rounded-xl overflow-hidden shadow-float book-page-texture bg-card border border-border/40">
             <AnimatePresence mode="wait">
@@ -257,89 +340,6 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
               </motion.div>
             </AnimatePresence>
           </div>
-        </motion.div>
-
-        {/* ── Process Strip ── */}
-        <motion.div
-          className="w-full max-w-lg"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
-        >
-          <div className="flex items-start justify-between gap-3">
-            {steps.map((step, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center text-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <step.icon className="w-5 h-5 text-primary" />
-                </div>
-                <span className="font-body text-xs font-semibold text-foreground">{step.label}</span>
-                <span className="font-body text-[10px] text-muted-foreground leading-snug">{step.detail}</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* ── Upload CTA — or click to browse ── */}
-        <motion.div
-          className="w-full max-w-lg"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.45, ease: "easeOut" }}
-        >
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="sr-only"
-            accept="image/*"
-            multiple
-            onChange={handleFileSelect}
-          />
-          <motion.button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-primary to-primary/85 text-primary-foreground font-body text-sm font-semibold transition-all hover:brightness-105 active:scale-[0.99] shadow-elevated"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            animate={{
-              boxShadow: [
-                "0 0 0px hsl(var(--primary) / 0)",
-                "0 0 24px hsl(var(--primary) / 0.3)",
-                "0 0 0px hsl(var(--primary) / 0)",
-              ],
-            }}
-            transition={{
-              boxShadow: { duration: 2.5, repeat: Infinity, ease: "easeInOut" },
-            }}
-          >
-            Choose photos to start
-          </motion.button>
-          <p className="text-center font-body text-[11px] text-muted-foreground/60 mt-2">
-            or drag and drop anywhere on this page
-          </p>
-        </motion.div>
-
-        {/* ── Social Proof Ticker ── */}
-        <motion.div
-          className="w-full max-w-lg h-6 overflow-hidden"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={proofIndex}
-              className="flex items-center justify-center gap-2"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-primary/60 pulse-glow" />
-              <span className="font-body text-[11px] text-muted-foreground/70 truncate">
-                {proofLines[proofIndex]}
-              </span>
-            </motion.div>
-          </AnimatePresence>
         </motion.div>
       </div>
     </div>

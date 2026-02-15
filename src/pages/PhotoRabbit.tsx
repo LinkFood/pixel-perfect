@@ -340,18 +340,40 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         scrollToBottom();
       }
     } else if (user && (phase === "home" || phase === "upload" || phase === "mood-picker")) {
-      // Casual responses for early phases
-      const earlyResponses = [
-        "Drop some photos and I'll show you what I can do!",
-        "I'm ready to paint — just need some photos to work with.",
-        "Got something good? Drag your photos in and let's make a book.",
-        "The more photos you give me, the better the story. Drop 'em in!",
-      ];
-      const idx = chatMessages.filter(m => m.role === "rabbit").length % earlyResponses.length;
-      setTimeout(() => {
-        setChatMessages(prev => [...prev, { role: "rabbit", content: earlyResponses[idx] }]);
-        scrollToBottom();
-      }, 500);
+      const captionedPhotos = photos.filter(p => p.caption);
+      if (captionedPhotos.length > 0 && activeProjectId) {
+        // Photos exist with captions — use AI for context-aware response
+        const photoCaptions = captionedPhotos.map(p => p.caption as string);
+        try {
+          setRabbitState("thinking");
+          await sendMessage(
+            text,
+            interviewMessages,
+            project?.pet_name || "your subject",
+            project?.pet_type || "general",
+            photoCaptions,
+            project?.photo_context_brief || null,
+            project?.product_type || "picture_book",
+            project?.mood || "heartfelt"
+          );
+        } catch {
+          setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try that again?" }]);
+          scrollToBottom();
+        }
+      } else {
+        // No photos yet — use canned responses
+        const earlyResponses = [
+          "Drop some photos and I'll show you what I can do!",
+          "I'm ready to paint — just need some photos to work with.",
+          "Got something good? Drag your photos in and let's make a book.",
+          "The more photos you give me, the better the story. Drop 'em in!",
+        ];
+        const idx = chatMessages.filter(m => m.role === "rabbit").length % earlyResponses.length;
+        setTimeout(() => {
+          setChatMessages(prev => [...prev, { role: "rabbit", content: earlyResponses[idx] }]);
+          scrollToBottom();
+        }, 500);
+      }
     }
   };
 
@@ -402,17 +424,26 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const appearanceProfilePromise = useRef<Promise<unknown> | null>(null);
 
   const handleContinueToInterview = () => {
-    if (!activeProjectId || !project?.mood) return;
-    // Store the promise so we can await it before generation starts
+    if (!activeProjectId) return;
+    if (!project?.mood) {
+      // No mood yet — advance status so phase derivation shows mood-picker
+      updateStatus.mutate({ id: activeProjectId, status: "interview" });
+      return;
+    }
+    // Mood already set (returning user) — go straight to interview
     appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
       body: { projectId: activeProjectId },
     });
     startInterview(project.mood);
   };
 
-  const handleMoodSelect = (mood: string, name: string) => {
+  const handleMoodSelect = async (mood: string, name: string) => {
     if (!activeProjectId) return;
-    updateProject.mutate({ id: activeProjectId, mood, pet_name: name });
+    await updateProject.mutateAsync({ id: activeProjectId, mood, pet_name: name });
+    appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
+      body: { projectId: activeProjectId },
+    });
+    startInterview(mood);
   };
 
   const startInterview = (mood: string) => {
@@ -600,11 +631,20 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if ((phase === "home" || phase === "upload") && isBatchUploading) {
       return "I'm studying your photos right now...";
     }
-    if ((phase === "home" || phase === "upload") && photos.length > 0 && photos.length < 3) {
-      return `${photos.length} photo${photos.length !== 1 ? "s" : ""} — add more for a richer story, or continue when you're ready.`;
-    }
-    if ((phase === "home" || phase === "upload") && photos.length >= 3) {
-      return `${photos.length} photos! I can already picture the book. Ready when you are.`;
+    if ((phase === "home" || phase === "upload") && photos.length > 0) {
+      const captioned = photos.filter(p => p.caption);
+      if (captioned.length > 0) {
+        const firstCaption = captioned[0].caption!;
+        const snippet = firstCaption.length > 60 ? firstCaption.slice(0, 60).replace(/\s+\S*$/, "") + "..." : firstCaption;
+        if (photos.length < 3) {
+          return `I see: "${snippet}" — add more photos for a richer story, or continue when you're ready.`;
+        }
+        return `${photos.length} photos! I can see "${snippet}" and more. Ready when you are.`;
+      }
+      if (photos.length < 3) {
+        return `${photos.length} photo${photos.length !== 1 ? "s" : ""} — still reading them. Add more or continue when you're ready.`;
+      }
+      return `${photos.length} photos! Still reading them. Ready when you are.`;
     }
     if (phase === "generating") {
       return "I'm painting your book right now — watch the progress on the right!";
