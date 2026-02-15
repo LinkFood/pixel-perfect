@@ -443,7 +443,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if (!activeProjectId) return;
     if (!project?.mood) {
       // No mood yet — inject inline mood picker into chat instead of navigating away
-      updateStatus.mutate({ id: activeProjectId, status: "interview" });
+      updateStatus.mutate(
+        { id: activeProjectId, status: "interview" },
+        {
+          onError: (err) => {
+            console.error("handleContinueToInterview status update failed:", err);
+            toast.error("Couldn't advance to interview — try again");
+          },
+        }
+      );
       setChatMoodPending(true);
       setChatMessages(prev => [...prev, {
         role: "rabbit",
@@ -462,11 +470,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   const handleMoodSelect = async (mood: string, name: string) => {
     if (!activeProjectId) return;
-    await updateProject.mutateAsync({ id: activeProjectId, mood, pet_name: name });
-    appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
-      body: { projectId: activeProjectId },
-    });
-    startInterview(mood);
+    try {
+      await updateProject.mutateAsync({ id: activeProjectId, mood, pet_name: name });
+      appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
+        body: { projectId: activeProjectId },
+      });
+      startInterview(mood);
+    } catch (err) {
+      console.error("handleMoodSelect failed:", err);
+      toast.error("Couldn't save mood — try again");
+    }
   };
 
   const startInterview = (mood: string) => {
@@ -646,55 +659,38 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   // Show hero landing when no active project and no photos
   const showHero = phase === "home" && photos.length === 0;
 
-  // Rabbit greeting — injected into chatMessages instead of static render
-  const getRabbitGreeting = useCallback(() => {
-    if (phase === "home" && photos.length === 0) {
-      return "Ready when you are — drop some photos and let's get started.";
-    }
-    if ((phase === "home" || phase === "upload") && isBatchUploading) {
-      return "I'm studying your photos right now...";
-    }
-    if ((phase === "home" || phase === "upload") && photos.length > 0) {
-      const captioned = photos.filter(p => p.caption);
-      if (captioned.length > 0) {
-        const firstCaption = captioned[0].caption!;
-        const snippet = firstCaption.length > 60 ? firstCaption.slice(0, 60).replace(/\s+\S*$/, "") + "..." : firstCaption;
-        if (photos.length < 3) {
-          return `I see: "${snippet}" — add more photos for a richer story, or continue when you're ready.`;
-        }
-        return `${photos.length} photos! I can see "${snippet}" and more. Ready when you are.`;
-      }
-      if (photos.length < 3) {
-        return `${photos.length} photo${photos.length !== 1 ? "s" : ""} — still reading them. Add more or continue when you're ready.`;
-      }
-      return `${photos.length} photos! Still reading them. Ready when you are.`;
-    }
-    if (phase === "generating") {
-      return "I'm painting your book right now — watch the progress on the right!";
-    }
-    if (phase === "review") {
-      return "Your book is ready! Review it on the right, then share it with anyone.";
-    }
-    return null;
-  }, [phase, photos, isBatchUploading]);
-
-  // Inject greeting as first chat message (replaces static element)
-  const lastGreetingRef = useRef<string | null>(null);
+  // One-time greeting injection per project load (no auto-updating)
+  const greetingInjectedRef = useRef<string | null>(null);
   useEffect(() => {
-    const greeting = getRabbitGreeting();
-    if (!greeting) return;
-    if (greeting === lastGreetingRef.current) return;
-    lastGreetingRef.current = greeting;
-    // Replace the first message if it was a previous greeting, otherwise prepend
-    setChatMessages(prev => {
-      if (prev.length === 0) return [{ role: "rabbit", content: greeting }];
-      // If first message is a rabbit greeting (no photos, no moodPicker), update it
-      if (prev[0].role === "rabbit" && !prev[0].photos && !prev[0].moodPicker) {
-        return [{ role: "rabbit", content: greeting }, ...prev.slice(1)];
-      }
-      return [{ role: "rabbit", content: greeting }, ...prev];
-    });
-  }, [getRabbitGreeting]);
+    // Only inject once per project
+    if (!project) return;
+    if (chatMessages.length > 0) return;
+    if (greetingInjectedRef.current === (activeProjectId || "")) return;
+    greetingInjectedRef.current = activeProjectId || "";
+
+    let greeting: string;
+    if (phase === "interview" && project.mood) {
+      const greetings = photos.length <= 3 ? shortGreetings : fullGreetings;
+      greeting = greetings[project.mood] || greetings.heartfelt;
+    } else if (phase === "mood-picker") {
+      greeting = "Nice photos! Before we dive in — what's the vibe for this book?";
+    } else if (phase === "generating") {
+      greeting = "I'm painting your book right now — watch the progress on the right!";
+    } else if (phase === "review") {
+      greeting = "Your book is ready! Review it on the right, then share it with anyone.";
+    } else if (photos.length > 0) {
+      greeting = `${photos.length} photo${photos.length !== 1 ? "s" : ""} loaded. Ready when you are!`;
+    } else {
+      greeting = "Ready when you are — drop some photos and let's get started.";
+    }
+    setChatMessages([{ role: "rabbit", content: greeting }]);
+    scrollToBottom();
+  }, [project, activeProjectId, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset greeting ref when switching projects
+  useEffect(() => {
+    greetingInjectedRef.current = null;
+  }, [activeProjectId]);
 
   // Auto-recover mood picker if phase is mood-picker but no picker in chat
   useEffect(() => {
@@ -945,6 +941,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         interviewHighlights={interviewHighlights}
         mood={project?.mood}
         onBackFromReview={handleBackFromReview}
+        dbStatus={project?.status}
       />
     </div>
   );

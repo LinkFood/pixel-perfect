@@ -5,6 +5,7 @@ import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
 import PhotoUploadInline from "./PhotoUploadInline";
 import GenerationView from "./GenerationView";
 import BookReview from "@/components/project/BookReview";
+import DevStatusBar from "./DevStatusBar";
 import { type ProjectPhoto } from "@/hooks/usePhotos";
 import { supabase } from "@/integrations/supabase/client";
 import ConfettiBurst from "@/components/ConfettiBurst";
@@ -39,6 +40,8 @@ interface WorkspaceSandboxProps {
   mood?: string | null;
   // Review props
   onBackFromReview: () => void;
+  // Dev status props
+  dbStatus?: string;
 }
 
 const WorkspaceSandbox = ({
@@ -63,6 +66,7 @@ const WorkspaceSandbox = ({
   interviewHighlights,
   mood,
   onBackFromReview,
+  dbStatus,
 }: WorkspaceSandboxProps) => {
   const shouldReduceMotion = useReducedMotion();
   // photoStripOpen removed — full grid shown during interview now
@@ -128,6 +132,13 @@ const WorkspaceSandbox = ({
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
+      <DevStatusBar
+        phase={phase}
+        dbStatus={dbStatus}
+        mood={mood}
+        photoCount={photos.length}
+        projectId={activeProjectId}
+      />
       <AnimatePresence mode="wait">
         {/* Upload phase */}
         {(phase === "home" || phase === "upload") && (
