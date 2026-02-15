@@ -43,11 +43,6 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
 
   if (projects.length === 0) return null;
 
-  const getRotation = (index: number) => {
-    const seed = (index * 13 + 5) % 7;
-    return (seed - 3) * 0.8;
-  };
-
   const saveRename = () => {
     if (editingId && editName.trim() && onRename) {
       onRename(editingId, editName.trim());
@@ -69,8 +64,7 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
             return (
               <motion.button
                 key={project.id}
-                animate={{ rotate: getRotation(index) }}
-                whileHover={{ scale: 1.03, rotate: 0 }}
+                whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 className={`shrink-0 rounded-xl px-3 py-2 text-left transition-all relative group border ${isActive ? "bg-primary border-primary" : "bg-card border-border"}`}
                 style={{
