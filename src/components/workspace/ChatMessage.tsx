@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { motion } from "framer-motion";
 
 interface ChatMessageProps {
@@ -8,7 +9,7 @@ interface ChatMessageProps {
   children?: React.ReactNode;
 }
 
-const ChatMessage = ({ role, content, isStreaming, photos, children }: ChatMessageProps) => {
+const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(({ role, content, isStreaming, photos, children }, ref) => {
   const isRabbit = role === "rabbit" || role === "assistant";
 
   return (
@@ -78,7 +79,9 @@ const ChatMessage = ({ role, content, isStreaming, photos, children }: ChatMessa
       )}
     </motion.div>
   );
-};
+});
+
+ChatMessage.displayName = "ChatMessage";
 
 export const TypingIndicator = () => (
   <div className="flex justify-start">
