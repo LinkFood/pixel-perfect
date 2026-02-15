@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Loader2, BookOpen, Camera } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, BookOpen, Camera, Share2, Play } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
+import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
+import ConfettiBurst from "@/components/ConfettiBurst";
 import { supabase } from "@/integrations/supabase/client";
 
 type BookPage = {
@@ -26,6 +28,13 @@ type SharedBook = {
   galleryPhotos: GalleryPhoto[];
 };
 
+const WRAP_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  classic: { bg: "bg-background", text: "text-foreground", border: "border-border" },
+  gold: { bg: "bg-gradient-to-b from-amber-50 to-yellow-100", text: "text-amber-900", border: "border-amber-200" },
+  midnight: { bg: "bg-gradient-to-b from-indigo-950 to-slate-900", text: "text-white", border: "border-indigo-700" },
+  garden: { bg: "bg-gradient-to-b from-emerald-50 to-green-100", text: "text-emerald-900", border: "border-emerald-200" },
+};
+
 const SharedBookViewer = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
   const [book, setBook] = useState<SharedBook | null>(null);
@@ -33,6 +42,13 @@ const SharedBookViewer = () => {
   const [error, setError] = useState<string | null>(null);
   const [spreadIdx, setSpreadIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [autoPlaying, setAutoPlaying] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const [showShareConfetti, setShowShareConfetti] = useState(false);
+  const hasSharedRef = useRef(false);
+  const [searchParams] = useSearchParams();
+  const wrapStyle = searchParams.get("wrap") || "classic";
+  const wrap = WRAP_STYLES[wrapStyle] || WRAP_STYLES.classic;
 
   useEffect(() => {
     if (!shareToken) return;
@@ -94,7 +110,27 @@ const SharedBookViewer = () => {
 
   const currentSpread = spreads[spreadIdx];
 
+  const companionState: RabbitState = useMemo(() => {
+    if (spreadIdx === 0) return "presenting";
+    if (spreadIdx >= spreads.length - 1) return "celebrating";
+    const cycle: RabbitState[] = ["listening", "thinking", "excited", "painting"];
+    return cycle[spreadIdx % cycle.length];
+  }, [spreadIdx, spreads.length]);
+
+  const progressLabel = useMemo(() => {
+    if (spreads.length === 0) return "";
+    const ratio = spreadIdx / (spreads.length - 1);
+    if (spreadIdx === 0) return "The beginning...";
+    if (ratio < 0.25) return "Once upon a time...";
+    if (ratio < 0.5) return "The story unfolds...";
+    if (ratio < 0.75) return "Almost there...";
+    if (spreadIdx >= spreads.length - 1) return "The end";
+    return "The story unfolds...";
+  }, [spreadIdx, spreads.length]);
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    setAutoPlaying(false);
+    setProgress(0);
     if (e.key === "ArrowLeft" && spreadIdx > 0) {
       setSpreadIdx(s => s - 1);
     } else if (e.key === "ArrowRight" && spreadIdx < spreads.length - 1) {
@@ -117,12 +153,63 @@ const SharedBookViewer = () => {
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const threshold = 50;
     if (dx < -threshold && spreadIdx < spreads.length - 1) {
+      setAutoPlaying(false);
+      setProgress(0);
       setSpreadIdx(s => s + 1);
     } else if (dx > threshold && spreadIdx > 0) {
+      setAutoPlaying(false);
+      setProgress(0);
       setSpreadIdx(s => s - 1);
     }
     touchStartX.current = null;
   }, [spreadIdx, spreads.length]);
+
+  // Share It Forward
+  const handleShare = useCallback(async () => {
+    const shareUrl = window.location.href;
+    const shareData = {
+      title: `${book?.petName}'s Book`,
+      text: "Check out this picture book!",
+      url: shareUrl,
+    };
+    try {
+      if (navigator.share && navigator.canShare?.(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success("Link copied!");
+      }
+      if (!hasSharedRef.current) {
+        hasSharedRef.current = true;
+        setShowShareConfetti(true);
+      }
+    } catch {
+      // User cancelled share dialog — ignore
+    }
+  }, [book?.petName]);
+
+  // Auto-flip timer
+  const AUTO_FLIP_DURATION = 6000;
+  useEffect(() => {
+    if (!autoPlaying || !revealed || spreadIdx >= spreads.length - 1) return;
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        const next = prev + (50 / AUTO_FLIP_DURATION) * 100;
+        if (next >= 100) {
+          setSpreadIdx((s) => {
+            const nextIdx = s + 1;
+            if (nextIdx >= spreads.length - 1) {
+              setAutoPlaying(false);
+            }
+            return nextIdx;
+          });
+          return 0;
+        }
+        return next;
+      });
+    }, 50);
+    return () => clearInterval(interval);
+  }, [autoPlaying, revealed, spreadIdx, spreads.length]);
 
   if (error && !loading) {
     return (
@@ -154,15 +241,15 @@ const SharedBookViewer = () => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.4 }}
-          className="min-h-screen flex items-center justify-center bg-background"
+          className={`min-h-screen flex items-center justify-center ${wrap.bg}`}
         >
           <div className="text-center space-y-6 max-w-sm px-6">
             <RabbitCharacter state="presenting" size={140} />
-            <div className="bg-card border border-border rounded-2xl shadow-xl p-8 space-y-4">
-              <h1 className="font-display text-2xl font-bold text-foreground">
+            <div className={`${wrapStyle === "midnight" ? "bg-white/10 backdrop-blur" : "bg-card"} border ${wrap.border} rounded-2xl shadow-xl p-8 space-y-4`}>
+              <h1 className={`font-display text-2xl font-bold ${wrap.text}`}>
                 Someone made this book just for you
               </h1>
-              <p className="font-body text-sm text-muted-foreground">
+              <p className={`font-body text-sm ${wrapStyle === "midnight" ? "text-white/70" : "text-muted-foreground"}`}>
                 A one-of-a-kind picture book, illustrated by a rabbit.
               </p>
               <Button
@@ -229,43 +316,89 @@ const SharedBookViewer = () => {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3 }}
-                className="flex max-w-4xl w-full shadow-2xl rounded-2xl overflow-hidden border border-border"
+                className="relative flex flex-col max-w-4xl w-full shadow-2xl rounded-2xl overflow-hidden border border-border cursor-pointer"
+                onClick={() => { setAutoPlaying(false); setProgress(0); }}
               >
-                {/* Left page */}
-                <div className="flex-1 overflow-hidden">
-                  {renderSharedPage(currentSpread[0])}
+                <div className="flex flex-1">
+                  {/* Left page */}
+                  <div className="flex-1 overflow-hidden">
+                    {renderSharedPage(currentSpread[0])}
+                  </div>
+                  {/* Spine */}
+                  <div className="w-1 flex-shrink-0 bg-gradient-to-r from-black/[0.08] via-transparent to-black/[0.08]" />
+                  {/* Right page */}
+                  <div className="flex-1 overflow-hidden">
+                    {renderSharedPage(currentSpread[1])}
+                  </div>
                 </div>
-                {/* Spine */}
-                <div className="w-1 flex-shrink-0 bg-gradient-to-r from-black/[0.08] via-transparent to-black/[0.08]" />
-                {/* Right page */}
-                <div className="flex-1 overflow-hidden">
-                  {renderSharedPage(currentSpread[1])}
-                </div>
+                {/* Auto-flip progress bar */}
+                {autoPlaying && (
+                  <div className="h-[2px] w-full bg-border/20">
+                    <div
+                      className="h-full bg-primary/60"
+                      style={{ width: `${progress}%`, transition: "width 50ms linear" }}
+                    />
+                  </div>
+                )}
+                {/* Companion rabbit */}
+                <motion.div
+                  key={`companion-${spreadIdx}`}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="absolute bottom-2 right-2 z-10"
+                >
+                  <RabbitCharacter state={companionState} size={48} />
+                </motion.div>
               </motion.div>
             )}
 
             {/* Navigation */}
-            <div className="flex items-center gap-6 mt-6">
+            <div className="flex items-center gap-4 sm:gap-6 mt-6 flex-wrap justify-center">
               <Button
                 variant="outline"
                 size="sm"
                 className="rounded-xl gap-2 border border-border"
                 disabled={spreadIdx === 0}
-                onClick={() => setSpreadIdx(s => s - 1)}
+                onClick={() => { setAutoPlaying(false); setProgress(0); setSpreadIdx(s => s - 1); }}
               >
                 <ChevronLeft className="w-4 h-4" /> Previous
               </Button>
-              <span className="font-body text-sm text-muted-foreground">
-                {spreadIdx + 1} / {spreads.length}
-              </span>
+              <div className="flex flex-col items-center">
+                <span className="font-display text-sm text-foreground/70 italic">
+                  {progressLabel}
+                </span>
+                <span className="font-body text-[10px] text-muted-foreground/50">
+                  {spreadIdx + 1} / {spreads.length}
+                </span>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
                 className="rounded-xl gap-2 border border-border"
                 disabled={spreadIdx >= spreads.length - 1}
-                onClick={() => setSpreadIdx(s => s + 1)}
+                onClick={() => { setAutoPlaying(false); setProgress(0); setSpreadIdx(s => s + 1); }}
               >
                 Next <ChevronRight className="w-4 h-4" />
+              </Button>
+              {!autoPlaying && spreadIdx < spreads.length - 1 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl gap-2 border border-border"
+                  onClick={() => { setAutoPlaying(true); setProgress(0); }}
+                >
+                  <Play className="w-3 h-3" /> Auto-play
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-2 border border-border"
+                onClick={handleShare}
+              >
+                <Share2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Share</span>
               </Button>
             </div>
           </div>
@@ -288,6 +421,7 @@ const SharedBookViewer = () => {
           </div>
         </motion.div>
       )}
+      <ConfettiBurst trigger={showShareConfetti} onComplete={() => setShowShareConfetti(false)} />
     </AnimatePresence>
   );
 };

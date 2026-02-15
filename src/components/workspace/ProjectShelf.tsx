@@ -43,6 +43,11 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
 
   if (projects.length === 0) return null;
 
+  const getRotation = (index: number) => {
+    const seed = (index * 13 + 5) % 7;
+    return (seed - 3) * 0.8;
+  };
+
   const saveRename = () => {
     if (editingId && editName.trim() && onRename) {
       onRename(editingId, editName.trim());
@@ -56,26 +61,25 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
     <>
       <div className="px-4 md:px-0 pb-3">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1">
-          {projects.map(project => {
+          {projects.map((project, index) => {
             const isActive = project.id === activeProjectId;
             const name = project.pet_name === "New Project" ? "Untitled" : project.pet_name;
             const isEditing = editingId === project.id;
 
             return (
-              <motion.div
+              <motion.button
                 key={project.id}
-                whileHover={{ scale: 1.03 }}
+                animate={{ rotate: getRotation(index) }}
+                whileHover={{ scale: 1.03, rotate: 0 }}
                 whileTap={{ scale: 0.97 }}
                 className={`shrink-0 rounded-xl px-3 py-2 text-left transition-all relative group border ${isActive ? "bg-primary border-primary" : "bg-card border-border"}`}
                 style={{
                   minWidth: 80,
                   maxWidth: 160,
-                  cursor: "pointer",
                 }}
                 onClick={() => !isEditing && onSelect(project.id)}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  // Context menu handled by DropdownMenu
                 }}
               >
                 <div className="flex items-center gap-1">
@@ -156,7 +160,7 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
                     </DropdownMenu>
                   )}
                 </div>
-              </motion.div>
+              </motion.button>
             );
           })}
 

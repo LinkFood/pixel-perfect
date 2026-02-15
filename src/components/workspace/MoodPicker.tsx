@@ -99,6 +99,8 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
         variants={container}
         initial="hidden"
         animate="show"
+        role="radiogroup"
+        aria-label="Choose a mood for your book"
       >
         {moods.map((m) => {
           const Icon = m.icon;
@@ -110,6 +112,8 @@ const MoodPicker = ({ petName, onSelect }: MoodPickerProps) => {
               variants={card}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
+              role="radio"
+              aria-checked={isSelected}
               onClick={() => setSelectedMood(m.key)}
               className={`flex flex-col items-center gap-2 rounded-2xl border p-5 cursor-pointer transition-all glass-warm ${
                 isCustom ? "col-span-2" : ""

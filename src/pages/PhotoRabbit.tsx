@@ -79,6 +79,25 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
 
+  // ─── Eye tracking (mirrors HeroLanding pattern) ──────────
+  const [eyeOffset, setEyeOffset] = useState({ x: 0, y: 0 });
+  const rafRef = useRef<number>(0);
+  const chatPanelRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      if (!chatPanelRef.current) return;
+      const rect = chatPanelRef.current.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height * 0.2;
+      const dx = (e.clientX - centerX) / (rect.width / 2);
+      const dy = (e.clientY - centerY) / (rect.height / 2);
+      setEyeOffset({ x: Math.max(-1, Math.min(1, dx)), y: Math.max(-1, Math.min(1, dy)) });
+    });
+  }, []);
+
   const { data: projects = [] } = useProjects();
   const [activeProjectId, setActiveProjectId] = useState<string | null>(paramId || null);
 
@@ -106,6 +125,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
   const pendingFilesRef = useRef<File[]>([]);
+  const idleTimerRef = useRef<number>();
   // Mobile sandbox collapsed state
   const [mobileSandboxCollapsed, setMobileSandboxCollapsed] = useState(false);
 
@@ -126,10 +146,17 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
   }, [isStaleGenerating, activeProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Loading spinner while project data is being fetched (prevents phase flash to "home")
+  if (activeProjectId && projectLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   // Derive phase from project state
-  const phase: Phase = activeProjectId && projectLoading
-    ? "home"
-    : !activeProjectId || !project
+  const phase: Phase = !activeProjectId || !project
     ? "home"
     : !project.mood ? "mood-picker"
     : project.status === "upload" ? "upload"
@@ -153,28 +180,66 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     else setRabbitState("idle");
   }, [phase, photos.length]);
 
+  // ─── Idle sleep + startled wake ────────────────────────────
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = window.setTimeout(() => {
+      if (phase === "generating") return;
+      setRabbitState("sleeping");
+    }, 2 * 60 * 1000);
+  }, [phase]);
+
+  const wakeRabbit = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    setRabbitState(prev => {
+      if (prev === "sleeping" && phase !== "generating") {
+        setTimeout(() => {
+          setRabbitState(() => {
+            if (phase === "generating") return "painting";
+            if (phase === "interview") return "listening";
+            if (phase === "review") return "presenting";
+            if ((phase === "upload" || phase === "home") && photos.length > 0) return "excited";
+            return "idle";
+          });
+        }, 600);
+        return "excited";
+      }
+      return prev;
+    });
+    resetIdleTimer();
+  }, [phase, photos.length, resetIdleTimer]);
+
+  useEffect(() => {
+    resetIdleTimer();
+    const onActivity = () => resetIdleTimer();
+    window.addEventListener("mousemove", onActivity);
+    window.addEventListener("keydown", onActivity);
+    return () => {
+      window.removeEventListener("mousemove", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [resetIdleTimer]);
+
   // ─── Handlers ─────────────────────────────────────────────
 
   const handlePhotoUpload = async (files: File[]) => {
-    if (!user) {
-      const images = files.filter(f => f.type.startsWith("image/"));
-      if (images.length === 0) return;
-      const urls = images.map(f => URL.createObjectURL(f));
-      setChatMessages(prev => [
-        ...prev,
-        { role: "user" as const, content: "", photos: urls },
-        { role: "rabbit" as const, content: "Love these! Sign in and I'll start turning them into something amazing." },
-      ]);
-      setRabbitState("excited");
-      scrollToBottom();
-      return;
-    }
-
     let pid = activeProjectId;
     if (!pid && projectCreatedRef.current) {
       // Project is being created — queue these files for upload after creation
       pendingFilesRef.current = [...pendingFilesRef.current, ...files];
-      setRabbitState("excited");
+      const totalAfter = photos.length + pendingFilesRef.current.length;
+      if (totalAfter >= 10) {
+        setRabbitState("celebrating");
+        setTimeout(() => {
+          if (phase === "upload" || phase === "home") setRabbitState("excited");
+        }, 1200);
+      } else if (totalAfter >= 5) {
+        setRabbitState("excited");
+      } else {
+        setRabbitState("listening");
+        setTimeout(() => setRabbitState("excited"), 300);
+      }
       return;
     }
     if (!pid && !projectCreatedRef.current) {
@@ -190,7 +255,18 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         const allFiles = pendingFilesRef.current;
         pendingFilesRef.current = [];
         uploadBatch(pid, allFiles);
-        setRabbitState("excited");
+        const totalAfter = photos.length + allFiles.length;
+        if (totalAfter >= 10) {
+          setRabbitState("celebrating");
+          setTimeout(() => {
+            if (phase === "upload" || phase === "home") setRabbitState("excited");
+          }, 1200);
+        } else if (totalAfter >= 5) {
+          setRabbitState("excited");
+        } else {
+          setRabbitState("listening");
+          setTimeout(() => setRabbitState("excited"), 300);
+        }
         return;
       } catch {
         projectCreatedRef.current = false;
@@ -201,7 +277,18 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
     if (!pid) return;
     uploadBatch(pid, files);
-    setRabbitState("excited");
+    const totalAfter = photos.length + files.length;
+    if (totalAfter >= 10) {
+      setRabbitState("celebrating");
+      setTimeout(() => {
+        if (phase === "upload" || phase === "home") setRabbitState("excited");
+      }, 1200);
+    } else if (totalAfter >= 5) {
+      setRabbitState("excited");
+    } else {
+      setRabbitState("listening");
+      setTimeout(() => setRabbitState("excited"), 300);
+    }
   };
 
   const handleNewProject = async () => {
@@ -241,33 +328,19 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   // ─── Interview chat ─────────────────────────────────────────
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = input.trim();
     if (!text) return;
+    resetIdleTimer();
     setChatMessages(prev => [...prev, { role: "user", content: text }]);
     setInput("");
     scrollToBottom();
 
-    if (!user) {
-      const responses = [
-        "I turn photos into illustrated storybooks — drop some in and sign in to get started!",
-        "Any photos work — pets, kids, trips, adventures. Drop a few and let's make something.",
-        "I'm ready when you are! Just drop some photos to begin.",
-      ];
-      const rabbitCount = chatMessages.filter(m => m.role === "rabbit").length;
-      const idx = rabbitCount % responses.length;
-      setTimeout(() => {
-        setChatMessages(prev => [...prev, { role: "rabbit", content: responses[idx] }]);
-        scrollToBottom();
-      }, 500);
-      return;
-    }
-
     if ((phase === "interview" || phase === "generating") && project) {
       const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
       try {
-        sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
         setRabbitState("thinking");
+        await sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
       } catch {
         setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try sending that again?" }]);
         scrollToBottom();
@@ -351,6 +424,21 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const startInterview = (mood: string) => {
     if (!activeProjectId) return;
     updateStatus.mutate({ id: activeProjectId, status: "interview" });
+
+    // Read rabbit memory
+    let memoryGreeting = "";
+    try {
+      const raw = localStorage.getItem("photorabbit_last_book");
+      if (raw) {
+        const mem = JSON.parse(raw);
+        if (mem.petName && mem.petName !== project?.pet_name) {
+          memoryGreeting = `Last time we made a book about ${mem.petName}. `;
+        } else if (mem.petName && mem.petName === project?.pet_name) {
+          memoryGreeting = `Back for another ${mem.petName} book? I love it. `;
+        }
+      }
+    } catch { /* ignore */ }
+
     const greetings = photos.length <= 3 ? shortGreetings : fullGreetings;
     let greeting: string;
     if (mood.startsWith("custom:")) {
@@ -361,6 +449,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     } else {
       greeting = greetings[mood] || greetings.heartfelt;
     }
+    greeting = memoryGreeting + greeting;
     setChatMessages([{ role: "rabbit", content: greeting }]);
     setRabbitState("listening");
     scrollToBottom();
@@ -371,6 +460,12 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     setIsFinishing(true);
 
     try {
+    // Dev mode: skip credit check entirely
+    if (isDevMode()) {
+      await updateStatus.mutateAsync({ id: activeProjectId, status: "generating" });
+      return;
+    }
+
     // Credit check before generation
     const currentBalance = await fetchBalance();
     if (currentBalance <= 0) {
@@ -439,7 +534,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           body: { projectId: activeProjectId },
         });
         if (data?.shareToken) {
-          const url = `${window.location.origin}/book/${data.shareToken}`;
+          const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/share-page?token=${data.shareToken}`;
           shareMsg = `Your book is ready! Share it with anyone: ${url}`;
         }
       } catch { /* share link creation is best-effort */ }
@@ -450,6 +545,17 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }]);
     setRabbitState("presenting");
     scrollToBottom();
+
+    // Save rabbit memory
+    try {
+      const memory = {
+        petName: project?.pet_name,
+        petType: project?.pet_type,
+        mood: project?.mood,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem("photorabbit_last_book", JSON.stringify(memory));
+    } catch { /* incognito/quota — ignore */ }
   };
 
   const handleBackFromReview = () => {
@@ -491,9 +597,6 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   // Rabbit greeting based on phase
   const getRabbitGreeting = () => {
-    if (!user) {
-      return "Hey — I'm Rabbit. Drop some photos and let's make a book together.";
-    }
     if (phase === "home" && photos.length === 0) {
       return "Ready when you are — drop some photos and let's get started.";
     }
@@ -519,10 +622,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   // ─── Chat panel content (used for both layouts) ─────────
   const chatPanel = (
-    <div className={isMobile ? "flex flex-col flex-1 min-h-0" : "workspace-chat"}>
+    <div ref={chatPanelRef} onMouseMove={handleMouseMove} className={isMobile ? "flex flex-col flex-1 min-h-0" : "workspace-chat"}>
       {/* Rabbit — smaller in split layout */}
       <div className="flex justify-center pt-4 pb-2 shrink-0">
-        <RabbitCharacter state={rabbitState} size={isMobile ? 120 : 80} />
+        <RabbitCharacter state={rabbitState} size={isMobile ? 120 : 80} eyeOffset={eyeOffset} />
       </div>
 
       {/* Chat scroll area */}
@@ -530,15 +633,6 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         {/* Rabbit greeting */}
         {rabbitGreeting && (
           <ChatMessage role="rabbit" content={rabbitGreeting} />
-        )}
-
-        {/* Unauth chat messages */}
-        {!user && (
-          <AnimatePresence initial={false}>
-            {chatMessages.map((msg, i) => (
-              <ChatMessage key={i} role={msg.role} content={msg.content} photos={msg.photos} />
-            ))}
-          </AnimatePresence>
         )}
 
         {/* Interview + generating chat messages */}
@@ -741,6 +835,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   return (
     <div
       className="h-screen flex flex-col bg-background overflow-hidden"
+      onMouseDown={wakeRabbit}
       onDragOver={e => e.preventDefault()}
       onDrop={e => {
         e.preventDefault();
@@ -818,31 +913,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         )}
       </AnimatePresence>
 
-      {/* Project shelf — only for auth'd users */}
-      {user && (
-        <ProjectShelf
-          projects={projects}
-          activeProjectId={activeProjectId}
-          onSelect={handleSelectProject}
-          onNew={handleNewProject}
-          onRename={handleRenameProject}
-          onDelete={handleDeleteProject}
-        />
-      )}
+      {/* Project shelf */}
+      <ProjectShelf
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onSelect={handleSelectProject}
+        onNew={handleNewProject}
+        onRename={handleRenameProject}
+        onDelete={handleDeleteProject}
+      />
 
-      {/* Footer for unauth hero */}
-      {!user && showHero && (
-        <div className="flex items-center justify-center gap-3 py-3 font-body text-[11px] text-muted-foreground/50">
-          <span>PhotoRabbit</span>
-          <span>&copy; {new Date().getFullYear()}</span>
-          <button
-            onClick={() => { enableDevMode(); window.location.reload(); }}
-            className="opacity-0 hover:opacity-100 transition-opacity"
-          >
-            Dev
-          </button>
-        </div>
-      )}
     </div>
   );
 };

@@ -155,15 +155,19 @@ export const useDeleteProject = () => {
         .select("storage_path")
         .eq("project_id", projectId);
       if (illustrations && illustrations.length > 0) {
-        await supabase.storage.from("pet-photos").remove(illustrations.map(i => i.storage_path));
-        await supabase.from("project_illustrations").delete().eq("project_id", projectId);
+        const { error: illStorageErr } = await supabase.storage.from("pet-photos").remove(illustrations.map(i => i.storage_path));
+        if (illStorageErr) console.warn("Failed to delete illustration files:", illStorageErr);
+        const { error: illDbErr } = await supabase.from("project_illustrations").delete().eq("project_id", projectId);
+        if (illDbErr) console.warn("Failed to delete illustration records:", illDbErr);
       }
 
       // 2. Delete pages
-      await supabase.from("project_pages").delete().eq("project_id", projectId);
+      const { error: pagesErr } = await supabase.from("project_pages").delete().eq("project_id", projectId);
+      if (pagesErr) console.warn("Failed to delete pages:", pagesErr);
 
       // 3. Delete interview
-      await supabase.from("project_interview").delete().eq("project_id", projectId);
+      const { error: interviewErr } = await supabase.from("project_interview").delete().eq("project_id", projectId);
+      if (interviewErr) console.warn("Failed to delete interview:", interviewErr);
 
       // 4. Delete photos (storage + DB)
       const { data: photos } = await supabase
@@ -171,8 +175,10 @@ export const useDeleteProject = () => {
         .select("storage_path")
         .eq("project_id", projectId);
       if (photos && photos.length > 0) {
-        await supabase.storage.from("pet-photos").remove(photos.map(p => p.storage_path));
-        await supabase.from("project_photos").delete().eq("project_id", projectId);
+        const { error: photoStorageErr } = await supabase.storage.from("pet-photos").remove(photos.map(p => p.storage_path));
+        if (photoStorageErr) console.warn("Failed to delete photo files:", photoStorageErr);
+        const { error: photoDbErr } = await supabase.from("project_photos").delete().eq("project_id", projectId);
+        if (photoDbErr) console.warn("Failed to delete photo records:", photoDbErr);
       }
 
       // 5. Delete project

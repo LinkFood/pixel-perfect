@@ -148,7 +148,7 @@ const PhotoUploadInline = ({
                     type: "spring",
                     stiffness: 260,
                     damping: 20,
-                    delay: index * 0.05,
+                    delay: Math.min(index * 0.05, 0.5),
                   }}
                   whileHover={{ scale: 1.08, rotate: 0, zIndex: 10 }}
                   className="relative rounded-xl overflow-hidden group aspect-square shadow-chat cursor-pointer"

@@ -9,6 +9,7 @@ import BookReview from "@/components/project/BookReview";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { type ProjectPhoto, getPhotoUrl } from "@/hooks/usePhotos";
 import { supabase } from "@/integrations/supabase/client";
+import ConfettiBurst from "@/components/ConfettiBurst";
 import { useState, useEffect, useRef } from "react";
 
 type Phase = "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
@@ -66,6 +67,7 @@ const WorkspaceSandbox = ({
   onBackFromReview,
 }: WorkspaceSandboxProps) => {
   const [photoStripOpen, setPhotoStripOpen] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
   const [revealReady, setRevealReady] = useState(false);
   const [coverIllustrationUrl, setCoverIllustrationUrl] = useState<string | null>(null);
@@ -110,6 +112,7 @@ const WorkspaceSandbox = ({
   }, [phase, activeProjectId]);
 
   const dismissReveal = () => {
+    setShowConfetti(true);
     setShowReveal(false);
     setCoverIllustrationUrl(null);
   };
@@ -419,6 +422,8 @@ const WorkspaceSandbox = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfettiBurst trigger={showConfetti} onComplete={() => setShowConfetti(false)} />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Coins, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,28 +15,38 @@ const CreditGate = ({ balance, onCreditAvailable }: CreditGateProps) => {
   const { isAnonymous } = useAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const prevAnonymousRef = useRef(isAnonymous);
+
+  // Watch for anonymous → authenticated transition
+  useEffect(() => {
+    if (prevAnonymousRef.current && !isAnonymous) {
+      onCreditAvailable();
+    }
+    prevAnonymousRef.current = isAnonymous;
+  }, [isAnonymous, onCreditAvailable]);
 
   const handleMagicLink = async () => {
     if (!email.trim()) return;
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      // Store current URL so user returns here after email confirmation
+      localStorage.setItem("photorabbit_redirect", window.location.href);
+      const { error } = await supabase.auth.updateUser({
         email: email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/` },
       });
       if (error) throw error;
-      toast.success("Check your email — magic link sent! Your book will be waiting.");
+      toast.success("Check your email to verify your account");
     } catch {
-      toast.error("Failed to send magic link.");
+      toast.error("Failed to send verification email.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.linkIdentity({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/` },
+      options: { redirectTo: window.location.href },
     });
     if (error) toast.error("Google sign-in failed.");
   };

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, useAnimation, type Variants } from "framer-motion";
+import { motion, useAnimation, useReducedMotion, type Variants } from "framer-motion";
 
 export type RabbitState =
   | "idle"
@@ -186,6 +186,104 @@ const rightArmVariants: Variants = {
   sleeping: { rotate: 4 },
 };
 
+// ─── Left arm variants ──────────────────────────────────────
+const leftArmVariants: Variants = {
+  idle: { rotate: 0, transition: { duration: 0.4 } },
+  listening: { rotate: 0 },
+  excited: {
+    rotate: [0, 18, -8, 12, 0],
+    transition: { duration: 0.45, repeat: Infinity, repeatDelay: 0.7, delay: 0.15 },
+  },
+  thinking: { rotate: 8, y: -2, transition: { duration: 0.4 } },
+  painting: { rotate: 3, transition: { duration: 0.3 } },
+  presenting: {
+    rotate: 30,
+    y: -6,
+    transition: { type: "spring", stiffness: 200 },
+  },
+  celebrating: {
+    rotate: [0, 45, -8, 35, 0],
+    transition: { duration: 0.55, repeat: Infinity, delay: 0.15 },
+  },
+  sympathetic: { rotate: 0 },
+  sleeping: { rotate: -4 },
+};
+
+// ─── Tail wag variants ──────────────────────────────────────
+const tailVariants: Variants = {
+  idle: { rotate: [0, 6, -4, 0], transition: { duration: 2.5, repeat: Infinity, ease: "easeInOut" } },
+  listening: { rotate: 3, transition: { duration: 0.4 } },
+  excited: { rotate: [-8, 8], transition: { duration: 0.25, repeat: Infinity } },
+  thinking: { rotate: -3, transition: { duration: 0.4 } },
+  painting: { rotate: [0, 4, 0], transition: { duration: 1.5, repeat: Infinity } },
+  presenting: { rotate: 6, transition: { type: "spring", stiffness: 200 } },
+  celebrating: { rotate: [-12, 12], transition: { duration: 0.2, repeat: Infinity } },
+  sympathetic: { rotate: -2, transition: { duration: 0.5 } },
+  sleeping: { rotate: 0, y: 3, transition: { duration: 1 } },
+};
+
+// ─── Whisker twitch variants ────────────────────────────────
+const whiskerLeftVariants: Variants = {
+  idle: { rotate: [0, -1.5, 0.5, 0], transition: { duration: 3, repeat: Infinity, ease: "easeInOut" } },
+  excited: { rotate: [-3, 3], transition: { duration: 0.15, repeat: Infinity } },
+  thinking: { rotate: 2, transition: { duration: 0.4 } },
+  sleeping: { rotate: 5, transition: { duration: 1 } },
+};
+const whiskerRightVariants: Variants = {
+  idle: { rotate: [0, 1.5, -0.5, 0], transition: { duration: 3.2, repeat: Infinity, ease: "easeInOut", delay: 0.3 } },
+  excited: { rotate: [3, -3], transition: { duration: 0.15, repeat: Infinity, delay: 0.05 } },
+  thinking: { rotate: -2, transition: { duration: 0.4 } },
+  sleeping: { rotate: -5, transition: { duration: 1 } },
+};
+
+// ─── Nose wiggle variants ───────────────────────────────────
+const noseVariants: Variants = {
+  idle: { rotate: [0, 1, -1, 0], transition: { duration: 2.8, repeat: Infinity, ease: "easeInOut" } },
+  excited: { rotate: [-2, 2], scale: 1.05, transition: { duration: 0.2, repeat: Infinity } },
+  thinking: { rotate: 2, transition: { duration: 0.4 } },
+  sleeping: { rotate: 0, y: 1, transition: { duration: 1 } },
+};
+
+// ─── Breathing variants ───────────────────────────────────────
+const breathingVariants: Variants = {
+  idle: {
+    scaleY: [1, 1.012, 1],
+    transition: { duration: 3.6, repeat: Infinity, ease: "easeInOut" },
+  },
+  listening: {
+    scaleY: [1, 1.012, 1],
+    transition: { duration: 3.6, repeat: Infinity, ease: "easeInOut" },
+  },
+  excited: {
+    scaleY: [1, 1.015, 1],
+    transition: { duration: 2.8, repeat: Infinity, ease: "easeInOut" },
+  },
+  thinking: {
+    scaleY: [1, 1.012, 1],
+    transition: { duration: 3.6, repeat: Infinity, ease: "easeInOut" },
+  },
+  painting: {
+    scaleY: [1, 1.012, 1],
+    transition: { duration: 3.6, repeat: Infinity, ease: "easeInOut" },
+  },
+  presenting: {
+    scaleY: [1, 1.012, 1],
+    transition: { duration: 3.6, repeat: Infinity, ease: "easeInOut" },
+  },
+  celebrating: {
+    scaleY: [1, 1.015, 1],
+    transition: { duration: 2.8, repeat: Infinity, ease: "easeInOut" },
+  },
+  sympathetic: {
+    scaleY: [1, 1.012, 1],
+    transition: { duration: 3.6, repeat: Infinity, ease: "easeInOut" },
+  },
+  sleeping: {
+    scaleY: [1, 1.008, 1],
+    transition: { duration: 5, repeat: Infinity, ease: "easeInOut" },
+  },
+};
+
 // ─── ZZZ for sleeping ───────────────────────────────────────
 const SleepZzz = () => (
   <g>
@@ -211,6 +309,7 @@ const SleepZzz = () => (
 // ─── Main Component ─────────────────────────────────────────
 const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: RabbitCharacterProps) => {
   const blinkControls = useBlinkLoop();
+  const shouldReduceMotion = useReducedMotion();
   const [currentState, setCurrentState] = useState(state);
 
   useEffect(() => {
@@ -235,31 +334,44 @@ const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: R
       >
         <motion.g
           variants={bodyVariants}
-          animate={currentState}
+          animate={shouldReduceMotion ? undefined : currentState}
           style={{ originX: "100px", originY: "200px" }}
         >
           {/* ── Shadow ── */}
           <ellipse cx="100" cy="268" rx="40" ry="6" fill={C.shadow} opacity="0.15" />
 
-          {/* ── Tail — scruffier ── */}
-          <circle cx="150" cy="212" r="9" fill={C.body} stroke={C.bodyStroke} strokeWidth="2" />
-          <circle cx="153" cy="208" r="4" fill={C.belly} opacity="0.5" />
+          {/* ── Tail — scruffier (animated wag) ── */}
+          <motion.g
+            variants={tailVariants}
+            animate={shouldReduceMotion ? undefined : currentState}
+            style={{ originX: "150px", originY: "212px" }}
+          >
+            <circle cx="150" cy="212" r="9" fill={C.body} stroke={C.bodyStroke} strokeWidth="2" />
+            <circle cx="153" cy="208" r="4" fill={C.belly} opacity="0.5" />
+          </motion.g>
 
-          {/* ── Body — stockier ── */}
-          <ellipse cx="100" cy="208" rx="48" ry="52" fill={C.body} stroke={C.bodyStroke} strokeWidth="2.5" />
+          {/* ── Body + Belly + Chest scar — breathing group ── */}
+          <motion.g
+            variants={breathingVariants}
+            animate={shouldReduceMotion ? undefined : currentState}
+            style={{ originX: "100px", originY: "250px" }}
+          >
+            {/* ── Body — stockier ── */}
+            <ellipse cx="100" cy="208" rx="48" ry="52" fill={C.body} stroke={C.bodyStroke} strokeWidth="2.5" />
 
-          {/* ── Belly ── */}
-          <ellipse cx="100" cy="218" rx="30" ry="32" fill={C.belly} />
+            {/* ── Belly ── */}
+            <ellipse cx="100" cy="218" rx="30" ry="32" fill={C.belly} />
 
-          {/* ── Chest scar — subtle ── */}
-          <path
-            d="M88 200 C90 195, 95 193, 97 198"
-            stroke={C.scar}
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            fill="none"
-            opacity="0.4"
-          />
+            {/* ── Chest scar — subtle ── */}
+            <path
+              d="M88 200 C90 195, 95 193, 97 198"
+              stroke={C.scar}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              fill="none"
+              opacity="0.4"
+            />
+          </motion.g>
 
           {/* ── Feet — chunkier ── */}
           <ellipse cx="72" cy="255" rx="22" ry="11" fill={C.body} stroke={C.bodyStroke} strokeWidth="2" />
@@ -270,14 +382,20 @@ const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: R
           <line x1="118" y1="252" x2="118" y2="259" stroke={C.bodyStroke} strokeWidth="1.5" strokeLinecap="round" />
           <line x1="126" y1="250" x2="126" y2="259" stroke={C.bodyStroke} strokeWidth="1.5" strokeLinecap="round" />
 
-          {/* ── Left arm ── */}
-          <ellipse cx="56" cy="202" rx="13" ry="21" fill={C.body} stroke={C.bodyStroke} strokeWidth="2"
-            transform="rotate(-12, 56, 202)" />
+          {/* ── Left arm (animated) ── */}
+          <motion.g
+            variants={leftArmVariants}
+            animate={shouldReduceMotion ? undefined : currentState}
+            style={{ originX: "56px", originY: "192px" }}
+          >
+            <ellipse cx="56" cy="202" rx="13" ry="21" fill={C.body} stroke={C.bodyStroke} strokeWidth="2"
+              transform="rotate(-12, 56, 202)" />
+          </motion.g>
 
           {/* ── Right arm (animated) ── */}
           <motion.g
             variants={rightArmVariants}
-            animate={currentState}
+            animate={shouldReduceMotion ? undefined : currentState}
             style={{ originX: "144px", originY: "192px" }}
           >
             <ellipse cx="144" cy="202" rx="13" ry="21" fill={C.body} stroke={C.bodyStroke} strokeWidth="2"
@@ -290,7 +408,7 @@ const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: R
           {/* ── Left ear — with NOTCH (battle damage) ── */}
           <motion.g
             variants={leftEarVariants}
-            animate={currentState}
+            animate={shouldReduceMotion ? undefined : currentState}
             style={{ originX: "82px", originY: "90px" }}
           >
             <path
@@ -310,7 +428,7 @@ const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: R
           {/* ── Right ear — with BANDAGE wrapped around it ── */}
           <motion.g
             variants={rightEarVariants}
-            animate={currentState}
+            animate={shouldReduceMotion ? undefined : currentState}
             style={{ originX: "118px", originY: "90px" }}
           >
             <path
@@ -374,8 +492,14 @@ const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: R
             )}
           </motion.g>
 
-          {/* Nose — triangular, bolder */}
-          <path d="M96 144 L100 150 L104 144 Z" fill={C.nose} />
+          {/* Nose — triangular, bolder (animated wiggle) */}
+          <motion.path
+            d="M96 144 L100 150 L104 144 Z"
+            fill={C.nose}
+            variants={noseVariants}
+            animate={shouldReduceMotion ? undefined : currentState}
+            style={{ originX: "100px", originY: "147px" }}
+          />
 
           {/* Mouth — cocky smirk, not symmetric */}
           {isHappy ? (
@@ -387,11 +511,23 @@ const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset }: R
             <path d="M92 153 C96 157, 102 157, 108 152" stroke={C.bodyStroke} strokeWidth="2" strokeLinecap="round" fill="none" />
           )}
 
-          {/* Whiskers — thicker, more attitude */}
-          <line x1="65" y1="140" x2="42" y2="136" stroke={C.whisker} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
-          <line x1="65" y1="146" x2="40" y2="148" stroke={C.whisker} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
-          <line x1="135" y1="140" x2="158" y2="136" stroke={C.whisker} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
-          <line x1="135" y1="146" x2="160" y2="148" stroke={C.whisker} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+          {/* Whiskers — thicker, more attitude (animated twitch) */}
+          <motion.g
+            variants={whiskerLeftVariants}
+            animate={shouldReduceMotion ? undefined : currentState}
+            style={{ originX: "65px", originY: "143px" }}
+          >
+            <line x1="65" y1="140" x2="42" y2="136" stroke={C.whisker} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+            <line x1="65" y1="146" x2="40" y2="148" stroke={C.whisker} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+          </motion.g>
+          <motion.g
+            variants={whiskerRightVariants}
+            animate={shouldReduceMotion ? undefined : currentState}
+            style={{ originX: "135px", originY: "143px" }}
+          >
+            <line x1="135" y1="140" x2="158" y2="136" stroke={C.whisker} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+            <line x1="135" y1="146" x2="160" y2="148" stroke={C.whisker} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+          </motion.g>
 
           {/* Sleeping ZZZs */}
           {isSleeping && <SleepZzz />}

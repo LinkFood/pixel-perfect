@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft, MoreHorizontal, Palette } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -12,6 +12,7 @@ import { usePhotos, getPhotoUrl } from "@/hooks/usePhotos";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 type Page = {
   id: string;
@@ -49,6 +50,13 @@ interface BookReviewProps {
   onBack: () => void;
 }
 
+const WRAP_OPTIONS = [
+  { id: "classic", label: "Classic", color: "bg-orange-100 border-orange-300" },
+  { id: "gold", label: "Gold", color: "bg-amber-200 border-amber-400" },
+  { id: "midnight", label: "Midnight", color: "bg-indigo-900 border-indigo-600" },
+  { id: "garden", label: "Garden", color: "bg-emerald-200 border-emerald-400" },
+];
+
 const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const id = projectId;
   const { data: project } = useProject(id);
@@ -64,6 +72,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [selectedWrap, setSelectedWrap] = useState("classic");
   const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
 
   const handleImageError = useCallback((pageId: string) => {
@@ -362,7 +371,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/share-page?token=${data.shareToken}`;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/share-page?token=${data.shareToken}${selectedWrap !== "classic" ? `&wrap=${selectedWrap}` : ""}`;
       setShareUrl(url);
 
       // Try native share sheet first (mobile), then clipboard fallback
@@ -464,6 +473,39 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                 <p className="font-body text-xs text-muted-foreground truncate">{shareUrl}</p>
               )}
             </div>
+            {/* Gift wrap picker */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl gap-2 shrink-0"
+                >
+                  <Palette className="w-4 h-4" />
+                  <span className="hidden sm:inline">Wrap</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="end">
+                <p className="font-body text-xs text-muted-foreground mb-2 px-1">Gift wrap style</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {WRAP_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setSelectedWrap(opt.id)}
+                      className={cn(
+                        "flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-body transition-all",
+                        selectedWrap === opt.id
+                          ? "ring-2 ring-primary bg-primary/5"
+                          : "hover:bg-secondary/50"
+                      )}
+                    >
+                      <div className={cn("w-4 h-4 rounded-full border-2 shrink-0", opt.color)} />
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
             {shareUrl ? (
               <Button
                 size="sm"
