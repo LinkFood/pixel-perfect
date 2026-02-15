@@ -176,7 +176,7 @@ serve(async (req) => {
           ...windowedMessages,
         ],
         stream: true,
-        temperature: 0.85,
+        temperature: 1,
         max_completion_tokens: 300,
       }),
     });
