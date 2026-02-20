@@ -30,6 +30,7 @@ interface WorkspaceSandboxProps {
   onMoodSelect: (mood: string, name: string) => void;
   // Interview props
   canFinish: boolean;
+  allowQuickFinish?: boolean;
   userInterviewCount?: number;
   onFinishInterview: () => void;
   isFinishing?: boolean;
@@ -58,6 +59,7 @@ const WorkspaceSandbox = ({
   petName,
   onMoodSelect,
   canFinish,
+  allowQuickFinish = false,
   userInterviewCount = 0,
   onFinishInterview,
   isFinishing = false,
@@ -222,13 +224,13 @@ const WorkspaceSandbox = ({
 
             <div className="flex-1" />
 
-            {phase === "interview" && !canFinish && (
+            {phase === "interview" && !canFinish && !allowQuickFinish && (
               <p className="font-body text-xs text-muted-foreground text-center py-2 italic">
                 The more you share, the better your book will be.
               </p>
             )}
 
-            {phase === "interview" && canFinish && (() => {
+            {phase === "interview" && (canFinish || allowQuickFinish) && (() => {
               const buttonText = userInterviewCount >= 8 ? "Paint my book!" : "Make my book!";
               const subtitle = userInterviewCount >= 8
                 ? "I have everything I need. Let's make something incredible."
