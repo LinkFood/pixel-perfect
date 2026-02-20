@@ -127,7 +127,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const [pendingPetName, setPendingPetName] = useState("");
   const [showSpeedChoice, setShowSpeedChoice] = useState(false);
   const speedChoiceShownRef = useRef(false);
-  const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[]; moodPicker?: boolean }>>([]);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[]; moodPicker?: boolean; projectId?: string }>>([]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
@@ -381,19 +381,33 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         : null;
       const moodToUse = moodHint || project?.mood || "heartfelt";
 
+      // Extract subject name from "book of X" / "about X" / "for X" / "starring X"
+      const nameMatch = text.match(
+        /\b(?:of|about|for|starring|featuring)\s+([a-zA-Z][a-zA-Z\s]{1,25}?)(?:\s+(?:and\b|going|playing|at\b|in\b|the\b)|[,.]|$)/i
+      );
+      const extractedName = nameMatch?.[1]?.trim();
+      const nameToUse = extractedName && extractedName.toLowerCase() !== "new project"
+        ? extractedName
+        : (project?.pet_name && project.pet_name !== "New Project")
+          ? project.pet_name
+          : pendingPetName || null;
+
       // Need a mood first if we don't have one
       if (!project?.mood && phase !== "interview") {
         // Don't call startInterview() — it wipes the chat. Set status directly.
         await updateProject.mutateAsync({
           id: activeProjectId!,
           mood: moodToUse,
-          pet_name: (project?.pet_name && project.pet_name !== "New Project")
-            ? project.pet_name
-            : pendingPetName || "New Project",
+          pet_name: nameToUse || "New Project",
         });
         await updateStatus.mutateAsync({ id: activeProjectId!, status: "interview" });
-        setTimeout(() => handleFinishInterview(true), 300);
+        // 800ms gives the DB update time to propagate before phase re-derives
+        setTimeout(() => handleFinishInterview(true), 800);
       } else {
+        // If we extracted a name, update it now before generating
+        if (nameToUse && nameToUse !== project?.pet_name) {
+          await updateProject.mutateAsync({ id: activeProjectId!, pet_name: nameToUse });
+        }
         handleFinishInterview(true);
       }
       return;
@@ -600,6 +614,9 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
     greeting = memoryGreeting + greeting;
     setChatMessages([{ role: "rabbit", content: greeting }]);
+    // Immediately compute and show chips for the first rabbit question
+    const initialReplies = getQuickReplies(greeting, project?.pet_name || "them", mood);
+    setQuickReplies(initialReplies);
     setRabbitState("listening");
     scrollToBottom();
   };
@@ -950,6 +967,37 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       <div className="flex justify-center pt-4 pb-2 shrink-0">
         <RabbitCharacter state={rabbitState} size={isMobile ? 120 : 80} eyeOffset={eyeOffset} mood={project?.mood} />
       </div>
+
+      {/* Step progress indicator — pinned below rabbit, only during interview after 1st user msg */}
+      <AnimatePresence>
+        {phase === "interview" && userInterviewCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.3 }}
+            className="shrink-0 px-4 py-1.5 flex items-center gap-2.5"
+          >
+            <div className="flex gap-1">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
+                    i < userInterviewCount ? "bg-primary" : "bg-border"
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="text-[11px] text-muted-foreground font-body">
+              {userInterviewCount < 4
+                ? "Share more for a richer story"
+                : userInterviewCount < 7
+                ? "Going great — rabbit is hooked"
+                : "Ready · hit Make My Book anytime"}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chat scroll area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 space-y-5 pb-4">
