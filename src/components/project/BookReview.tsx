@@ -1,6 +1,8 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, RefreshCw, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft, MoreHorizontal, Palette } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft, MoreHorizontal, Palette, Sparkles } from "lucide-react";
+import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
+import ConfettiBurst from "@/components/ConfettiBurst";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -74,6 +76,13 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [selectedWrap, setSelectedWrap] = useState("classic");
   const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
+  const [showDoneOverlay, setShowDoneOverlay] = useState(false);
+  const [showDoneConfetti, setShowDoneConfetti] = useState(false);
+  const doneOverlayShownRef = useRef(false);
+
+  // Canonical public base — always points to the public preview/published URL
+  const APP_BASE = import.meta.env.VITE_APP_URL
+    || "https://id-preview--2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app";
 
   // Clear share URL when wrap changes so user re-shares with new wrap
   useEffect(() => {
@@ -269,7 +278,14 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       .eq("project_id", id);
     if (error) { toast.error("Failed to approve all"); return; }
     queryClient.invalidateQueries({ queryKey: ["pages", id] });
-    toast.success("All pages approved!");
+    // Show celebration overlay
+    if (!doneOverlayShownRef.current) {
+      doneOverlayShownRef.current = true;
+      setShowDoneOverlay(true);
+      setShowDoneConfetti(true);
+      // Auto-generate share link for the overlay
+      if (!shareUrl) handleShare();
+    }
   };
 
   const handleRegenerateText = async (pageId: string) => {
@@ -387,7 +403,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const url = `${window.location.origin}/book/${data.shareToken}${selectedWrap !== "classic" ? `?wrap=${selectedWrap}` : ""}`;
+      const url = `${APP_BASE}/book/${data.shareToken}${selectedWrap !== "classic" ? `?wrap=${selectedWrap}` : ""}`;
       setShareUrl(url);
 
       // Try native share sheet first (mobile), then clipboard fallback
@@ -477,7 +493,111 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto relative">
+      {/* Book Done Celebration Overlay */}
+      <AnimatePresence>
+        {showDoneOverlay && (
+          <motion.div
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="absolute inset-0 bg-foreground/90" />
+            <div className="relative z-10 flex flex-col items-center gap-6 px-8 max-w-md w-full">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 18 }}
+              >
+                <RabbitCharacter state="celebrating" size={100} />
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6, duration: 0.5 }}
+                className="text-center"
+              >
+                <h1 className="font-display text-4xl font-bold text-background">
+                  Your book is done! 🎉
+                </h1>
+                <p className="font-body text-sm text-background/70 mt-2">
+                  {project?.pet_name}'s story is ready to share with the world.
+                </p>
+              </motion.div>
+
+              {/* Share link display */}
+              {shareUrl && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.9 }}
+                  className="w-full bg-background/10 rounded-2xl border border-background/20 px-4 py-3 flex items-center gap-3"
+                >
+                  <span className="font-body text-xs text-background/70 flex-1 truncate">{shareUrl}</span>
+                  <button
+                    onClick={handleCopyShare}
+                    className="shrink-0 text-background/70 hover:text-background transition-colors"
+                  >
+                    {shareCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </motion.div>
+              )}
+
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.9, duration: 0.4 }}
+                className="flex flex-col gap-3 w-full"
+              >
+                <motion.div
+                  animate={{ boxShadow: ["0 0 0px 0px hsl(var(--primary)/0)", "0 0 24px 16px hsl(var(--primary)/0.35)", "0 0 0px 0px hsl(var(--primary)/0)"] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  className="rounded-2xl"
+                >
+                  <Button
+                    size="lg"
+                    className="w-full rounded-2xl gap-2 py-6 text-base bg-background text-foreground hover:bg-background/90 shadow-2xl"
+                    onClick={shareUrl ? handleCopyShare : handleShare}
+                    disabled={isCreatingShare}
+                  >
+                    {isCreatingShare ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : shareCopied ? (
+                      <Check className="w-5 h-5" />
+                    ) : (
+                      <Share2 className="w-5 h-5" />
+                    )}
+                    {isCreatingShare ? "Creating link..." : shareCopied ? "Copied!" : "Share This Book"}
+                  </Button>
+                </motion.div>
+
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full rounded-2xl gap-2 py-5 text-sm border-background/30 text-background hover:bg-background/10"
+                  onClick={handleDownloadPdf}
+                  disabled={isDownloadingPdf}
+                >
+                  {isDownloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  {isDownloadingPdf ? "Generating PDF..." : "Download PDF"}
+                </Button>
+
+                <button
+                  onClick={() => setShowDoneOverlay(false)}
+                  className="font-body text-sm text-background/50 hover:text-background/80 transition-colors py-2"
+                >
+                  Keep editing →
+                </button>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <ConfettiBurst trigger={showDoneConfetti} onComplete={() => setShowDoneConfetti(false)} />
+
       <div className="pb-16 px-4 md:px-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           {/* Share bar — glass treatment */}
@@ -662,7 +782,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                       handleImageError={handleImageError}
                     />
                   ) : (
-                    <div className="aspect-square bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 rounded-l-2xl" />
+                    <div className="aspect-square bg-gradient-to-b from-accent to-secondary rounded-l-2xl" />
                   )}
                 </div>
                 <div className="w-1 bg-gradient-to-r from-black/10 via-black/5 to-black/10 flex-shrink-0" />
@@ -681,7 +801,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                       handleImageError={handleImageError}
                     />
                   ) : (
-                    <div className="aspect-square bg-gradient-to-b from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 rounded-r-2xl" />
+                    <div className="aspect-square bg-gradient-to-b from-accent to-secondary rounded-r-2xl" />
                   )}
                 </div>
               </motion.div>
