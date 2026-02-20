@@ -80,9 +80,9 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const [showDoneConfetti, setShowDoneConfetti] = useState(false);
   const doneOverlayShownRef = useRef(false);
 
-  // Canonical public base — always points to the public preview/published URL
+  // Canonical public base — always points to the published URL (no auth wall)
   const APP_BASE = import.meta.env.VITE_APP_URL
-    || "https://id-preview--2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app";
+    || "https://2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app";
 
   // Clear share URL when wrap changes so user re-shares with new wrap
   useEffect(() => {

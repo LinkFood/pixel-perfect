@@ -13,7 +13,7 @@ serve(async (req) => {
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const APP_URL = Deno.env.get("SITE_URL") || "https://pixel-perfect.lovable.app";
+    const APP_URL = Deno.env.get("SITE_URL") || "https://2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app";
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
