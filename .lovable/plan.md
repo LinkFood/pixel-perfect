@@ -1,147 +1,129 @@
 
-# Quick-Reply Suggestion Chips for the Rabbit Interview
+# Two Bugs to Fix
 
-## What This Does
+## Bug 1 — Preview Illustration Appears Twice
 
-Every time the rabbit finishes responding with a question, 2–4 tappable answer chips appear directly below the rabbit's message in the chat. Tapping one instantly fills in the answer and sends it — no typing needed. The chips disappear the moment the user either taps one or starts typing their own answer.
+### Root Cause
 
-This matches the pattern already in the codebase for mood selection (the mood picker chips that appear under the rabbit's vibe-choice message). We're extending that same pattern to work for every rabbit interview question.
+The `previewTriggeredRef` guard on line 884 sets `previewTriggeredRef.current = activeProjectId` synchronously before the async API call. This should prevent double-firing. But React's **StrictMode** in development double-invokes effects to detect side effects — this causes the effect to run twice before the ref can stop it.
+
+More critically, there's a second path: the `greetingInjectedRef` is reset to `null` when `activeProjectId` changes (line 829). If the project ID comes in late (URL param → project loaded), this reset fires, the greeting effect runs and calls `setChatMessages([...])`, which wipes chatMessages. This causes `chatMessages.length` to be 0 again, which can cause downstream effects to re-evaluate. The `previewTriggeredRef` is separate and still set — but the async timing of caption arrival vs. component re-evaluations may result in the effect running when `previewTriggeredRef.current` was momentarily `null` (if the project switched briefly).
+
+The fix: Track the preview trigger in **Supabase storage** or a more robust state — but the simplest fix is to store the triggered state outside the component closure using a module-level Set, OR use a Supabase flag. The simplest robust fix is to use a **persistent flag in the database** — check the `projects` table for whether we already have a preview stored, or store it as a local state that also checks for an existing preview message in `chatMessages` before adding another.
+
+**Practical fix:** Before appending the preview message to `chatMessages`, check if one already exists:
+```typescript
+setChatMessages(prev => {
+  // Don't add a second preview if one already exists
+  const alreadyHasPreview = prev.some(m => m.photos && m.photos.length > 0 && m.role === "rabbit");
+  if (alreadyHasPreview) return prev;
+  return [...prev, { role: "rabbit", content: "Here's a little taste...", photos: [data.publicUrl] }];
+});
+```
+
+This is a simple, bulletproof deduplication guard — even if the effect fires twice, only the first preview message gets added.
 
 ---
 
-## How the Suggestions Are Generated
+## Bug 2 — "Make me a funny book" Clears Chat and Gets Stuck on Name
 
-The rabbit's questions come from the AI via streaming. After each stream completes, the `lastFinishedContent` state in `useInterviewChat` holds the full text.
+### Root Cause — Two separate issues chain together:
 
-We add a lightweight client-side function — `extractQuickReplies(rabbitMessage, petName, mood)` — that parses the rabbit's message and generates contextually appropriate reply chips. This runs entirely on the client, no extra API call.
+**Issue A: `startInterview()` wipes the chat**  
+The intent detection path (line 371–387) correctly fires when the user types a generation intent phrase in the `"upload"` phase. It then calls:
+1. `setChatMessages([user message, rabbit "making it now" message])` ✓ correct
+2. `startInterview("heartfelt")` — which calls `setChatMessages([greeting])` — **REPLACES the whole array with just the greeting message**
 
-The function works by:
-1. Detecting the question type from keywords in the message ("funniest", "first memory", "miss", "look like", "personality", etc.)
-2. Returning 3–4 short, conversational answers that fit that question type
-3. Always including a "✍️ Tell my own story" fallback chip
+`startInterview` is designed for the mood → interview transition and always does a full `setChatMessages([...])` reset. When called from the intent detection path, it wipes the "making it now!" exchange the user just saw.
 
-Example:
-- Rabbit asks: *"What's the funniest thing about them?"*
-- Chips: `"Total chaos agent 😂"` · `"Always begging for food"` · `"Has a signature look"` · `"✍️ Tell my own story"`
+**Issue B: Name is not extracted from the user's own message**  
+The user typed: *"make a short funny 8 page book of baby jac and his dog link going to play in the mud"*. The names "baby jac" and "link" are RIGHT THERE in the text. But the code uses `project?.pet_name || pendingPetName || "New Project"` — so the project gets named "New Project". Then `handleFinishInterview()` sees `pet_name === "New Project"` and intercepts to ask for the name instead of generating.
 
-- Rabbit asks: *"What's one memory you want to keep forever?"*
-- Chips: `"The first day we met"` · `"A quiet morning together"` · `"A trip we took"` · `"✍️ Tell my own story"`
+**Issue C: The mood from the message is ignored**  
+The user said "funny" in their message, but the code defaults to `"heartfelt"` mood. The user's intent is clearly in the text.
 
-The chips are prompts, not final answers — they give the user a starting point. When tapped, the text fills into the chat input where the user can edit it before sending, OR it sends immediately (we'll implement it as instant-send for speed, matching the mood picker UX).
+### The Fix
 
----
+**For the chat wipe:** Change the intent detection path to skip calling `startInterview()` entirely. Instead, just update the project status directly and call `handleFinishInterview()`. The `startInterview()` function is for the normal interview entry flow — the quick-generate path doesn't need to reset the chat to a greeting.
 
-## Architecture
-
-### New utility function: `src/lib/quickReplies.ts`
-
-A pure function `getQuickReplies(content: string, petName: string, mood: string | null | undefined): string[]` that:
-- Takes the rabbit's latest message text
-- Returns 3–4 short reply strings
-- Uses keyword matching against common interview question patterns
-- Returns an empty array `[]` for non-question messages (wrap-up messages, affirmations, etc.)
-
-Detection patterns:
-```
-"funny" / "ridiculous" / "hilarious" → ["Total chaos agent 😂", "Always begging for attention", "The look they give me", "✍️ Tell my own story"]
-"miss" / "memorial" / "remember" → ["Their silly little habits", "The way they'd greet me", "Quiet moments together", "✍️ Tell my own story"]
-"first" / "meet" / "find you" → ["Pure accident", "Love at first sight", "They found me actually", "✍️ Tell my own story"]
-"adventure" / "explore" / "bravest" → ["Into everything, fearless", "That one epic escape", "Every walk is a mission", "✍️ Tell my own story"]
-"personality" / "like" / "character" → ["Total drama queen", "The most gentle soul", "One-of-a-kind energy", "✍️ Tell my own story"]
-"morning" / "routine" / "day" → ["Alarm clock, basically", "Chaos from the jump", "Pure chill until food time", "✍️ Tell my own story"]
-"photo" / "shot" / "picture" / "capture" → ["Sunset on the back porch", "Their favourite nap spot", "Mid-zoomies action shot", "✍️ Tell my own story"]
-"memory" / "moment" / "bottl" → ["The first day we met", "A quiet morning together", "A trip we took", "✍️ Tell my own story"]
-"special" / "unique" / "nobody" → ["The way they look at me", "Their weird little rituals", "Somehow always knows", "✍️ Tell my own story"]
-```
-
-If no keyword matches (e.g. the rabbit is wrapping up with "I have everything I need..."), return `[]` — no chips shown.
-
-### State in `PhotoRabbit.tsx`
-
-Add a single new state:
 ```typescript
-const [quickReplies, setQuickReplies] = useState<string[]>([]);
+// BEFORE (clears chat with startInterview):
+await updateProject.mutateAsync({ id: activeProjectId!, mood: "heartfelt", pet_name: ... });
+startInterview("heartfelt");
+setTimeout(() => handleFinishInterview(), 300);
+
+// AFTER (transitions directly without wiping chat):
+await updateProject.mutateAsync({ id: activeProjectId!, mood: moodFromText || "heartfelt", pet_name: nameFromText || project?.pet_name || "New Project" });
+await updateStatus.mutateAsync({ id: activeProjectId!, status: "interview" });
+setTimeout(() => handleFinishInterview(), 300);
 ```
 
-In the `useEffect` that handles `lastFinishedContent` (line ~452), after pushing the rabbit message to `chatMessages`, also compute and set the quick replies:
+**For the name stuck loop:** In `handleFinishInterview()`, the check is:
 ```typescript
-const replies = getQuickReplies(lastFinishedContent, project?.pet_name || "them", project?.mood);
-setQuickReplies(replies);
+if (!project?.pet_name || project.pet_name === "New Project") {
+  // ask for name...
+  return; // STOPS generation
+}
 ```
 
-Clear quick replies when:
-- User sends any message (`handleSend`)
-- User starts typing (on `input` change, if `input.length > 0`, clear chips)
-- User is streaming (when `isStreaming` becomes true)
-- Phase changes away from interview
+When the user's message contains explicit subject names, we should extract them OR skip the name guard if we're in a quick-generate path. The simplest fix: add a `skipNameCheck` parameter OR extract a tentative name from the user's message text before calling `handleFinishInterview`.
 
-### Rendering in `PhotoRabbit.tsx` chat panel
-
-The quick reply chips render between the last rabbit message and the `ChatInput`. They appear just above the input area, below the chat scroll — similar to how the mood picker chips appear but as a floating row above the input, not inside the chat bubbles.
-
-Two placement options:
-- **Option A** (inside scroll area, below last message): chips appear as part of the chat flow
-- **Option B** (above input bar, pinned): chips are always visible without scrolling
-
-We'll use **Option B** — chips pinned above the input bar. This is the iMessage / WhatsApp pattern. The chips are always in reach without scrolling.
-
-The chips strip sits between `scrollRef` (the chat area) and the `ChatInput` component:
-```
-┌─────────────────────────────────────┐
-│         chat scroll area            │
-│  ...                                │
-│  🐰 "What's the funniest thing      │
-│       about them?"                  │
-│─────────────────────────────────────│
-│  [Total chaos 😂] [Begging for food]│  ← Quick reply chips (pinned)
-│  [Signature look] [✍️ Own story]    │
-│─────────────────────────────────────│
-│  [📎] Type a message...      [🐾]   │  ← ChatInput
-└─────────────────────────────────────┘
-```
-
-Chips animate in with a subtle `y: 8 → 0` slide-up when they appear, and fade out when cleared.
-
-When a chip is tapped:
-1. The chip text populates `input`
-2. `handleSend()` fires immediately (same as mood picker chips — no extra confirmation step needed, the user chose it deliberately)
-3. `quickReplies` is cleared
-
-The "✍️ Tell my own story" chip populates the input but does NOT auto-send — it focuses the text input so the user can type their actual story.
+**For the mood:** Parse "funny" from the user's text before defaulting to "heartfelt".
 
 ---
 
 ## Files to Change
 
-| File | What Changes |
-|------|-------------|
-| `src/lib/quickReplies.ts` | New file — pure function that maps rabbit message text to reply chip options |
-| `src/pages/PhotoRabbit.tsx` | Add `quickReplies` state; set it in the `lastFinishedContent` effect; clear it on send/type; render the chips strip above `ChatInput` |
+| File | Change |
+|------|--------|
+| `src/pages/PhotoRabbit.tsx` | (1) Fix preview dedup check — guard `setChatMessages` with existing-preview check. (2) Fix intent detection path — don't call `startInterview()`, instead update status directly, extract mood and tentative name from text. (3) Add a `skipNameCheck` flag or bypass when coming from direct intent so generation doesn't get stuck on name prompt. |
 
-No changes needed to `ChatMessage.tsx`, `ChatInput.tsx`, `useInterviewChat.ts`, or any edge functions.
+### Detailed Changes
 
----
-
-## What the Chips Look Like
-
-Matching the existing mood picker chip style already in the codebase:
+**Fix 1 — Preview dedup (line 894):**
+```typescript
+setChatMessages(prev => {
+  if (prev.some(m => m.role === "rabbit" && m.photos?.length)) return prev;
+  return [...prev, {
+    role: "rabbit" as const,
+    content: "Here's a little taste of what your book could look like... ✨",
+    photos: [data.publicUrl],
+  }];
+});
 ```
-bg-primary/10 text-primary border border-primary/20
-hover:bg-primary hover:text-primary-foreground
-rounded-full px-4 py-2 text-sm font-body font-medium shadow-sm
-transition-colors
+
+**Fix 2 — Intent detection path (line 378–385):**
+```typescript
+// Extract mood hint from text
+const moodHint = /\bfunny|humor|hilarious|laugh\b/i.test(text) ? "funny"
+  : /\badventure|epic|wild|thrilling\b/i.test(text) ? "adventure"
+  : /\bmemorial|memory|remember|miss\b/i.test(text) ? "memorial"
+  : null;
+const moodToUse = moodHint || project?.mood || "heartfelt";
+
+// Don't call startInterview() — it wipes the chat. Just set status.
+await updateProject.mutateAsync({
+  id: activeProjectId!,
+  mood: moodToUse,
+  pet_name: project?.pet_name && project.pet_name !== "New Project"
+    ? project.pet_name
+    : pendingPetName || "New Project",
+});
+await updateStatus.mutateAsync({ id: activeProjectId!, status: "interview" });
+// handleFinishInterview with skipNameCheck=true so it doesn't get blocked
+handleFinishInterview(true);
 ```
 
-This is identical to the mood picker buttons — consistency is already designed in.
+**Fix 3 — `handleFinishInterview` accepts `skipNameCheck` flag:**
+```typescript
+const handleFinishInterview = async (skipNameCheck = false) => {
+  if (!activeProjectId || isFinishing) return;
+  if (!skipNameCheck && (!project?.pet_name || project.pet_name === "New Project")) {
+    // ask for name...
+    return;
+  }
+  // ... rest of generation logic
+};
+```
 
-The chip row wraps on mobile so it never overflows. On desktop it's a single horizontal row. Max 4 chips at a time.
-
----
-
-## Edge Cases
-
-- **Wrap-up messages** ("I have everything I need..."): `getQuickReplies` returns `[]` — no chips, nothing shown
-- **Streaming in progress**: chips hidden while rabbit is mid-response, appear when stream completes
-- **User starts typing**: chips fade out (controlled by `input.length > 0` check in the render)
-- **Phase is not interview**: chips only render when `phase === "interview"` — no accidental chips during generation or review
-- **"Tell my own story" chip**: fills `input` without sending — user types their actual story, hits send themselves
+These three targeted changes fix both bugs without restructuring the flow.
