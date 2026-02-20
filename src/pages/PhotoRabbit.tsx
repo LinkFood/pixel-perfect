@@ -136,6 +136,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const fallbackTimerRef = useRef<number>();
   // Mobile sandbox collapsed state
   const [mobileSandboxCollapsed, setMobileSandboxCollapsed] = useState(false);
+  // Suppress spurious mood-picker auto-recovery when intent path already set a mood
+  const suppressMoodPickerRef = useRef(false);
 
   // Sync activeProjectId with URL params
   useEffect(() => {
@@ -395,6 +397,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       // Need a mood first if we don't have one
       if (!project?.mood && phase !== "interview") {
         // Don't call startInterview() — it wipes the chat. Set status directly.
+        // Suppress mood-picker auto-recovery during the brief window while DB refetches
+        suppressMoodPickerRef.current = true;
         await updateProject.mutateAsync({
           id: activeProjectId!,
           mood: moodToUse,
@@ -706,14 +710,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       const nameToUse = (project?.pet_name && project.pet_name !== "New Project")
         ? project.pet_name
         : pendingPetName || "your subject";
-      setChatMessages(prev => [...prev, {
+    setChatMessages(prev => [...prev, {
         role: "rabbit",
         content: `I've got everything I need from your photos. Making it now! ⚡`,
       }]);
       scrollToBottom();
+      // Suppress mood-picker auto-recovery during the brief DB refetch window
+      suppressMoodPickerRef.current = true;
       await updateProject.mutateAsync({ id: activeProjectId!, mood: "heartfelt", pet_name: nameToUse });
-      startInterview("heartfelt");
-      setTimeout(() => handleFinishInterview(), 300);
+      await updateStatus.mutateAsync({ id: activeProjectId!, status: "interview" });
+      setTimeout(() => handleFinishInterview(true), 800);
     } else {
       setChatMessages(prev => [...prev, {
         role: "rabbit",
@@ -781,7 +787,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   };
 
   const userInterviewCount = interviewMessages.filter(m => m.role === "user").length;
-  const canFinish = userInterviewCount >= 4;
+  // localUserCount reads from local chatMessages for instant updates (no DB round-trip lag)
+  const localUserCount = chatMessages.filter(m => m.role === "user").length;
+  const displayCount = Math.max(userInterviewCount, localUserCount);
+  const canFinish = displayCount >= 4;
 
   // Signal when canFinish becomes true — rabbit hints that the "Make my book" button is ready
   const prevCanFinish = useRef(false);
@@ -948,6 +957,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   // Auto-recover mood picker if phase is mood-picker but no picker in chat
   useEffect(() => {
     if (phase !== "mood-picker") return;
+    // Bail if the intent path just set a mood — suppress the spurious recovery
+    if (suppressMoodPickerRef.current) { suppressMoodPickerRef.current = false; return; }
     if (chatMoodPending) return;
     const hasMoodPicker = chatMessages.some(m => m.moodPicker);
     if (hasMoodPicker) return;
@@ -970,7 +981,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
       {/* Step progress indicator — pinned below rabbit, only during interview after 1st user msg */}
       <AnimatePresence>
-        {phase === "interview" && userInterviewCount > 0 && (
+        {phase === "interview" && displayCount > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -983,15 +994,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                 <div
                   key={i}
                   className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
-                    i < userInterviewCount ? "bg-primary" : "bg-border"
+                    i < displayCount ? "bg-primary" : "bg-border"
                   }`}
                 />
               ))}
             </div>
             <span className="text-[11px] text-muted-foreground font-body">
-              {userInterviewCount < 4
+              {displayCount < 4
                 ? "Share more for a richer story"
-                : userInterviewCount < 7
+                : displayCount < 7
                 ? "Going great — rabbit is hooked"
                 : "Ready · hit Make My Book anytime"}
             </span>
