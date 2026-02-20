@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft, MoreHorizontal, Palette, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft, MoreHorizontal, Palette, Sparkles, ChevronDown } from "lucide-react";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
 import ConfettiBurst from "@/components/ConfettiBurst";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { isDevMode } from "@/lib/devMode";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 type Page = {
   id: string;
@@ -22,6 +24,7 @@ type Page = {
   page_type: string;
   text_content: string | null;
   illustration_prompt: string | null;
+  scene_description: string | null;
   is_approved: boolean;
 };
 
@@ -139,6 +142,34 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
     },
     enabled: !!id,
   });
+
+  // Dev report data — only fetched in dev mode
+  const devMode = isDevMode();
+  const { data: interviewMessages = [] } = useQuery({
+    queryKey: ["interview", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("project_interview")
+        .select("role, content, created_at")
+        .eq("project_id", id)
+        .order("created_at", { ascending: true });
+      return data || [];
+    },
+    enabled: !!id && devMode,
+  });
+  const { data: buildLogs = [] } = useQuery({
+    queryKey: ["build-log", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("build_log")
+        .select("phase, level, message, technical_message, metadata, created_at")
+        .eq("project_id", id)
+        .order("created_at", { ascending: true });
+      return data || [];
+    },
+    enabled: !!id && devMode,
+  });
+  const [devReportOpen, setDevReportOpen] = useState(false);
 
   const illustratedPageIds = new Set(illustrations.map(i => i.page_id));
   const missingCount = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id)).length;
@@ -912,6 +943,95 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
           </Button>
         </motion.div>
       </div>
+
+      {/* Dev Generation Report — only visible in dev mode */}
+      {devMode && (
+        <div className="mx-auto max-w-3xl px-4 pb-12">
+          <Collapsible open={devReportOpen} onOpenChange={setDevReportOpen}>
+            <CollapsibleTrigger asChild>
+              <button className="flex items-center gap-2 w-full text-left py-3 px-4 rounded-xl bg-muted/60 border border-border text-xs font-mono text-muted-foreground hover:bg-muted transition-colors">
+                <span className="text-amber-500">⚙</span>
+                <span className="font-semibold text-foreground">DEV: Generation Report</span>
+                <ChevronDown className={cn("w-3.5 h-3.5 ml-auto transition-transform", devReportOpen && "rotate-180")} />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-2 rounded-xl border border-border bg-card p-5 space-y-5 font-mono text-xs">
+
+                {/* What the user asked for */}
+                <div>
+                  <p className="text-amber-500 font-semibold mb-2">📝 USER'S CREATIVE BRIEF</p>
+                  {interviewMessages.filter(m => m.role === "user").length === 0 ? (
+                    <p className="text-muted-foreground italic">No user messages found in interview transcript.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {interviewMessages.filter(m => m.role === "user").map((m, i) => (
+                        <div key={i} className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                          <p className="text-muted-foreground text-[10px] mb-1">Message {i + 1}</p>
+                          <p className="text-foreground">{m.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Inputs summary */}
+                <div>
+                  <p className="text-blue-400 font-semibold mb-2">📊 GENERATION INPUTS</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      ["Interview messages", interviewMessages.length],
+                      ["Photos", photos.length],
+                      ["Mood", project?.mood || "none"],
+                      ["Appearance profile", project?.pet_appearance_profile ? "✅ yes" : "❌ no"],
+                      ["Photo context brief", project?.photo_context_brief ? "✅ yes" : "❌ no"],
+                      ["Product type", project?.product_type || "storybook"],
+                    ].map(([label, value]) => (
+                      <div key={label as string} className="bg-muted/40 rounded-lg p-2">
+                        <p className="text-muted-foreground text-[10px]">{label as string}</p>
+                        <p className="text-foreground font-semibold">{String(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* What was generated */}
+                <div>
+                  <p className="text-green-400 font-semibold mb-2">📖 WHAT WAS GENERATED ({pages.length} pages)</p>
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {pages.map(p => (
+                      <div key={p.id} className="flex gap-2 items-start bg-muted/30 rounded-lg p-2">
+                        <span className="text-muted-foreground shrink-0 w-6">p{p.page_number}</span>
+                        <span className="text-foreground">{p.scene_description || p.text_content?.slice(0, 100) || <em className="text-muted-foreground">no content</em>}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Build log */}
+                {buildLogs.length > 0 && (
+                  <div>
+                    <p className="text-purple-400 font-semibold mb-2">🔧 BUILD LOG ({buildLogs.length} entries)</p>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {buildLogs.map((log, i) => (
+                        <div key={i} className="flex gap-2 items-start">
+                          <span className={cn(
+                            "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase",
+                            log.phase === "story" ? "bg-blue-500/20 text-blue-400" :
+                            log.phase === "appearance" ? "bg-purple-500/20 text-purple-400" :
+                            "bg-muted text-muted-foreground"
+                          )}>{log.phase}</span>
+                          <span className="text-muted-foreground">{log.technical_message || log.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      )}
 
       <BookPreview open={previewOpen} onOpenChange={setPreviewOpen} pages={previewPages} petName={project?.pet_name || ""} />
     </div>
