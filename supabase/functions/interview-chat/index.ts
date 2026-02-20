@@ -130,6 +130,11 @@ Interview style:
     prompt += `\n\nIMPORTANT: You have received MORE than enough material. DO NOT ask any more questions. Thank them warmly and confirm you have everything you need to create a wonderful ${product}. End the conversation gracefully.`;
   }
 
+  // Funny mood gets an explicit early wrap-up nudge after 3 messages
+  if (effectiveMood === "funny" && userMessageCount >= 3) {
+    prompt += `\n\nIMPORTANT FOR FUNNY MOOD: You now have enough funny material. Your NEXT response should be your LAST question or a warm wrap-up — do NOT ask another open-ended question after this. Funny books are punchy (3-4 great moments is the sweet spot). Wrap it up with energy, not more questions.`;
+  }
+
   prompt += `\n\nCurrent exchange count: ${userMessageCount} user messages so far.`;
   return prompt;
 }
