@@ -1,122 +1,159 @@
 
-# Bug: Wrong Project's Preview Illustration Showing
+# Three Fixes + Step Progress Tracker
 
-## What's Happening
+## What's Wrong (from your screenshot)
 
-When you upload a photo to a new project ("Untitled"), the chat shows a preview illustration from your PREVIOUS project ("Jac goes to the ball park") instead of a fresh illustration for the new photo.
+**Problem 1 — "Baby Jac" got lost, asked for name/mood instead of making the book**
+When you typed "make a short funny 8 page book of baby jac and his dog link...", the system detected your intent correctly but failed to extract your subject name from your message. It used "New Project" as the name. Then, when the phase changed to `interview`, the mood-picker prompt fired because `project.mood` was still `null` — the database update hadn't reflected yet. This caused the name + mood loop instead of just making the book.
 
-## Root Cause
+**Problem 2 — No quick-reply chips after the rabbit's first question**
+Chips only appear when `lastFinishedContent` updates (after an AI streams a response). But the rabbit's first question — "Tell me about this — what's the funniest thing about New Project?" — is injected directly by the local `startInterview()` function, never going through the streaming path. So chips never get computed for that first question. After that first exchange the chips do work, but the most critical moment (first question) shows nothing.
 
-There are two refs used as guards in the chat:
+**Problem 3 — No way to know what step you're on**
+There's no visible indicator of interview progress. A user has no idea if they're 2 messages in or 8 messages in, or how many are "enough."
 
-- `greetingInjectedRef` — reset to `null` when the project switches (line 842) ✓ correct
-- `previewTriggeredRef` — **never reset when the project switches** ✗ this is the bug
+---
 
-Here is the exact sequence of events causing the wrong preview to appear:
+## Fix 1 — Smarter Intent Extraction (name + mood from user's message)
 
-```text
-1. User is on "Jac goes to the ball park"
-   → previewTriggeredRef.current = "jac-project-id"
-   → chatMessages has a rabbit message with the Jac preview photo
+When the user types something like "make a funny book of baby jac and link", we need to:
 
-2. User clicks "New Project" or creates Untitled
-   → activeProjectId changes to "untitled-project-id"
-   → greetingInjectedRef is reset → greeting effect fires → setChatMessages([greeting])
-   → chatMessages is now just [{ role: "rabbit", content: "Ready when you are..." }]
+1. Extract the mood word from text ("funny" → "funny" ✓ already working)
+2. Extract a subject name from the text — grab the key noun phrase after "of", "about", "for", "starring", etc.
+3. Use `skipNameCheck = true` so generation doesn't get blocked
+4. Wait for the project update to settle before calling `handleFinishInterview`
 
-3. User uploads dog+baby photo → caption arrives
-
-4. Preview effect fires:
-   → previewTriggeredRef.current = "jac-project-id" (NEVER RESET)
-   → activeProjectId = "untitled-project-id"
-   → "jac-project-id" !== "untitled-project-id" → PASSES THE GUARD
-   → previewTriggeredRef.current = "untitled-project-id" (set to new ID)
-   → generatePreview() is called for the correct new project
-
-5. The async edge function runs... but MEANWHILE the component re-renders
-   several times as photos load, captions arrive, etc.
-
-6. On one of these re-renders, there's a brief window where chatMessages
-   still has the OLD photo message from the Jac project (before the greeting
-   reset fully propagated through React's batch). The dedup guard sees it
-   and returns early — OR the edge function returns but stores over the
-   old preview storage path incorrectly.
-
-   MORE LIKELY: The edge function is called, succeeds, returns the new URL,
-   but the setChatMessages updater finds a photos message already in state
-   (leftover from the previous project that wasn't fully cleared) and
-   SKIPS adding the new one — leaving the old image visible.
+**Name extraction regex** (added to the intent detection block):
+```typescript
+// Try to extract subject name from phrases like "book of baby jac", "about link", "for my dog max"
+const nameMatch = text.match(
+  /\b(?:of|about|for|starring|featuring|with)\s+([a-z][a-z\s]{1,20}?)(?:\s+(?:and|going|playing|at|in|the|\.|,)|$)/i
+);
+const extractedName = nameMatch?.[1]?.trim() || null;
 ```
 
-The simplest explanation is: **`previewTriggeredRef` is not reset on project switch**, so when the new project's photos arrive, it may fire with stale timing against a `chatMessages` state that briefly still has the old project's preview photo — and the dedup guard incorrectly blocks the new preview.
+Use `extractedName` as `pet_name` if it's found AND different from "New Project".
 
-There's also a secondary scenario: the effect fires on the NEW project, generates a real NEW preview, but by the time the `setChatMessages` updater runs, the dedup guard finds an old photo message from the previous project still in state and returns early (showing nothing). Then the user sees whatever was last in chat — the old image.
+Also change the `setTimeout(handleFinishInterview, 300)` to use `setTimeout(handleFinishInterview, 800)` to give the DB update time to propagate before the phase re-derives.
 
-## The Fix — Two Changes in `src/pages/PhotoRabbit.tsx`
+---
 
-### Change 1: Reset `previewTriggeredRef` when switching projects
+## Fix 2 — Chips on the First Rabbit Question
 
-Add a reset for `previewTriggeredRef` alongside the existing `greetingInjectedRef` reset. This is the primary fix.
+In `startInterview()` (line 571), after calling `setChatMessages([{ role: "rabbit", content: greeting }])`, immediately also compute and set quick replies from that greeting:
 
 ```typescript
-// EXISTING (line 841-844):
-useEffect(() => {
-  greetingInjectedRef.current = null;
-}, [activeProjectId]);
-
-// BECOMES:
-useEffect(() => {
-  greetingInjectedRef.current = null;
-  previewTriggeredRef.current = null;   // ← ADD THIS
-  prevPhotoCountRef.current = 0;         // ← ALSO RESET photo count
-}, [activeProjectId]);
+// In startInterview(), after setChatMessages([{ role: "rabbit", content: greeting }]):
+const initialReplies = getQuickReplies(greeting, project?.pet_name || "them", mood);
+setQuickReplies(initialReplies);
 ```
 
-This ensures that when switching to a new project, the preview guard is cleared so a fresh preview can be generated for the new project's photos.
+This means the very first rabbit question will show chips immediately — no wait for streaming.
 
-### Change 2: Strengthen the dedup guard with project-scoped check
+Also update the chips rendering condition from `phase === "interview"` to also show during `mood-picker` and right after transitioning:
+```
+(phase === "interview" || phase === "upload") && quickReplies.length > 0 && !isStreaming && input.length === 0
+```
+Actually keeping it to `interview` only is correct — but we must ensure the phase IS interview when these chips render. The `startInterview()` call sets the DB status to interview, so that's fine.
 
-The current dedup guard uses a closure-free functional updater — but it can't reference `activeProjectId` (the closure captures a stale value). We need to store the projectId alongside the preview so the guard can compare correctly.
+---
 
-Instead of checking only `m.photos?.length`, also tag the preview message with the project ID so the dedup guard can check it belongs to the current project:
+## Fix 3 — Interview Step Progress Indicator
+
+A small, lightweight progress strip pinned at the top of the chat scroll area during the interview. Shows how many messages deep you are and a soft "enough to make a book" milestone.
+
+**Design**: A thin horizontal bar with dots or a simple text label. Unobtrusive — sits at the top of the chat area, not blocking anything.
+
+```
+● ● ● ○ ○ ○ ○ ○   3 of 8 — keep going!
+                                              [Make my book ✓] ← appears when canFinish
+```
+
+Or even simpler — a thin pill:
+
+```
+Step 3 · Share more for a richer story   →   Step 5 · Almost there!   →   Step 7 · Ready to make your book ✓
+```
+
+**What it shows:**
+- Messages 1–3: "Getting started · share more for a richer book"
+- Messages 4–5: "Going great · the rabbit is hooked"  
+- Messages 6–7: "Almost there · ready to make your book"
+- Messages 8+: "You're done · hit Make My Book whenever"
+
+**Where it renders:** Between the rabbit avatar and the chat scroll content, only when `phase === "interview"` and at least 1 user message has been sent. Stays pinned, doesn't scroll with messages.
+
+---
+
+## Technical Details
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `src/pages/PhotoRabbit.tsx` | Fix 1: better name extraction + longer timeout in intent detection. Fix 2: call `getQuickReplies` inside `startInterview()` to set chips on first greeting. Fix 3: render a step-progress strip in the chat panel during interview. |
+
+### Step Progress Component (inline in PhotoRabbit.tsx)
 
 ```typescript
-// When adding the preview message, tag it with the projectId
-const capturedProjectId = activeProjectId; // captured at call time
-
-setChatMessages(prev => {
-  // Only block duplicates for the SAME project
-  if (prev.some(m => m.role === "rabbit" && m.photos?.length && m.projectId === capturedProjectId)) return prev;
-  return [...prev, {
-    role: "rabbit" as const,
-    content: "Here's a little taste of what your book could look like... ✨",
-    photos: [data.publicUrl],
-    projectId: capturedProjectId,   // ← tag with project ID
-  }];
-});
+// Inside the chat panel, above the scroll area, only in interview phase:
+{phase === "interview" && userInterviewCount > 0 && (
+  <div className="shrink-0 px-4 py-1.5 flex items-center gap-2">
+    <div className="flex gap-1">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
+            i < userInterviewCount ? "bg-primary" : "bg-border"
+          }`}
+        />
+      ))}
+    </div>
+    <span className="text-[11px] text-muted-foreground font-body">
+      {userInterviewCount < 4
+        ? "Share more for a richer story"
+        : userInterviewCount < 7
+        ? "Going great — rabbit is hooked"
+        : "Ready · hit Make My Book anytime"}
+    </span>
+  </div>
+)}
 ```
 
-And update the `chatMessages` state type to include optional `projectId`:
+This gives the user a clear, friendly sense of where they are without feeling clinical or overwhelming.
+
+### Name Extraction (in `handleSend`, intent detection block)
+
+Add this before the `updateProject.mutateAsync` call:
 ```typescript
-const [chatMessages, setChatMessages] = useState<Array<{
-  role: "rabbit" | "user";
-  content: string;
-  photos?: string[];
-  moodPicker?: boolean;
-  projectId?: string;  // ← add this
-}>>([]);
+// Extract subject name from "make a book of X" / "about X" / "for X"
+const nameMatch = text.match(
+  /\b(?:of|about|for|starring|featuring)\s+([a-zA-Z][a-zA-Z\s]{1,25}?)(?:\s+(?:and\b|going|playing|at\b|in\b|the\b)|[,.]|$)/i
+);
+const extractedName = nameMatch?.[1]?.trim();
+const nameToUse = extractedName && extractedName.toLowerCase() !== "new project"
+  ? extractedName
+  : (project?.pet_name && project.pet_name !== "New Project")
+    ? project.pet_name
+    : pendingPetName || null;
 ```
 
-### Why This Is Enough
+Then pass `nameToUse` as `pet_name` in the `updateProject.mutateAsync` call. If `nameToUse` is null/empty, still pass "New Project" but increase the settle timeout.
 
-With these two changes:
+### Quick Replies on First Greeting
 
-- Switching projects resets the preview ref → the effect can fire cleanly for the new project
-- The dedup guard checks project ID → a preview from project A can never block project B's preview from appearing
-- The combination means each project gets exactly one preview, tied to that project
+In `startInterview()`, after line 602 (`setChatMessages([{ role: "rabbit", content: greeting }])`), add:
+```typescript
+const initialReplies = getQuickReplies(greeting, project?.pet_name || "them", mood);
+setQuickReplies(initialReplies);
+```
 
-## File Changed
+This is the only change needed for Fix 2 — one line.
 
-Only `src/pages/PhotoRabbit.tsx` — two small, targeted edits:
-1. Add `previewTriggeredRef.current = null` and `prevPhotoCountRef.current = 0` to the project-switch reset effect
-2. Capture `activeProjectId` in the preview async closure, tag preview messages with `projectId`, and update the dedup guard to compare project IDs
+---
+
+## Summary of Changes
+
+1. **Name extraction** from the user's "make me a book of X" message — saves typing the name separately
+2. **First-question chips** — quick replies now appear immediately on the rabbit's first greeting, not just after AI streams
+3. **Step dots** — 8 small dots + a contextual label pinned at the top of the chat, only during interview, showing progress clearly without being overwhelming
