@@ -80,8 +80,8 @@ ADAPTIVE SELF-ASSESSMENT:
 After each response, internally evaluate: "Do I have 4-5 distinct scenes or memories with vivid, specific details that could each become a storybook page?"
 - Rich, detailed messages count more than short ones.
 - When you believe you have enough material (typically after 4-8 exchanges), proactively say something like: "I think I have everything I need to make something amazing — unless there's anything else you want to include?"
-- Do NOT wrap up too early. You need real scenes with sensory details, not just facts.
-- Hard ceiling: after 15 user messages, you MUST wrap up regardless.`;
+  - Do NOT wrap up too early. You need real scenes with sensory details, not just facts. EXCEPTION: For the "funny" mood, 2-3 good anecdotes is genuinely enough — funny books are PUNCHY, not epic. Don't drag it out looking for more depth when the mood is funny.
+  - Hard ceiling: after 15 user messages, you MUST wrap up regardless.`;
 
 function buildSystemPrompt(
   petName: string,

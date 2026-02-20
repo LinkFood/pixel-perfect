@@ -124,6 +124,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const [chatMoodPending, setChatMoodPending] = useState(false);
   const [chatNamePending, setChatNamePending] = useState(false);
   const [pendingPetName, setPendingPetName] = useState("");
+  const [showSpeedChoice, setShowSpeedChoice] = useState(false);
+  const speedChoiceShownRef = useRef(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[]; moodPicker?: boolean }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
@@ -307,6 +309,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     setChatNamePending(false);
     setChatMoodPending(false);
     setPendingPetName("");
+    setShowSpeedChoice(false);
+    speedChoiceShownRef.current = false;
   };
 
   const handleRenameProject = (id: string, newName: string) => {
@@ -514,6 +518,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const startInterview = (mood: string) => {
     if (!activeProjectId) return;
     updateStatus.mutate({ id: activeProjectId, status: "interview" });
+    setShowSpeedChoice(false);
+    speedChoiceShownRef.current = false;
 
     // Read rabbit memory
     let memoryGreeting = "";
@@ -609,6 +615,18 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
   };
 
+  // Quick-generate: bypass the 4-message gate, fire immediately from photos alone
+  const handleQuickGenerate = () => {
+    setShowSpeedChoice(false);
+    setChatMessages(prev => [...prev, {
+      role: "rabbit",
+      content: `I've studied every photo. I've got ${project?.pet_name || "this"}. Watch me go! ⚡`,
+    }]);
+    scrollToBottom();
+    handleFinishInterview();
+  };
+
+
   const handleNewIllustration = useCallback((pageNum: number, url: string) => {
     setChatMessages(prev => [...prev, {
       role: "rabbit" as const,
@@ -617,6 +635,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }]);
     scrollToBottom();
   }, [scrollToBottom]);
+
 
   const handleGenerationComplete = async () => {
     // Create share link automatically on completion
@@ -678,6 +697,17 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
     prevCanFinish.current = canFinish;
   }, [canFinish, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show speed-choice buttons after the rabbit's first interview message
+  useEffect(() => {
+    if (phase !== "interview") return;
+    if (speedChoiceShownRef.current) return;
+    // First rabbit message has appeared
+    const firstRabbitMsg = chatMessages.find(m => m.role === "rabbit" && !m.moodPicker);
+    if (!firstRabbitMsg) return;
+    speedChoiceShownRef.current = true;
+    setShowSpeedChoice(true);
+  }, [chatMessages, phase]);
 
   // Extract short highlights from user interview messages for generation callbacks
   const interviewHighlights = interviewMessages
@@ -893,6 +923,28 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                     ) : (
                       <ChatMessage role={msg.role} content={msg.content} photos={msg.photos} />
                     )}
+                    {/* Speed-choice buttons after first rabbit interview message */}
+                    {showSpeedChoice && phase === "interview" && i === chatMessages.findIndex(m => m.role === "rabbit" && !m.moodPicker) && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3, duration: 0.4 }}
+                        className="flex gap-2 flex-wrap pt-1 pl-1"
+                      >
+                        <button
+                          onClick={handleQuickGenerate}
+                          className="px-4 py-2 rounded-full text-sm font-body font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-1.5"
+                        >
+                          ⚡ Make it now
+                        </button>
+                        <button
+                          onClick={() => setShowSpeedChoice(false)}
+                          className="px-4 py-2 rounded-full text-sm font-body font-medium bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors border border-border shadow-sm"
+                        >
+                          💬 Tell me more first
+                        </button>
+                      </motion.div>
+                    )}
                   </div>
                 );
               })}
@@ -1044,6 +1096,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         petName={project?.pet_name || "your subject"}
         onMoodSelect={handleMoodSelect}
         canFinish={canFinish}
+        allowQuickFinish={showSpeedChoice && userInterviewCount === 0}
         userInterviewCount={userInterviewCount}
         onFinishInterview={handleFinishInterview}
         isFinishing={isFinishing}
