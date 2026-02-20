@@ -527,8 +527,8 @@ function renderSharedPage(vp: VirtualPageType | null) {
       )}
       {/* Cover/story text overlay */}
       {!isDedication && page.textContent && (
-        <div className="absolute bottom-0 left-0 right-0 pt-10 pb-4 px-4 bg-gradient-to-t from-black/60 via-black/30 to-transparent">
-          <p className={`font-display text-sm leading-relaxed text-white text-center drop-shadow-md ${isCover ? "font-bold text-base" : ""}`}>
+        <div className="absolute bottom-0 left-0 right-0 pt-4 pb-4 px-4 bg-white/85 backdrop-blur-sm">
+          <p className={`font-display text-sm leading-relaxed text-foreground text-center ${isCover ? "font-bold text-base" : ""}`}>
             {page.textContent}
           </p>
         </div>
