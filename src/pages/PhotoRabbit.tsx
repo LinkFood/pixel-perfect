@@ -14,6 +14,7 @@ import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatu
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto } from "@/hooks/usePhotos";
 import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
 import { isDevMode, enableDevMode } from "@/lib/devMode";
+import { getQuickReplies } from "@/lib/quickReplies";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useCredits } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -127,6 +128,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const [showSpeedChoice, setShowSpeedChoice] = useState(false);
   const speedChoiceShownRef = useRef(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[]; moodPicker?: boolean }>>([]);
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
   const pendingFilesRef = useRef<File[]>([]);
@@ -338,6 +340,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     const text = input.trim();
     if (!text) return;
     resetIdleTimer();
+    setQuickReplies([]);
 
     // Intercept name input before mood picker
     if (chatNamePending) {
@@ -457,9 +460,19 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       }
       setChatMessages(prev => [...prev, { role: "rabbit", content: lastFinishedContent }]);
       setRabbitState(phase === "generating" ? "painting" : "listening");
+      // Only show quick replies during the interview phase
+      if (phase === "interview") {
+        const replies = getQuickReplies(lastFinishedContent, project?.pet_name || "them", project?.mood);
+        setQuickReplies(replies);
+      }
       scrollToBottom();
     }
   }, [lastFinishedContent]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear quick replies while streaming
+  useEffect(() => {
+    if (isStreaming) setQuickReplies([]);
+  }, [isStreaming]);
 
   // Reset rabbitState if streaming ends without content (error recovery)
   useEffect(() => {
@@ -1124,10 +1137,73 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         )}
       </AnimatePresence>
 
+      {/* Quick-reply chips — pinned above input during interview, hidden while streaming or typing */}
+      <AnimatePresence>
+        {phase === "interview" && quickReplies.length > 0 && !isStreaming && input.length === 0 && (
+          <motion.div
+            key="quick-replies"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.22 }}
+            className="flex flex-wrap gap-2 px-4 py-2.5 shrink-0"
+          >
+            {quickReplies.map((reply) => {
+              const isOwnStory = reply.startsWith("✍️");
+              return (
+                <motion.button
+                  key={reply}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    if (isOwnStory) {
+                      // Just focus the input — let user type their own story
+                      setQuickReplies([]);
+                      setTimeout(() => {
+                        const inputEl = document.querySelector<HTMLInputElement>('[aria-label="Type a message"]');
+                        inputEl?.focus();
+                      }, 50);
+                    } else {
+                      // Instant-send: clear chips, set input, then trigger send directly
+                      setQuickReplies([]);
+                      // Directly invoke send with the chip text
+                      const sendChip = async () => {
+                        const text = reply.trim();
+                        if (!text || !project) return;
+                        setChatMessages(prev => [...prev, { role: "user", content: text }]);
+                        setInput("");
+                        scrollToBottom();
+                        if (phase === "interview") {
+                          const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
+                          try {
+                            setRabbitState("thinking");
+                            await sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
+                          } catch {
+                            setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try sending that again?" }]);
+                            scrollToBottom();
+                          }
+                        }
+                      };
+                      sendChip();
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-full text-sm font-body font-medium bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors border border-primary/20 hover:border-primary shadow-sm"
+                >
+                  {reply}
+                </motion.button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Chat input — always visible */}
       <ChatInput
         value={input}
-        onChange={setInput}
+        onChange={(val) => {
+          setInput(val);
+          if (val.length > 0) setQuickReplies([]);
+        }}
         onSend={handleSend}
         onPhotos={(phase === "home" || phase === "upload" || phase === "mood-picker") ? handlePhotoUpload : undefined}
         disabled={isStreaming}
