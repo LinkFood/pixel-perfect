@@ -374,14 +374,27 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       setChatMessages(prev => [...prev, { role: "rabbit", content: "Got it — making it now! ⚡" }]);
       setShowSpeedChoice(false);
       scrollToBottom();
+      // Extract mood hint from the user's message text
+      const moodHint = /\bfunny|humor|hilarious|laugh\b/i.test(text) ? "funny"
+        : /\badventure|epic|wild|thrilling\b/i.test(text) ? "adventure"
+        : /\bmemorial|memory|remember|miss\b/i.test(text) ? "memorial"
+        : null;
+      const moodToUse = moodHint || project?.mood || "heartfelt";
+
       // Need a mood first if we don't have one
       if (!project?.mood && phase !== "interview") {
-        // Default to heartfelt and go
-        await updateProject.mutateAsync({ id: activeProjectId!, mood: "heartfelt", pet_name: project?.pet_name || pendingPetName || "New Project" });
-        startInterview("heartfelt");
-        setTimeout(() => handleFinishInterview(), 300);
+        // Don't call startInterview() — it wipes the chat. Set status directly.
+        await updateProject.mutateAsync({
+          id: activeProjectId!,
+          mood: moodToUse,
+          pet_name: (project?.pet_name && project.pet_name !== "New Project")
+            ? project.pet_name
+            : pendingPetName || "New Project",
+        });
+        await updateStatus.mutateAsync({ id: activeProjectId!, status: "interview" });
+        setTimeout(() => handleFinishInterview(true), 300);
       } else {
-        handleFinishInterview();
+        handleFinishInterview(true);
       }
       return;
     }
@@ -591,11 +604,12 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     scrollToBottom();
   };
 
-  const handleFinishInterview = async () => {
+  const handleFinishInterview = async (skipNameCheck = false) => {
     if (!activeProjectId || isFinishing) return;
 
     // Name fallback: if the project still has the default name, ask for it first
-    if (!project?.pet_name || project.pet_name === "New Project") {
+    // (skipped when coming from the quick-intent path, where the user's message itself is the brief)
+    if (!skipNameCheck && (!project?.pet_name || project.pet_name === "New Project")) {
       setChatNamePending(true);
       setChatMessages(prev => [...prev, {
         role: "rabbit",
@@ -891,11 +905,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           console.warn("Preview illustration failed:", error || "no URL");
           return;
         }
-        setChatMessages(prev => [...prev, {
-          role: "rabbit" as const,
-          content: "Here's a little taste of what your book could look like... ✨",
-          photos: [data.publicUrl],
-        }]);
+        setChatMessages(prev => {
+          // Dedup guard — never add a second preview image message
+          if (prev.some(m => m.role === "rabbit" && m.photos?.length)) return prev;
+          return [...prev, {
+            role: "rabbit" as const,
+            content: "Here's a little taste of what your book could look like... ✨",
+            photos: [data.publicUrl],
+          }];
+        });
         setRabbitState("celebrating");
         setTimeout(() => setRabbitState("excited"), 1500);
         scrollToBottom();
