@@ -356,6 +356,32 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       return;
     }
 
+    // ── Intent detection: user says "just make it / go for it / generate" etc. ──
+    // If they clearly want to generate NOW and we have photos, honor it immediately.
+    const intentKeywords = /\b(make it now|just make|make the book|create it|generate|let'?s go|go for it|just do it|make it|do it now|build it|start it|make my book|just start|make it please)\b/i;
+    if (
+      intentKeywords.test(text) &&
+      photos.length >= 1 &&
+      !isFinishing &&
+      (phase === "interview" || phase === "upload" || phase === "mood-picker")
+    ) {
+      setChatMessages(prev => [...prev, { role: "user", content: text }]);
+      setInput("");
+      setChatMessages(prev => [...prev, { role: "rabbit", content: "Got it — making it now! ⚡" }]);
+      setShowSpeedChoice(false);
+      scrollToBottom();
+      // Need a mood first if we don't have one
+      if (!project?.mood && phase !== "interview") {
+        // Default to heartfelt and go
+        await updateProject.mutateAsync({ id: activeProjectId!, mood: "heartfelt", pet_name: project?.pet_name || pendingPetName || "New Project" });
+        startInterview("heartfelt");
+        setTimeout(() => handleFinishInterview(), 300);
+      } else {
+        handleFinishInterview();
+      }
+      return;
+    }
+
     setChatMessages(prev => [...prev, { role: "user", content: text }]);
     setInput("");
     scrollToBottom();
@@ -710,17 +736,14 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     prevCanFinish.current = canFinish;
   }, [canFinish, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Show speed-choice buttons after the rabbit's first interview message
-  // Only fires on FRESH interviews (userInterviewCount === 0) — not on restore or returning sessions
+  // Show speed-choice sticky banner as soon as we enter interview phase.
+  // Fires regardless of how many messages user has already sent — even if they typed before the rabbit spoke.
   useEffect(() => {
     if (phase !== "interview") return;
     if (speedChoiceShownRef.current) return;
-    if (userInterviewCount > 0) return; // Don't show mid-conversation or on restore
-    const firstRabbitMsg = chatMessages.find(m => m.role === "rabbit" && !m.moodPicker);
-    if (!firstRabbitMsg) return;
     speedChoiceShownRef.current = true;
     setShowSpeedChoice(true);
-  }, [chatMessages, phase, userInterviewCount]);
+  }, [phase]);
 
   // Extract short highlights from user interview messages for generation callbacks
   const interviewHighlights = interviewMessages
@@ -757,7 +780,13 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     } else if (phase === "review") {
       greeting = "Your book is ready! Review it on the right, then share it with anyone.";
     } else if (photos.length > 0) {
-      greeting = `${photos.length} photo${photos.length !== 1 ? "s" : ""} loaded. Ready when you are!`;
+      // Photos exist — if name is still default, ask for it right away
+      if (!project.pet_name || project.pet_name === "New Project") {
+        setChatNamePending(true);
+        greeting = `I see ${photos.length} photo${photos.length !== 1 ? "s" : ""}! First — who's the star of this book?`;
+      } else {
+        greeting = `${photos.length} photo${photos.length !== 1 ? "s" : ""} loaded. Ready when you are!`;
+      }
     } else {
       greeting = "Ready when you are — drop some photos and let's get started.";
     }
@@ -936,28 +965,6 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                     ) : (
                       <ChatMessage role={msg.role} content={msg.content} photos={msg.photos} />
                     )}
-                    {/* Speed-choice buttons after first rabbit interview message */}
-                    {showSpeedChoice && phase === "interview" && i === chatMessages.findIndex(m => m.role === "rabbit" && !m.moodPicker) && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3, duration: 0.4 }}
-                        className="flex gap-2 flex-wrap pt-1 pl-1"
-                      >
-                        <button
-                          onClick={handleQuickGenerate}
-                          className="px-4 py-2 rounded-full text-sm font-body font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-1.5"
-                        >
-                          ⚡ Make it now
-                        </button>
-                        <button
-                          onClick={() => setShowSpeedChoice(false)}
-                          className="px-4 py-2 rounded-full text-sm font-body font-medium bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors border border-border shadow-sm"
-                        >
-                          💬 Tell me more first
-                        </button>
-                      </motion.div>
-                    )}
                   </div>
                 );
               })}
@@ -1073,6 +1080,32 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           {(autoFill.isPending || clearInterview.isPending) && <Loader2 className="w-3 h-3 animate-spin" />}
         </div>
       )}
+
+      {/* Speed-choice sticky bar — visible any time we're in interview phase and user hasn't dismissed */}
+      <AnimatePresence>
+        {showSpeedChoice && phase === "interview" && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.3 }}
+            className="flex gap-2 flex-wrap px-4 py-2.5 border-t border-border/40 bg-background/90 backdrop-blur-sm shrink-0"
+          >
+            <button
+              onClick={handleQuickGenerate}
+              className="px-4 py-2 rounded-full text-sm font-body font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-1.5"
+            >
+              ⚡ Make it now
+            </button>
+            <button
+              onClick={() => setShowSpeedChoice(false)}
+              className="px-4 py-2 rounded-full text-sm font-body font-medium bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors border border-border shadow-sm"
+            >
+              💬 Tell me more first
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chat input — always visible */}
       <ChatInput
