@@ -1,193 +1,102 @@
 
-# Full Code Review — PhotoRabbit
+# Quick Book vs. Deep Interview — Two-Speed Flow
 
-## Where We Stand
+## The Problem (What You Experienced)
 
-The core pipeline is architecturally sound and impressive. The AI reads photos, builds context, runs an interview, and generates a full illustrated book. Most of it works. Here's the complete honest assessment.
+You uploaded photos, the AI analyzed them and built a real appearance profile — it genuinely knows what's in the pictures. But then the interview forces you through 4+ back-and-forth exchanges before "Make my book" even appears. For someone who just wants something fast and fun, that's friction.
 
----
+The current minimum is hard-coded: `canFinish = userInterviewCount >= 4`. You can't make a book until you've sent 4 messages. The rabbit also never offers to wrap up early on its own.
 
-## 1. Does the site read the pictures? YES — and here's exactly how.
-
-The photo intelligence pipeline is fully built and working:
-
-```text
-User drops photos
-  -> uploaded to Supabase storage ("pet-photos" bucket)
-  -> describe-photo edge function fires for each photo (background, non-blocking)
-     -> sends photo URL to Gemini 2.5 Flash vision model
-     -> gets back structured JSON: scene_summary, setting, subject_type,
-        activities, people_present, subject_mood, subject_appearance_notes,
-        notable_details, potential_story_hooks
-     -> stores caption + ai_analysis on project_photos table
-
-User clicks "That's all my photos"
-  -> build-appearance-profile edge function fires
-     -> sends ALL photos (up to 10) to Gemini 2.5 Flash as multimodal input
-     -> AI synthesizes a single detailed visual character description
-        e.g. "Harlow is a golden retriever with..."
-     -> stores pet_appearance_profile on projects table
-
-Story generation
-  -> generate-story uses the appearance profile in EVERY illustration prompt
-  -> generate-illustration passes reference photos to Gemini 3 Pro image model
-     so illustrations match the actual subject
-```
-
-The AI is genuinely reading pictures. The data is real. Your completed "Harlow" project has 13 pages, all illustrated, all with `has_illustration: true`. The pipeline works end-to-end.
+The good news: the AI already has everything it needs from the photos alone. The interview adds richness, but it's not required for the engine to produce a real book. The `generate-story` function works just as well with zero interview messages — it falls back gracefully to the photo captions and appearance profile.
 
 ---
 
-## 2. How is the book made via chat?
+## The Solution: Two In-Chat Action Buttons
 
-```text
-Interview chat (interview-chat edge function)
-  -> receives: user messages, pet name, photo captions, photo_context_brief, mood
-  -> photo_context_brief = compiled from ai_analysis of all photos
-     (scene summaries, activities, moods, story hooks)
-  -> the AI rabbit asks questions based on what it SEES in the photos
-  -> user answers; responses saved to project_interview table
+After the rabbit sends its **first message** in the interview (the opening observation about the photos), show two subtle action buttons directly below it in the chat:
 
-"Make my book" clicked
-  -> generate-story edge function
-     -> gets: appearance profile, full interview transcript, photo captions
-     -> uses openai/gpt-5.2 to write 12 pages of story
-     -> each page gets text_content + illustration_prompt
-     -> illustration_prompt includes the FULL appearance profile
-  -> generate-illustration fires for each page in batches of 3
-     -> sends reference photos + appearance profile + scene prompt to Gemini 3 Pro
-     -> generates watercolor illustration matching the real subject
-     -> saves to storage, links to page
-
-Result: a 12-page illustrated book grounded in real photos + interview context
+```
+[ ⚡ Make it now — let AI decide ] [ 💬 Go deeper ]
 ```
 
-This is genuinely working. It's not a template — the story IS being built from the photos and the chat.
+- **"Make it now"** — skips the rest of the interview, triggers book generation immediately using just the photos the AI already analyzed. The rabbit says something like "I've studied your photos — I've got this. Watch me go!" and generation starts.
+- **"Go deeper"** — dismisses the buttons and continues the normal interview flow. The user keeps chatting. "Make my book" appears after 4 messages as usual.
+
+Once one button is clicked, both disappear and never come back.
 
 ---
 
-## 3. The Share Link — Root Cause Found
+## Technical Changes Required
 
-**The share link is broken for a specific, fixable reason.**
+### 1. `src/pages/PhotoRabbit.tsx` — Add quick-generate state + handler
 
-Looking at the database: the completed "Harlow" project (`status: review`) has `share_token: nil`. The share token was never saved to the database.
+Add two new state values:
+- `showSpeedChoice` (boolean) — whether to show the two buttons
+- Once "Make it now" is clicked, call `handleFinishInterview()` directly (it already handles credits, status update, and generation trigger — no new logic needed)
+- Once "Go deeper" is clicked, set `showSpeedChoice = false` and let the interview continue normally
 
-Here is the bug chain:
+Set `showSpeedChoice = true` after the rabbit sends its first interview message (i.e., when `interviewMessages.length === 1` and the first message is from assistant).
 
-### Bug A: The share URL is wrong
+Also: for the "Make it now" path, lower the `canFinish` threshold to 0 temporarily by calling `handleFinishInterview()` directly, bypassing the `userInterviewCount >= 4` guard.
 
-In `BookReview.tsx` line 390, the share URL being generated is:
+### 2. `src/pages/PhotoRabbit.tsx` — Render the two buttons in chat
+
+In the chat message render loop, after the first rabbit interview message, inject the two-button choice block. This is rendered inline in the chat (not in the sidebar) using the same pill-button style as the mood picker.
+
+The buttons look like:
+```tsx
+<div className="flex gap-2 flex-wrap">
+  <button onClick={handleQuickGenerate}>⚡ Make it now</button>
+  <button onClick={() => setShowSpeedChoice(false)}>💬 Tell me more first</button>
+</div>
 ```
-https://[SUPABASE_URL]/functions/v1/share-page?token=abc123
+
+### 3. `supabase/functions/interview-chat/index.ts` — Shorten the "funny" mood minimum
+
+Currently the AI prompt says "Do NOT wrap up too early. You need real scenes with sensory details, not just facts." For the funny mood in particular, this means the rabbit keeps asking questions even when it has enough.
+
+Add a `mood`-aware adjustment: when mood is `funny`, the minimum good-enough threshold is lower (2-3 exchanges, not 4-8), because humor books need less emotional depth.
+
+Add a line to the system prompt for funny mode:
+```
+For a funny book, 2-3 good anecdotes is genuinely enough. Don't drag it out looking for more depth — funny books are PUNCHY.
 ```
 
-But when a recipient clicks this link, the `share-page` edge function returns an HTML page that tries to redirect to:
-```
-https://pixel-perfect.lovable.app/book/abc123
-```
+### 4. `src/components/workspace/WorkspaceSandbox.tsx` — Lower the minimum for quick path
 
-This is the **preview URL** (`APP_URL = Deno.env.get("SITE_URL") || "https://pixel-perfect.lovable.app"`), not the published URL. If the app isn't published, or that URL changes, the share link goes nowhere useful.
-
-### Bug B: The share URL itself isn't shareable
-
-The share URL points to a Supabase edge function endpoint — not a real web page. When a recipient opens it in a browser, they get the redirect HTML. But:
-- Social media crawlers won't follow the meta refresh
-- The URL looks ugly (`...functions/v1/share-page?token=...`)
-- It should redirect to `/book/:token` in the app
-
-### Bug C: The share_token is not being saved
-
-Database shows: `share_token: nil` on the Harlow project. This means either:
-1. `create-share-link` is failing silently (the try/catch swallows errors)
-2. The edge function is being called but the DB update isn't working
-3. The function wasn't triggered
-
-The `create-share-link` function code looks correct, but errors are silently swallowed in `handleGenerationComplete`.
-
-### The correct share URL should be:
-```
-https://[APP_DOMAIN]/book/[share_token]
-```
-Not the edge function URL. The `SharedBookViewer` at `/book/:shareToken` already exists and calls `get-shared-book` to load the data. That is the correct destination.
+Add a new prop `allowQuickFinish?: boolean` to `WorkspaceSandbox`. When true, show the "Make my book" button even if `userInterviewCount < 4`. This allows the "Make it now" path to bypass the count gate cleanly.
 
 ---
 
-## 4. Other Issues Found in Review
+## User Flow After the Change
 
-### Issue: "New Project" name in chat (partially fixed)
-The `chatNamePending` flow was added. However, in the mood picker button handler (line 877), there's still a fallback:
-```typescript
-handleMoodSelect(mood, pendingPetName || project?.pet_name || "New Project");
 ```
-If `pendingPetName` is empty AND `project?.pet_name` is "New Project" (the default from `useCreateMinimalProject`), the book gets named "New Project." The name capture flow helps, but the fallback chain should be verified.
+User uploads 3 photos
+  -> Rabbit: "That golden light in photo 2 — was that outdoors? 
+              I can already see the story here. You can jump straight in
+              or tell me more first."
+  
+  [ ⚡ Make it now ]   [ 💬 Tell me more first ]
 
-### Issue: Preview illustration fires even on page return
-`previewTriggeredRef` tracks by `activeProjectId`. If a user returns to an upload-phase project, the preview re-triggers because the ref is checked per project ID and cleared when switching. This is mostly okay, but could cause duplicate rabbit messages.
+Option A — clicks "Make it now":
+  -> Rabbit: "I've studied every photo. Let me paint this. Watch!"
+  -> Generation starts immediately (0 interview messages, photos only)
+  -> Book is made from AI's photo analysis alone
 
-### Issue: `build-appearance-profile` is missing from `config.toml`
-The `config.toml` does NOT have `[functions.build-appearance-profile]` listed with `verify_jwt = false`. This means JWT verification is applied to it. Since it's called from the backend (server-side with service role), this is fine — but if called from client-side `supabase.functions.invoke()`, the user's JWT is passed and it should work. Worth noting.
-
-### Issue: `generate-preview-illustration` is missing from `config.toml`
-Same — no JWT config for this function. It's called client-side in `PhotoRabbit.tsx` via `supabase.functions.invoke()`, so the user's auth token is sent. Since the function uses `SUPABASE_SERVICE_ROLE_KEY` internally, JWT verification at the gateway level could block unauthenticated calls. If a guest user (not signed in) tries the preview, it could fail.
+Option B — clicks "Tell me more first":
+  -> Buttons disappear, normal interview continues
+  -> 4 messages later: "Make my book!" button appears
+  -> Richer story from combined photos + interview
+```
 
 ---
 
-## Plan of Fixes
+## Files to Change
 
-### Fix 1 — Share Link (Critical)
-The share URL needs to point to `/book/:shareToken` in the app, not to the edge function. This requires knowing the app's public URL.
+| File | What Changes |
+|------|------|
+| `src/pages/PhotoRabbit.tsx` | Add `showSpeedChoice` state; inject two-button block after first rabbit message; wire "Make it now" to bypass the 4-message gate |
+| `src/components/workspace/WorkspaceSandbox.tsx` | Accept `allowQuickFinish` prop; show Make My Book button even at 0 messages when flag is set |
+| `supabase/functions/interview-chat/index.ts` | Add funny-mode note that 2-3 exchanges is enough — don't drag it out |
 
-**Option A (simplest):** Use `window.location.origin` on the client side to build the share URL:
-```typescript
-const url = `${window.location.origin}/book/${data.shareToken}`;
-```
-This always gives the correct domain regardless of environment.
-
-**Option B:** Set a `SITE_URL` env variable in the edge function to the published URL.
-
-Option A is better — it's dynamic and works in both preview and production.
-
-**Also fix:** Add error surfacing in `handleGenerationComplete` so if `create-share-link` fails, we know why. Currently `catch { /* best effort */ }` silently swallows the error.
-
-### Fix 2 — Add missing functions to config.toml
-Add:
-```toml
-[functions.build-appearance-profile]
-verify_jwt = false
-
-[functions.generate-preview-illustration]
-verify_jwt = false
-```
-
-### Fix 3 — Share link on existing completed projects
-The Harlow project is already done but has no share_token. The share button in BookReview calls `create-share-link` on demand (when the user clicks Share), which WILL generate and save the token then. So this project CAN be shared — the user just needs to click the Share button. The token is generated lazily, which is correct behavior.
-
----
-
-## Summary Table
-
-| Area | Status | Notes |
-|------|--------|-------|
-| Photo reading (describe-photo) | Working | Gemini vision, structured JSON, per photo |
-| Appearance profile | Working | Multimodal, synthesizes all photos |
-| Chat context from photos | Working | photo_context_brief fed into interview-chat |
-| Story generation | Working | GPT-5.2, uses full interview + appearance profile |
-| Illustration generation | Working | Gemini 3 Pro, reference photos + appearance profile |
-| Preview illustration | Working | Fires once when first caption arrives |
-| Share link URL | Broken | Points to edge function, not app URL |
-| Share token saving | Needs test | Token is saved lazily on Share button click |
-| config.toml completeness | Minor gap | 2 functions missing verify_jwt = false |
-| Name capture flow | Mostly working | Fallback still says "New Project" if user skips |
-
----
-
-## What Needs to Be Built Still (Roadmap)
-
-These are features mentioned in the product vision that are NOT yet implemented:
-
-1. **Print ordering** — No Stripe integration, no print provider, no order flow
-2. **HEIC/iPhone photo support** — HEIC files are filtered out with "unsupported format" fallback. iPhone users uploading directly may hit this.
-3. **Account/auth for regular users** — Currently only dev-mode auto-sign-in. Real users have no way to create an account, log in, or recover their books.
-4. **Email delivery** — No way to send the book link via email
-5. **Mobile layout polish** — The workspace has a mobile sandbox collapsed state but the experience hasn't been fully tested on phones
-6. **PDF print quality** — `generatePdf` uses jsPDF which is client-side. Print-quality output usually requires server-side rendering.
+No database changes needed. No new edge functions. The quick path reuses 100% of the existing generation pipeline.
