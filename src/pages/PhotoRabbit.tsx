@@ -841,6 +841,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   // Reset greeting ref when switching projects
   useEffect(() => {
     greetingInjectedRef.current = null;
+    previewTriggeredRef.current = null;   // Reset so new project gets a fresh preview
+    prevPhotoCountRef.current = 0;         // Reset photo count so greeting updates correctly
   }, [activeProjectId]);
 
   // Reactively update the first greeting when photos arrive or get captioned
@@ -894,24 +896,26 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if (previewTriggeredRef.current === activeProjectId) return;
     const captioned = photos.filter(p => p.caption);
     if (captioned.length === 0) return;
-    // Trigger once per project
+    // Trigger once per project — capture projectId at call time to avoid stale closures
     previewTriggeredRef.current = activeProjectId;
+    const capturedProjectId = activeProjectId;
     const generatePreview = async () => {
       try {
         const { data, error } = await supabase.functions.invoke("generate-preview-illustration", {
-          body: { projectId: activeProjectId },
+          body: { projectId: capturedProjectId },
         });
         if (error || !data?.publicUrl) {
           console.warn("Preview illustration failed:", error || "no URL");
           return;
         }
         setChatMessages(prev => {
-          // Dedup guard — never add a second preview image message
-          if (prev.some(m => m.role === "rabbit" && m.photos?.length)) return prev;
+          // Dedup guard — scoped to THIS project only, so switching projects never shows stale previews
+          if (prev.some(m => m.role === "rabbit" && m.photos?.length && (m as { projectId?: string }).projectId === capturedProjectId)) return prev;
           return [...prev, {
             role: "rabbit" as const,
             content: "Here's a little taste of what your book could look like... ✨",
             photos: [data.publicUrl],
+            projectId: capturedProjectId,
           }];
         });
         setRabbitState("celebrating");
