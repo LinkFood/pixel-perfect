@@ -1,104 +1,88 @@
 
-# The Real Problem: What the User Wanted vs. What the AI Got
+# Two Problems, Two Fixes
 
-## The Core Diagnosis (Confirmed by Database)
+## Problem 1: Can't Get Back Into Dev Mode
 
-When you typed "make a short funny 8 page book of baby jac and his dog link going to play in the mud", this is what actually happened:
+The `devMode.ts` file supports two activation methods:
+- Append `?dev=1` to the URL (sets localStorage then reads it)
+- Call `enableDevMode()` directly from code
 
-**What the generate-story function received:**
+But there is no button or link in the UI to re-enable it once the "Exit Dev" button has cleared it. The user has to know to type `/?dev=1` in the address bar.
 
-- Photo: Baby and dog on a cozy couch (that's the actual photo)
-- Interview transcript: 4 messages — all about "big dark-furred dog staring at giggling baby jac on the cozy couch"
-- The user's original request ("playing in the mud") was NEVER in the interview transcript
+**Fix:** Add a small hidden "Dev" link in the footer of the hero landing page. It should be subtle (tiny, muted text at the very bottom of the `HeroLanding` component) so real users won't notice it, but it lets you click back into dev mode without needing to remember the URL param trick.
 
-**Why?** The fast-intent path fires and goes straight to generation. Your message never gets saved to `project_interview`. The story AI only reads from `project_interview`. So it had zero information about mud — only a photo of a sofa and a rabbit interview also about a sofa.
+When clicked, it calls `enableDevMode()` and then `window.location.reload()` — which triggers the existing `?dev=1`→localStorage→auto-sign-in flow.
 
-**The photo problem:** The AI is not "too locked in" to what the photos show — it's that we're not telling it the right story. The photo is the SETTING/CHARACTER reference, not the plot. The user's intent message IS the plot — but it's being silently discarded.
-
-This is a two-part fix:
+We'll add it as a tiny footer text at the bottom of `HeroLanding.tsx`.
 
 ---
 
-## Part 1 — Save the User's Intent as the Opening Interview Entry
+## Problem 2: Books Not Showing Up
 
-When the fast-intent path fires ("make a book about X doing Y"), save the user's message to `project_interview` BEFORE calling `generate-story`. That message IS the creative brief — it should absolutely be in the transcript.
+The database confirms:
+- Your 2 books ("baby jac", "Jac goes to the ball park") are stored under user `706b3f84` — which is an **anonymous** user account created Feb 15
+- When you exited dev mode, the app signed out and then auto-created a **brand new** anonymous session with a different user ID
+- RLS policies on the `projects` table enforce `auth.uid() = user_id` — so the new anonymous session has zero projects
 
-Currently in `handleSend` (fast-intent path, line ~374):
-```
-// The user's message is added to chatMessages but never saved to project_interview
-setChatMessages(prev => [...prev, { role: "user", content: text }]);
-```
+This is the fundamental problem with anonymous sessions: they are disposable and don't carry over between sessions.
 
-Fix: After extracting mood and name, insert the user's intent message into `project_interview` via Supabase:
+The books are NOT lost — they are still in the database. They just belong to the old anonymous session which is now gone.
 
-```typescript
-// Save user's intent message to interview transcript
-await supabase.from("project_interview").insert({
-  project_id: activeProjectId,
-  role: "user",
-  content: text,  // "make a short funny 8 page book of baby jac going to play in the mud"
-});
-// Also add a brief acknowledgment from assistant so there's context
-await supabase.from("project_interview").insert({
-  project_id: activeProjectId,
-  role: "assistant",
-  content: "Got it! I'll make a funny book about baby jac and their dog Link playing in the mud.",
-});
-```
+**Fix Options:**
 
-This ensures that when `generate-story` reads the transcript, it has the user's actual creative direction as the foundation.
+The cleanest fix for the dev workflow is to make the **dev mode account** (`dev@photorabbit.test`) be the one that has all the test books, instead of anonymous sessions. Since you're now re-entering dev mode and it signs into `dev@photorabbit.test`, all future test books will persist under that account.
+
+For your existing two books — we can migrate them from the old anonymous user ID to the dev account via a one-time SQL update. Since this is a dev environment, that's safe to do.
+
+For the broader product (real users), this is the standard argument for encouraging sign-up: anonymous sessions are ephemeral, and once the session cookie is gone, the data can't be recovered without linking to an email. This is a feature we'll want to address for real users eventually (e.g., "Sign up to save your book"), but for now the dev mode fix is the priority.
 
 ---
 
-## Part 2 — Strengthen the Story Prompt to Honor User's Stated Intent
+## Technical Changes
 
-Add an explicit instruction to the `generate-story` system prompt and user prompt that EXPLICITLY calls out the user's stated scenario. The story AI needs to be told: "The user asked for THIS — don't let photo captions override the requested scenario."
+### Change 1: `src/components/workspace/HeroLanding.tsx`
+Add a tiny "Dev" link at the very bottom of the component:
 
-Update `buildSystemPrompt` in `generate-story/index.ts` to add:
-
+```tsx
+{/* Hidden dev mode re-entry — small and subtle, invisible to real users */}
+<button
+  onClick={() => {
+    enableDevMode();
+    window.location.href = "/?dev=1";
+  }}
+  className="font-body text-[9px] text-muted-foreground/20 hover:text-muted-foreground/50 transition-colors mt-2"
+>
+  dev
+</button>
 ```
-CRITICAL: The interview transcript is your PRIMARY source. If the user asked for a specific scenario (e.g., "playing in the mud"), WRITE THAT SCENARIO even if the photos show a different setting. Photos inform CHARACTER APPEARANCE only — the interview defines the STORY.
+
+This button is nearly invisible (`text-[9px]` + `opacity-20`) but clickable. Clicking it enables dev mode and navigates to `/?dev=1`, which triggers the existing auto-sign-in to `dev@photorabbit.test`.
+
+### Change 2: One-time SQL migration (run in database)
+Reassign the 2 existing books from the old anonymous user to the dev account:
+
+```sql
+UPDATE projects
+SET user_id = '9597962a-ba4e-46b5-9f26-9dcd4e982f4c'  -- dev@photorabbit.test
+WHERE user_id = '706b3f84-274e-4ffb-8aa8-67886497713f'  -- old anonymous session
+AND id IN (
+  'a66dbf42-1335-47d7-9d3a-1510eb2ec580',  -- baby jac
+  'a1fd6923-fa16-4948-9960-62830428908f'   -- Jac goes to the ball park
+);
 ```
 
-And update the user prompt in `generate-story` to include a parsed "story brief" extracted from the first user message:
+This also needs to update the related child records (photos, pages, illustrations, interview). We'll do a cascade migration of all 5 tables.
 
-```typescript
-// Extract the user's first/intent message as the story brief
-const storyBrief = interview?.find(m => m.role === "user")?.content || "";
-const userPrompt = `Create a children's storybook about ${project.pet_name}${petDesc}.
-${storyBrief ? `\n\nTHE USER'S CREATIVE BRIEF (HONOR THIS ABOVE ALL ELSE): "${storyBrief}"\n` : ""}
-INTERVIEW TRANSCRIPT:
-${transcript}
-...`;
-```
+### No change to RLS or auth logic — the existing system is correct
+The anonymous sign-in behavior is working as designed. The dev mode account is the right place to keep test data. Going forward, all books made in dev mode will persist under `dev@photorabbit.test`.
 
 ---
 
-## Part 3 — The Dev Comparison Report (Your Idea — It's a Great One)
+## Summary
 
-Add a "Generation Report" tab inside BookReview that's only visible in dev mode (or to the logged-in creator). It shows:
+| Problem | Root Cause | Fix |
+|---|---|---|
+| Can't re-enter dev mode | No UI button to call `enableDevMode()` | Add hidden "dev" link to hero footer |
+| Books disappeared | Anonymous session changed, new session has different user ID; RLS blocks cross-user access | Migrate old books to dev account via SQL; dev mode always uses `dev@photorabbit.test` going forward |
 
-- **What the user asked for**: The first user message(s) from `project_interview`
-- **What was generated**: A summary of the page `scene_description` fields
-- **Inputs used**: Interview message count, photo count, mood, appearance profile (yes/no), photo context brief (yes/no)
-- **Generation model and time**: From the `build_log` entries
-
-This is already partially available — `build_log` stores metadata. We just need to surface it as a readable report.
-
----
-
-## Technical Summary of All Changes
-
-### File 1: `src/pages/PhotoRabbit.tsx`
-- In the fast-intent path (lines ~374-416), after extracting name/mood, save the user's original message to `project_interview` via Supabase before calling `handleFinishInterview(true)`
-
-### File 2: `supabase/functions/generate-story/index.ts`
-- Add a CRITICAL instruction to `buildSystemPrompt`: photos are for character appearance only; the interview transcript (especially the user's stated scenario) defines the story
-- In the `userPrompt`, extract and highlight the first user message as the "Creative Brief" — putting it first and in caps so the AI treats it as primary
-
-### File 3: `src/components/project/BookReview.tsx` (new Dev Report tab)
-- Add a "Generation Report" section (dev-mode only, or as a collapsible panel)
-- Shows: user's stated brief, what was actually generated (scene_descriptions), and all build_log inputs
-- Helps diagnose any future mismatches quickly
-
-These three changes together solve the root problem: the AI now gets the user's actual creative intent AND is explicitly told to honor it over photo context, AND you get a report to verify it's working.
+Both fixes are small and targeted. The dev mode link change is one file. The migration runs as a database operation.
