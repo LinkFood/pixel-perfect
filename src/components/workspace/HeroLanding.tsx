@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Camera, MessageCircle, BookOpen, Palette } from "lucide-react";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { enableDevMode } from "@/lib/devMode";
 
 interface HeroLandingProps {
   onPhotoDrop: (files: File[]) => void;
