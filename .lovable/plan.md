@@ -1,182 +1,150 @@
 
-# Two-Speed Flow — Code Review & Findings
+# Root Cause: Wrong Phase When User Types
 
-## What I Verified in the Live Code
+## What's Actually Happening (From the Screenshots)
 
-### 1. Speed Choice Buttons — Implemented Correctly
+Looking at the screenshots in sequence:
 
-The code for the two-speed flow IS in place:
+1. User is in **upload phase** — one photo uploaded, rabbit shows a caption preview
+2. User types: **"make a short story 4 pages of a baby going to a baseball game make it funny"**
+3. Rabbit enters interview mode and starts asking about "slapstick vs. inner monologue"
+4. User answers: "popcorn" → Rabbit asks ANOTHER question
+5. User answers: "mascot make it joining in" → Rabbit asks ANOTHER question
+6. User answers: "that sounds good" → Rabbit asks ANOTHER question
+7. User answers → still no book
 
-- `showSpeedChoice` state starts false
-- A `useEffect` watches `chatMessages` and `phase`. Once `phase === "interview"` and the first rabbit message (non-moodPicker) appears, it sets `speedChoiceShownRef.current = true` and `setShowSpeedChoice(true)`.
-- The buttons render inline in the chat directly below the first rabbit message (line 927, `i === chatMessages.findIndex(m => m.role === "rabbit" && !m.moodPicker)`).
-- "⚡ Make it now" calls `handleQuickGenerate()` → sets `showSpeedChoice(false)`, adds rabbit message, calls `handleFinishInterview()`.
-- "💬 Tell me more first" calls `setShowSpeedChoice(false)` and lets the interview continue.
-- `allowQuickFinish` is passed to `WorkspaceSandbox` as `showSpeedChoice && userInterviewCount === 0`.
+The "⚡ Make it now" buttons **never appear** because:
 
-**Structure looks correct in code.**
+- `showSpeedChoice` only becomes true when `phase === "interview"` AND `userInterviewCount === 0`
+- But in this session the user typed their **very first message while still in the upload phase** (before clicking "That's all my photos")
+- So by the time `phase` switches to `"interview"`, `userInterviewCount` is already > 0
+- The effect guards against exactly this with `if (userInterviewCount > 0) return;` — which blocks the buttons from ever showing
 
----
+**Result: buttons never appear, user is trapped in an endless interview.**
 
-### 2. Critical Bug Found — Buttons Never Appear in Practice
-
-Here is the actual chat from the network logs (your real session for project `57d41cd2`):
-
-```
-User:      "make a funny 4 page book"
-Rabbit:    "That sleepy brown-and-white puppy with the floppy ears..."
-User:      "one shot silly story"
-Rabbit:    "I love the idea..."
-User:      "nap dream sounds good"
-Rabbit:    "I love the nap-dream twist..."
-User:      "nope"
-Rabbit:    "Perfect — we'll keep it simple..."
-User:      "happy"
-Rabbit:    "Hearing 'happy' about New Project curled into..."
-```
-
-**The problem is clear:** The user sent the FIRST message BEFORE the rabbit spoke. The user typed "make a funny 4 page book" and hit send — they didn't wait for the rabbit's opening greeting to appear.
-
-This breaks the speed-choice trigger because:
-
-```typescript
-// This useEffect only shows speed choice after first RABBIT message appears in chat
-const firstRabbitMsg = chatMessages.find(m => m.role === "rabbit" && !m.moodPicker);
-if (!firstRabbitMsg) return;
-speedChoiceShownRef.current = true;
-setShowSpeedChoice(true);
-```
-
-By the time the rabbit's first message appears, `speedChoiceShownRef.current` is already `true` — WAIT. Actually the ref starts as `false`. But... there's a subtler issue.
-
-**The real culprit:** The `startInterview()` function at line 521 calls `setShowSpeedChoice(false)` and resets `speedChoiceShownRef.current = false`. Then it calls `setChatMessages([{ role: "rabbit", content: greeting }])` — setting the greeting as the first message. This greeting IS a rabbit message without moodPicker. So the useEffect SHOULD fire.
-
-**But looking more carefully at the session:** The interview was entered from a state where the project was named "New Project" — the name prompt was skipped. This means `chatNamePending` and `chatMoodPending` were bypassed, and the project already had a mood set. When the mood picker wasn't shown in chat, there may have been no `moodPicker: true` message in the array for the filter to work against.
-
-**The actual race condition:** When `startInterview()` fires, `chatMessages` is set to exactly one rabbit message. The useEffect watching `[chatMessages, phase]` fires. At that point `speedChoiceShownRef.current` is `false` (just reset). The `firstRabbitMsg` IS found. So `setShowSpeedChoice(true)` IS called.
-
-BUT — the user was already typing. They sent "make a funny 4 page book" BEFORE `showSpeedChoice` became true in the render, OR there's a timing issue where the state update to `showSpeedChoice = true` and the re-render happened but the buttons were attached to message index `i === 0` and by the time the user's message was added as message[1], the render re-evaluated correctly.
-
-**The real issue discovered:** Looking at the index condition on line 927:
-```typescript
-{showSpeedChoice && phase === "interview" && i === chatMessages.findIndex(m => m.role === "rabbit" && !m.moodPicker) && (
-```
-Once the user types a message and it's added to `chatMessages`, the rabbit greeting is still at index 0, `i === 0` matches, and `showSpeedChoice` is still true. The buttons SHOULD still show.
-
-**Conclusion after full analysis:** The buttons did likely show briefly, but the project was loaded directly at project `/57d41cd2` with the mood ALREADY set (returning project). In that case, `startInterview()` may not have been called, meaning `speedChoiceShownRef.current` was never reset to `false`. The greeting was injected by `greetingInjectedRef` path instead of `startInterview()`, which means the buttons never appeared because `speedChoiceShownRef.current` remained `true` from a previous visit.
+The "New Project" bug is also still active — the name capture prompt never fired because `handleContinueToInterview()` was never called.
 
 ---
 
-### 3. The "New Project" Name Bug is Confirmed Active
+## The Two Real Problems to Fix
 
-From the network logs, every single rabbit message says things like "**New Project**'s floppy ears" and "picturing **New Project**'s..." — the book is literally named "New Project." The user never got a chance to enter the name because:
-- `chatNamePending` flow is only triggered via `handleContinueToInterview()`
-- The user was dropped into an existing project on page load that already had `status: "interview"` but no name set
+### Problem 1: Speed choice must appear BEFORE the user types — or not at all
 
----
+The current design assumes the user waits silently for the rabbit to speak, then sees the buttons, then chooses. But real users type immediately. The buttons need to be **always visible** at the start of an interview — not conditionally injected after detecting message patterns.
 
-### 4. "Tell me more first" Path — canFinish After 4 Messages
+**Fix:** Move the two speed-choice buttons OUT of the chat message list and INTO a persistent sticky banner or header area at the top of the chat panel, shown whenever:
+- `phase === "interview"` AND
+- `userInterviewCount === 0` AND
+- `showSpeedChoice` is true (before either button is clicked)
 
-This part works correctly. The code at line 686-699 is intact:
-```typescript
-const canFinish = userInterviewCount >= 4;
-// ...
-useEffect(() => {
-  if (canFinish && !prevCanFinish.current && phase === "interview") {
-    setChatMessages(prev => [...prev, {
-      role: "rabbit",
-      content: "I have enough to start — hit \"Make my book\" whenever you're ready...",
-    }]);
-  }
-  prevCanFinish.current = canFinish;
-}, [canFinish, phase]);
-```
-The user in the session HAS 5 user messages. So `canFinish` is `true`. The "Make my book!" button in WorkspaceSandbox should be visible.
+This way the buttons are visible even if the user has already typed — they show above the existing messages, not inline after a specific message.
+
+Alternatively (simpler and cleaner): show the buttons right after the rabbit's opening greeting as a **persistent element that stays visible** even as the user scrolls/types — not one that vanishes when a new message is added.
+
+### Problem 2: When the user types their intent into the chat ("make a funny 4 page book"), the rabbit should HONOR IT
+
+When the user sends a message like "make a short story 4 pages of a baby going to a baseball game make it funny" in the upload phase or early interview, the system should detect this as an intent to generate and short-circuit the interview.
+
+**Fix:** Add a simple intent-detection layer in `handleSend`. If the message contains generation-intent keywords ("make", "create", "generate", "just make it", "let's go", etc.) AND we have photos AND the user hasn't been through much interview yet (`userInterviewCount <= 1`), the rabbit should say "Got it — making it now!" and call `handleFinishInterview()` directly.
+
+This is much more natural than requiring the user to click a specific button.
 
 ---
 
-## Summary of What Needs to be Fixed
+## The Plan
 
-### Fix 1 — Speed choice on project reload (existing projects)
-When the app loads an existing interview-phase project, `startInterview()` is NOT called, so `speedChoiceShownRef` is never reset. The greeting is injected by `greetingInjectedRef`. The `showSpeedChoice` useEffect fires but `speedChoiceShownRef.current` is initialized to `false` and the effect CAN run — so this SHOULD work. Need to verify by also making the greeting path set the speed choice.
+### Change 1: Make speed-choice buttons a sticky persistent element (not inline)
 
-**The actual fix:** Ensure the speed-choice useEffect covers the greeting injection path, not just `startInterview()`. Currently it only triggers once the first rabbit non-moodPicker message exists — this should work for restored sessions too, UNLESS the restored messages from DB (`useEffect` at line 448-457) populate `chatMessages` before `phase === "interview"` registers.
+Remove the current inline button injection from the `chatMessages.map()` loop (the `i === chatMessages.findIndex(...)` condition). Instead, render the buttons as a fixed element **above the chat input** or as a sticky notice at the top of the messages area.
 
-The restore effect:
-```typescript
-if (phase !== "interview" && phase !== "generating") return;
-if (interviewMessages.length === 0 || chatMessages.length > 0) return;
-const restored = interviewMessages.map(...);
-setChatMessages(restored);
-```
-When restoring, the restored messages include MANY rabbit messages. The `findIndex` still finds the first one. `showSpeedChoice` would be `true`. BUT `speedChoiceShownRef.current` would be set to `true`, and then the user already has 5+ messages — the buttons showing after 5 exchanges makes no sense.
+They should show when `showSpeedChoice && phase === "interview"` — period. No dependency on which message index we're at.
 
-**Correct fix:** Only show speed choice if it's the FIRST visit to interview phase — i.e., `userInterviewCount === 0`. Don't show if messages are being restored from DB.
-
-### Fix 2 — "New Project" default name
-The name capture only happens through `handleContinueToInterview()`. Projects created earlier without going through this flow get stuck with "New Project." Need a fallback that catches this case — e.g., showing the name prompt if `project.pet_name === "New Project"` when entering review or if the user makes a book.
-
-### Fix 3 — Funny mood prompt could be stronger
-The `SHARED_RULES` currently has the funny exception as a single sentence in a long list. It should be moved up and made more prominent so the AI actually respects it.
-
----
-
-## Proposed Fixes (in priority order)
-
-### Priority 1 — Guard speed choice with `userInterviewCount === 0`
-Change the `showSpeedChoice` useEffect to only activate when no user messages have been sent yet AND a restored session isn't being loaded:
-
+Change the `showSpeedChoice` useEffect to drop the `userInterviewCount > 0` guard:
 ```typescript
 useEffect(() => {
   if (phase !== "interview") return;
   if (speedChoiceShownRef.current) return;
-  if (userInterviewCount > 0) return; // Don't show if user already typed something
-  const firstRabbitMsg = chatMessages.find(m => m.role === "rabbit" && !m.moodPicker);
-  if (!firstRabbitMsg) return;
+  // Show as soon as we enter interview phase — regardless of message count
   speedChoiceShownRef.current = true;
   setShowSpeedChoice(true);
-}, [chatMessages, phase, userInterviewCount]);
+}, [phase]);
+```
+This fires the moment `phase` becomes `"interview"`, even if the user has already sent messages. The buttons appear above the input as a visible choice regardless of what's in the chat.
+
+The sticky button block renders above the `ChatInput` at the bottom of the chat panel, visible and persistent until one is clicked:
+
+```tsx
+{showSpeedChoice && phase === "interview" && (
+  <div className="px-4 py-2 border-t border-border/40 bg-background/80 flex gap-2 flex-wrap">
+    <button onClick={handleQuickGenerate}>⚡ Make it now</button>
+    <button onClick={() => setShowSpeedChoice(false)}>💬 Keep chatting</button>
+  </div>
+)}
+<ChatInput ... />
 ```
 
-This ensures:
-- On a fresh start: buttons appear after first rabbit greeting, before any user input
-- On restore: `userInterviewCount > 0` means no buttons
-- On return from review: `userInterviewCount > 0` means no buttons
+### Change 2: Intent detection on user send
 
-### Priority 2 — Fix "⚡ Make it now" disappearing if user already typed
-The button condition `i === chatMessages.findIndex(...)` anchors to the first rabbit message correctly. But if `showSpeedChoice` is set to `true` after the user has already sent messages (race condition), the buttons appear mid-conversation which looks wrong. The `userInterviewCount === 0` guard above fixes this.
-
-### Priority 3 — Name prompt fallback
-If `project.pet_name === "New Project"` when the user clicks "Make my book", intercept and ask for the name first before generating:
+In `handleSend`, before calling `sendMessage`, check if the user's text signals generation intent AND conditions are right for quick generation:
 
 ```typescript
-const handleFinishInterview = async () => {
-  if (project?.pet_name === "New Project" || !project?.pet_name) {
-    // Show inline name prompt in chat
-    setChatNamePending(true);
-    setChatMessages(prev => [...prev, { role: "rabbit", content: "One quick thing — what's the name for the star of this book?" }]);
-    return;
-  }
-  // ... existing generation logic
-};
-```
+const intentKeywords = /\b(make it|make the book|just make|create it|generate|let's go|go for it|make it now|just do it)\b/i;
+const isQuickIntent = intentKeywords.test(text) && photos.length >= 1 && !isFinishing;
 
-### Priority 4 — Funny mood wrap-up signal
-Add a more explicit signal in the system prompt that appears ONLY for funny mood when `userMessageCount >= 3`:
-
-```typescript
-if (effectiveMood === "funny" && userMessageCount >= 3) {
-  prompt += `\n\nIMPORTANT: You have enough funny material now. Your next response should be your LAST question or a wrap-up. Funny books are punchy — 3-4 great moments is the sweet spot. Don't ask for more after this.`;
+if (isQuickIntent && phase === "interview" && userInterviewCount <= 1) {
+  setChatMessages(prev => [...prev, { role: "rabbit", content: "Got it — making it now! ⚡" }]);
+  handleFinishInterview();
+  return;
 }
 ```
+
+This means if the user types "just make it" or "go for it" or similar into the chat at any point early in the interview, the rabbit acts on it immediately.
+
+### Change 3: Fix "New Project" name — intercept it earlier
+
+The name capture currently only fires through `handleContinueToInterview()`. But when a user skips straight to chat (as in this session), they never hit that flow.
+
+**Fix:** In `handleSend`, when `phase === "upload"` and the project name is "New Project" and the user is sending their first message (photos are present), treat the message as the subject name — OR show a name capture before passing to the AI.
+
+Actually better: in the greeting injection for upload phase when photos exist, explicitly prompt for the name right there:
+
+```typescript
+// In the photo greeting, when project name is still "New Project"
+if (project?.pet_name === "New Project" || !project?.pet_name) {
+  setChatNamePending(true); // intercept next message as name
+  greeting = `I see ${photos.length} photo${photos.length !== 1 ? "s" : ""}! First — who's the star of this book?`;
+}
+```
+
+This way, the VERY FIRST message the user types after photos are uploaded is captured as the name, before any AI call is made.
 
 ---
 
 ## Files to Change
 
 | File | What Changes |
-|------|---|
-| `src/pages/PhotoRabbit.tsx` | Guard `showSpeedChoice` useEffect with `userInterviewCount === 0`; add name fallback in `handleFinishInterview` |
-| `supabase/functions/interview-chat/index.ts` | Strengthen funny mood wrap-up signal at message count >= 3 |
+|------|------|
+| `src/pages/PhotoRabbit.tsx` | (1) Move speed-choice buttons to sticky position above ChatInput; (2) Simplify showSpeedChoice useEffect to fire on phase change only; (3) Add intent detection in handleSend; (4) Fix name capture to fire earlier in photo greeting |
 
-No database changes needed. These are all client-side and edge function prompt changes.
+No edge function changes needed. No database changes. Pure UI logic fixes.
+
+---
+
+## What This Looks Like After the Fix
+
+```
+User uploads photo
+  → Rabbit: "Who's the star of this book?" [name capture active]
+  → User types: "Leo"
+  → Rabbit: "Leo — love it! What's the vibe?"
+  → Mood picker buttons appear
+  → User picks "Funny"
+  → Interview phase starts
+  → [sticky bar appears at bottom of chat, above input]
+    [ ⚡ Make it now ]  [ 💬 Keep chatting ]
+  → User can see buttons immediately, even before rabbit greets them
+  → If user types "just make it" → book generates
+  → If user types normally → interview continues, buttons stay visible
+  → If user clicks "Make it now" → book generates
+  → If user clicks "Keep chatting" → buttons disappear, normal interview
+```
