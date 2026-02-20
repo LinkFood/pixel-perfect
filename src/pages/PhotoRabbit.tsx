@@ -553,6 +553,18 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   const handleFinishInterview = async () => {
     if (!activeProjectId || isFinishing) return;
+
+    // Name fallback: if the project still has the default name, ask for it first
+    if (!project?.pet_name || project.pet_name === "New Project") {
+      setChatNamePending(true);
+      setChatMessages(prev => [...prev, {
+        role: "rabbit",
+        content: "One quick thing — what's the name for the star of this book?",
+      }]);
+      scrollToBottom();
+      return;
+    }
+
     setIsFinishing(true);
 
     try {
@@ -699,15 +711,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   }, [canFinish, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show speed-choice buttons after the rabbit's first interview message
+  // Only fires on FRESH interviews (userInterviewCount === 0) — not on restore or returning sessions
   useEffect(() => {
     if (phase !== "interview") return;
     if (speedChoiceShownRef.current) return;
-    // First rabbit message has appeared
+    if (userInterviewCount > 0) return; // Don't show mid-conversation or on restore
     const firstRabbitMsg = chatMessages.find(m => m.role === "rabbit" && !m.moodPicker);
     if (!firstRabbitMsg) return;
     speedChoiceShownRef.current = true;
     setShowSpeedChoice(true);
-  }, [chatMessages, phase]);
+  }, [chatMessages, phase, userInterviewCount]);
 
   // Extract short highlights from user interview messages for generation callbacks
   const interviewHighlights = interviewMessages
