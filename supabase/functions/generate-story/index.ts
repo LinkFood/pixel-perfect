@@ -31,6 +31,9 @@ function buildSystemPrompt(petName: string, appearanceProfile: string | null, pr
   return `You are a master children's book author for PhotoRabbit. You write personalized picture books that turn real photos and memories into illustrated stories that make families cry happy tears.
 ${characterBlock}${moodGuidance}
 
+CRITICAL RULE — STORY INTENT vs. PHOTO CONTENT:
+The interview transcript (especially the user's first message) is your PRIMARY creative brief. If the user asked for a specific scenario — "playing in the mud", "trip to the beach", "first day of school" — WRITE THAT SCENARIO, even if the photos show a completely different setting. Photos exist to tell you what the CHARACTERS look like. The interview tells you what the STORY is about. Never let photo captions override an explicitly stated plot.
+
 Your task: Turn the interview transcript into a children's storybook that feels deeply personal — not generic. Every page should make the reader think "that's exactly right."
 
 STRUCTURE (12 story pages total):
@@ -130,12 +133,16 @@ serve(async (req) => {
     const petDesc = project.pet_type && project.pet_type !== "unknown" && project.pet_type !== "general"
       ? `, a ${project.pet_breed || ""} ${project.pet_type}`
       : "";
-    const userPrompt = `Create a children's storybook about ${project.pet_name}${petDesc}. Use as many pages as the story naturally needs — don't cut short, include every meaningful memory.
 
-INTERVIEW TRANSCRIPT:
+    // Extract the user's first message as the creative brief — this is what they actually asked for
+    const storyBrief = (interview || []).find(m => m.role === "user")?.content || "";
+
+    const userPrompt = `Create a children's storybook about ${project.pet_name}${petDesc}. Use as many pages as the story naturally needs — don't cut short, include every meaningful memory.
+${storyBrief ? `\n⭐ THE USER'S CREATIVE BRIEF (HONOR THIS ABOVE EVERYTHING ELSE — this is the story they want):\n"${storyBrief}"\n\nWrite the book they asked for. If they said "playing in the mud", the story IS about playing in the mud. If they said "trip to the beach", the story IS at the beach. Do not substitute the photo setting for the requested scenario.\n` : ""}
+FULL INTERVIEW TRANSCRIPT:
 ${transcript}
 
-${captions ? `PHOTO CAPTIONS: ${captions}` : ""}
+${captions ? `PHOTO CONTEXT (use for character appearance only — NOT to determine the story setting):\n${captions}` : ""}
 
 Generate all pages now using the generate_pages function.`;
 

@@ -394,6 +394,21 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           ? project.pet_name
           : pendingPetName || null;
 
+      // Save the user's creative intent to project_interview BEFORE generation
+      // This is the story brief — generate-story reads from project_interview only
+      if (activeProjectId) {
+        await supabase.from("project_interview").insert({
+          project_id: activeProjectId,
+          role: "user",
+          content: text,
+        });
+        await supabase.from("project_interview").insert({
+          project_id: activeProjectId,
+          role: "assistant",
+          content: `Got it! I'll make a ${moodToUse} book${nameToUse ? ` about ${nameToUse}` : ""}. ⚡`,
+        });
+      }
+
       // Need a mood first if we don't have one
       if (!project?.mood && phase !== "interview") {
         // Don't call startInterview() — it wipes the chat. Set status directly.
