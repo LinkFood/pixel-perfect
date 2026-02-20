@@ -358,7 +358,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
     // ── Intent detection: user says "just make it / go for it / generate" etc. ──
     // If they clearly want to generate NOW and we have photos, honor it immediately.
-    const intentKeywords = /\b(make it now|just make|make the book|create it|generate|let'?s go|go for it|just do it|make it|do it now|build it|start it|make my book|just start|make it please)\b/i;
+    // Broad intent detection: catches "make a story", "write me a book", "create it", "generate", "go for it", etc.
+    const intentKeywords = /\b(make|create|write|generate|build)\b.{0,40}\b(book|story|pages?|it|this|now)\b|\b(just do it|go for it|let'?s go|make it now|make my book|just start|do it now|just make it|make it please)\b/i;
     if (
       intentKeywords.test(text) &&
       photos.length >= 1 &&
@@ -654,14 +655,29 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   };
 
   // Quick-generate: bypass the 4-message gate, fire immediately from photos alone
-  const handleQuickGenerate = () => {
+  const handleQuickGenerate = async () => {
     setShowSpeedChoice(false);
-    setChatMessages(prev => [...prev, {
-      role: "rabbit",
-      content: `I've studied every photo. I've got ${project?.pet_name || "this"}. Watch me go! ⚡`,
-    }]);
-    scrollToBottom();
-    handleFinishInterview();
+    if (!project?.mood) {
+      // No mood yet (upload phase) — default to heartfelt and go
+      const nameToUse = (project?.pet_name && project.pet_name !== "New Project")
+        ? project.pet_name
+        : pendingPetName || "your subject";
+      setChatMessages(prev => [...prev, {
+        role: "rabbit",
+        content: `I've got everything I need from your photos. Making it now! ⚡`,
+      }]);
+      scrollToBottom();
+      await updateProject.mutateAsync({ id: activeProjectId!, mood: "heartfelt", pet_name: nameToUse });
+      startInterview("heartfelt");
+      setTimeout(() => handleFinishInterview(), 300);
+    } else {
+      setChatMessages(prev => [...prev, {
+        role: "rabbit",
+        content: `I've studied every photo. I've got ${project?.pet_name || "this"}. Watch me go! ⚡`,
+      }]);
+      scrollToBottom();
+      handleFinishInterview();
+    }
   };
 
 
@@ -736,14 +752,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     prevCanFinish.current = canFinish;
   }, [canFinish, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Show speed-choice sticky banner as soon as we enter interview phase.
-  // Fires regardless of how many messages user has already sent — even if they typed before the rabbit spoke.
+  // Show speed-choice sticky banner as soon as user has photos — works in BOTH upload and interview phase.
+  // Fires regardless of how many messages the user has sent. Resets when switching projects.
   useEffect(() => {
-    if (phase !== "interview") return;
+    if (phase !== "interview" && phase !== "upload") return;
+    if (photos.length === 0) return;
     if (speedChoiceShownRef.current) return;
     speedChoiceShownRef.current = true;
     setShowSpeedChoice(true);
-  }, [phase]);
+  }, [phase, photos.length]);
 
   // Extract short highlights from user interview messages for generation callbacks
   const interviewHighlights = interviewMessages
@@ -1081,9 +1098,9 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         </div>
       )}
 
-      {/* Speed-choice sticky bar — visible any time we're in interview phase and user hasn't dismissed */}
+      {/* Speed-choice sticky bar — visible in upload OR interview phase as soon as user has photos */}
       <AnimatePresence>
-        {showSpeedChoice && phase === "interview" && (
+        {showSpeedChoice && (phase === "interview" || phase === "upload") && (
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1095,13 +1112,13 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
               onClick={handleQuickGenerate}
               className="px-4 py-2 rounded-full text-sm font-body font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-1.5"
             >
-              ⚡ Make it now
+              ⚡ Make it now — let AI decide
             </button>
             <button
               onClick={() => setShowSpeedChoice(false)}
               className="px-4 py-2 rounded-full text-sm font-body font-medium bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors border border-border shadow-sm"
             >
-              💬 Tell me more first
+              💬 Tell me first
             </button>
           </motion.div>
         )}
