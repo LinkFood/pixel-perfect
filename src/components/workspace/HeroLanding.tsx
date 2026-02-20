@@ -343,6 +343,19 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
           </div>
         </motion.div>
       </div>
+
+      {/* Hidden dev mode re-entry — nearly invisible to real users */}
+      <div className="flex justify-center pb-3">
+        <button
+          onClick={() => {
+            enableDevMode();
+            window.location.href = "/?dev=1";
+          }}
+          className="font-body text-[9px] text-muted-foreground/20 hover:text-muted-foreground/50 transition-colors"
+        >
+          dev
+        </button>
+      </div>
     </div>
   );
 };
