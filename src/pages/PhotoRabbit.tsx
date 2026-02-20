@@ -438,49 +438,34 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
     if ((phase === "interview" || phase === "generating") && project) {
       const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
-      try {
-        setRabbitState("thinking");
-        await sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
-      } catch {
-        setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try sending that again?" }]);
-        scrollToBottom();
-      }
+      setRabbitState("thinking");
+      await sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
     } else if (user && (phase === "home" || phase === "upload" || phase === "mood-picker")) {
       const captionedPhotos = photos.filter(p => p.caption);
       if (captionedPhotos.length > 0 && activeProjectId) {
-        // Photos exist with captions — use AI for context-aware response
         const photoCaptions = captionedPhotos.map(p => p.caption as string);
-        console.log("[Chat] Sending message in upload phase, projectId:", activeProjectId);
-        try {
-          setRabbitState("thinking");
-          await sendMessage(
-            text,
-            interviewMessages,
-            project?.pet_name || "your subject",
-            project?.pet_type || "general",
-            photoCaptions,
-            project?.photo_context_brief || null,
-            project?.product_type || "picture_book",
-            project?.mood || "heartfelt"
-          );
-          console.log("[Chat] sendMessage resolved");
-          // Safety net: if no rabbit reply arrives within 8s, show fallback
-          fallbackTimerRef.current = window.setTimeout(() => {
-            setChatMessages(prev => {
-              const lastMsg = prev[prev.length - 1];
-              if (lastMsg?.role === "user") {
-                return [...prev, { role: "rabbit" as const, content: "I'm still getting to know your photos! Drop more in or hit 'That's all my photos' when you're ready." }];
-              }
-              return prev;
-            });
-            scrollToBottom();
-          }, 8000);
-        } catch (err) {
-          console.error("[Chat] sendMessage failed:", err);
-          setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try that again?" }]);
-          setRabbitState("listening");
+        setRabbitState("thinking");
+        await sendMessage(
+          text,
+          interviewMessages,
+          project?.pet_name || "your subject",
+          project?.pet_type || "general",
+          photoCaptions,
+          project?.photo_context_brief || null,
+          project?.product_type || "picture_book",
+          project?.mood || "heartfelt"
+        );
+        // Safety net: if no rabbit reply arrives within 8s, show fallback
+        fallbackTimerRef.current = window.setTimeout(() => {
+          setChatMessages(prev => {
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg?.role === "user") {
+              return [...prev, { role: "rabbit" as const, content: "I'm still getting to know your photos! Drop more in or hit 'That's all my photos' when you're ready." }];
+            }
+            return prev;
+          });
           scrollToBottom();
-        }
+        }, 8000);
       } else {
         // No photos yet — use canned responses
         const earlyResponses = [

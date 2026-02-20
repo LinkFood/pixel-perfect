@@ -55,7 +55,7 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
   return (
     <>
       <div className="px-4 md:px-0 pb-3">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1" role="tablist" aria-label="Projects">
           {projects.map((project, index) => {
             const isActive = project.id === activeProjectId;
             const name = project.pet_name === "New Project" ? "Untitled" : project.pet_name;
@@ -64,6 +64,8 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
             return (
               <motion.button
                 key={project.id}
+                role="tab"
+                aria-selected={isActive}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 className={`shrink-0 rounded-xl px-3 py-2 text-left transition-all relative group border ${isActive ? "bg-primary border-primary" : "bg-card border-border"}`}

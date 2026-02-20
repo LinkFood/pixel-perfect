@@ -5,7 +5,7 @@ import { Paperclip, PawPrint } from "lucide-react";
 interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSend: () => void;
+  onSend: () => void | Promise<void>;
   onPhotos?: (files: File[]) => void;
   disabled?: boolean;
   placeholder?: string;
@@ -34,11 +34,11 @@ const ChatInput = ({
   return (
     <div className="px-4 pb-4">
       <form
-        onSubmit={e => {
+        onSubmit={async (e) => {
           e.preventDefault();
           if (isSendingRef.current) return;
           isSendingRef.current = true;
-          try { onSend(); } finally { isSendingRef.current = false; }
+          try { await onSend(); } finally { isSendingRef.current = false; }
         }}
         className="flex items-center gap-2 rounded-[20px] px-4 py-3 glass-warm border border-border/40 shadow-elevated transition-all focus-within:glow-primary focus-within:border-primary/30"
         style={{ minHeight: 48 }}

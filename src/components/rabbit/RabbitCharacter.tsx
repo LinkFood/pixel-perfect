@@ -55,11 +55,12 @@ const C = {
 };
 
 // ─── Blink logic ────────────────────────────────────────────
-function useBlinkLoop() {
+function useBlinkLoop(reduceMotion: boolean | null) {
   const controls = useAnimation();
   const timeoutRef = useRef<number>();
 
   useEffect(() => {
+    if (reduceMotion) return;
     let mounted = true;
 
     const blink = async () => {
@@ -81,7 +82,7 @@ function useBlinkLoop() {
       mounted = false;
       clearTimeout(timeoutRef.current);
     };
-  }, [controls]);
+  }, [controls, reduceMotion]);
 
   return controls;
 }
@@ -326,8 +327,8 @@ const SleepZzz = () => (
 
 // ─── Main Component ─────────────────────────────────────────
 const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset, mood }: RabbitCharacterProps) => {
-  const blinkControls = useBlinkLoop();
   const shouldReduceMotion = useReducedMotion();
+  const blinkControls = useBlinkLoop(shouldReduceMotion);
   const [currentState, setCurrentState] = useState(state);
   const moodTint = getMoodTint(mood);
 

@@ -154,20 +154,21 @@ export const useDeleteProject = () => {
         .from("project_illustrations")
         .select("storage_path")
         .eq("project_id", projectId);
+      const cleanupErrors: string[] = [];
       if (illustrations && illustrations.length > 0) {
         const { error: illStorageErr } = await supabase.storage.from("pet-photos").remove(illustrations.map(i => i.storage_path));
-        if (illStorageErr) console.warn("Failed to delete illustration files:", illStorageErr);
+        if (illStorageErr) cleanupErrors.push("illustration files");
         const { error: illDbErr } = await supabase.from("project_illustrations").delete().eq("project_id", projectId);
-        if (illDbErr) console.warn("Failed to delete illustration records:", illDbErr);
+        if (illDbErr) cleanupErrors.push("illustration records");
       }
 
       // 2. Delete pages
       const { error: pagesErr } = await supabase.from("project_pages").delete().eq("project_id", projectId);
-      if (pagesErr) console.warn("Failed to delete pages:", pagesErr);
+      if (pagesErr) cleanupErrors.push("pages");
 
       // 3. Delete interview
       const { error: interviewErr } = await supabase.from("project_interview").delete().eq("project_id", projectId);
-      if (interviewErr) console.warn("Failed to delete interview:", interviewErr);
+      if (interviewErr) cleanupErrors.push("interview");
 
       // 4. Delete photos (storage + DB)
       const { data: photos } = await supabase
@@ -176,9 +177,14 @@ export const useDeleteProject = () => {
         .eq("project_id", projectId);
       if (photos && photos.length > 0) {
         const { error: photoStorageErr } = await supabase.storage.from("pet-photos").remove(photos.map(p => p.storage_path));
-        if (photoStorageErr) console.warn("Failed to delete photo files:", photoStorageErr);
+        if (photoStorageErr) cleanupErrors.push("photo files");
         const { error: photoDbErr } = await supabase.from("project_photos").delete().eq("project_id", projectId);
-        if (photoDbErr) console.warn("Failed to delete photo records:", photoDbErr);
+        if (photoDbErr) cleanupErrors.push("photo records");
+      }
+
+      // Surface cleanup failures (non-blocking — project deletion still proceeds)
+      if (cleanupErrors.length > 0) {
+        toast.warning(`Project deleted, but some cleanup failed: ${cleanupErrors.join(", ")}. Storage may need manual cleanup.`);
       }
 
       // 5. Delete project

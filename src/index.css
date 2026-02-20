@@ -155,7 +155,7 @@
     .glass-warm {
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
-      background-color: rgba(255, 255, 255, 0.88);
+      background: hsl(35 20% 97% / 0.88);
     }
   }
 
