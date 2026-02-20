@@ -546,6 +546,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const handleContinueToInterview = () => {
     if (!activeProjectId) return;
     if (updateStatus.isPending) return;
+    if (isFinishing) return; // Don't race with active intent-path generation
     if (!project?.mood) {
       // No mood yet — first ask for the name, then mood
       updateStatus.mutate(
@@ -617,7 +618,11 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       greeting = greetings[mood] || greetings.heartfelt;
     }
     greeting = memoryGreeting + greeting;
-    setChatMessages([{ role: "rabbit", content: greeting }]);
+    // Non-destructive: only inject greeting if chat is empty — never wipe existing history
+    setChatMessages(prev => {
+      if (prev.length > 0) return prev;
+      return [{ role: "rabbit", content: greeting }];
+    });
     // Immediately compute and show chips for the first rabbit question
     const initialReplies = getQuickReplies(greeting, project?.pet_name || "them", mood);
     setQuickReplies(initialReplies);
@@ -981,7 +986,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
       {/* Step progress indicator — pinned below rabbit, only during interview after 1st user msg */}
       <AnimatePresence>
-        {phase === "interview" && displayCount > 0 && (
+        {(phase === "interview" || phase === "upload") && displayCount > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
