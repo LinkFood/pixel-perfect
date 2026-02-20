@@ -3,6 +3,12 @@ project_id = "gopuinguphuqurwvlwlp"
 [functions.interview-chat]
 verify_jwt = false
 
+[functions.build-appearance-profile]
+verify_jwt = false
+
+[functions.generate-preview-illustration]
+verify_jwt = false
+
 [functions.generate-story]
 verify_jwt = false
 
