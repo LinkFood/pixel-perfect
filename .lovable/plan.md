@@ -1,74 +1,104 @@
 
-# Making Share Links Work — Before Publishing
+# Fix: Dark-on-Light Text Panel — Matching the PDF Style
 
-## The Honest Situation
+## The Problem
 
-The app is NOT published yet, so the published URL (`https://2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app`) does not exist yet. That means there is currently **no public URL** that bypasses Lovable's auth wall.
+The PDF download uses a semi-transparent **white frosted bar** at the bottom with **dark near-black text** (`rgb(40,40,40)`). This is readable against any illustration.
 
-Here's the breakdown of the three URLs:
+The site preview, the in-app book preview dialog, and the shared book viewer all use the opposite: a **dark gradient** (`from-black/60`) with **white text**. On dark illustrations this works, but on the light-coloured watercolour art this app generates (pale skies, cream backgrounds, stadium lights) white text merges into the image — exactly what the screenshots show.
 
-| URL | Auth Wall? | Can Use? |
-|-----|-----------|---------|
-| `https://2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovableproject.com/...` | Yes — Lovable login | No good |
-| `https://id-preview--2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app/...` | Yes — Lovable login | No good |
-| `https://2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app/...` | **No — fully public** | ✅ This is the one |
+## The Fix — Match the PDF
 
-The third URL — the **published** URL — only exists after you click Publish. Until then, share links cannot reach non-Lovable users no matter what code changes are made. The auth wall is enforced at Lovable's infrastructure level, not in your app's code.
+Replace the dark gradient + white text with a frosted white panel + dark text in every rendering surface. The approach:
 
-**The good news:** Your app's code — the `SharedBookViewer`, the `get-shared-book` edge function, the `/book/:shareToken` route — is all already correctly set up for public access. Nothing is broken there. It just needs the published URL to serve it from.
+- **Replace**: `bg-gradient-to-t from-black/60 via-black/30 to-transparent` + `text-white`
+- **With**: `bg-white/80 backdrop-blur-sm` (frosted semi-opaque white) + `text-foreground` (near-black)
 
-## What I'll Fix In Code Right Now
+This matches the PDF exactly — a soft white bar that sits below the illustration, keeping text crisp and readable against any image.
 
-Even though you're not publishing yet, I'll wire everything up correctly so that the moment you do hit Publish, share links work instantly and correctly for everyone.
-
-### Fix 1 — `BookReview.tsx`: Update APP_BASE to the correct published URL
-
-Currently the fallback is the preview URL (with `id-preview--` prefix). That's wrong. The published URL drops that prefix:
-
-```typescript
-// BEFORE (wrong — still has auth wall)
-const APP_BASE = import.meta.env.VITE_APP_URL
-  || "https://id-preview--2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app";
-
-// AFTER (correct — this is the public URL after publishing)
-const APP_BASE = import.meta.env.VITE_APP_URL
-  || "https://2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app";
-```
-
-This means every share link generated will point to the correct public address. The moment you publish, they work.
-
-### Fix 2 — `share-page` edge function: Fix the APP_URL fallback
-
-The social-media preview redirect currently falls back to a completely wrong URL (`pixel-perfect.lovable.app`). Fix it to match the correct published URL:
-
-```typescript
-// BEFORE
-const APP_URL = Deno.env.get("SITE_URL") || "https://pixel-perfect.lovable.app";
-
-// AFTER
-const APP_URL = Deno.env.get("SITE_URL") || "https://2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app";
-```
-
-This ensures when someone shares a link on iMessage/Twitter/Facebook, the preview card and redirect both use the correct public URL.
-
-## How You'll Test It (Before Publishing)
-
-You personally can test the full share flow right now because you have Lovable access. When you generate a share link in your book and open it, it opens in your authenticated session — you can verify the book loads correctly, the gift wrap gate works, the book flips through, everything looks right.
-
-The only thing you cannot test before publishing is the recipient experience (no-auth). For that, you need to publish.
-
-## The Moment You're Ready to Publish
-
-1. Click **Publish** in the top-right of the editor
-2. The public URL `https://2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app` activates
-3. Every share link already in your database instantly works for anyone in the world
-4. Send one to your phone (logged out of Lovable) — it opens directly to the gift wrap gate
+For the **cover page**, which intentionally uses bold display text, we use the same treatment but slightly taller to give the title room.
 
 ## Files to Change
 
-| File | Line | Change |
-|------|------|--------|
-| `src/components/project/BookReview.tsx` | 85 | Change `id-preview--` prefix URL to the published URL (no prefix) |
-| `supabase/functions/share-page/index.ts` | 16 | Change `pixel-perfect.lovable.app` fallback to the correct published URL |
+### 1. `src/components/project/BookPageViewer.tsx`
 
-Two one-line changes. Everything else is already correctly built.
+Three locations:
+
+**A — Story/closing pages** (lines 287–295): The standard story text overlay
+```
+// BEFORE
+<div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pt-12 pb-5 px-5">
+  <p className="... text-white ...">
+
+// AFTER
+<div className="absolute bottom-0 left-0 right-0 bg-white/82 backdrop-blur-sm pt-4 pb-5 px-5">
+  <p className="... text-foreground ...">
+```
+
+**B — Cover page** (lines 224–234): Cover title at bottom
+```
+// BEFORE
+<div className="... bg-gradient-to-t from-black/60 via-black/30 to-transparent ...">
+  <p className="... text-white ...">
+
+// AFTER  
+<div className="... bg-white/82 backdrop-blur-sm ...">
+  <p className="... text-foreground ...">
+```
+
+**C — Empty text placeholder** (lines 297–302): The italic "Text will appear here" hint — change from `text-white/60` to `text-muted-foreground`
+
+### 2. `src/components/project/BookPreview.tsx`
+
+One location — story/cover text (lines 152–158):
+```
+// BEFORE
+<div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pt-10 pb-4 px-4">
+  <p className="... text-white ...">
+
+// AFTER
+<div className="absolute bottom-0 left-0 right-0 bg-white/82 backdrop-blur-sm pt-4 pb-4 px-4">
+  <p className="... text-foreground ...">
+```
+
+### 3. `src/pages/SharedBookViewer.tsx`
+
+One location — story/cover text overlay (lines 529–535):
+```
+// BEFORE
+<div className="absolute bottom-0 left-0 right-0 pt-10 pb-4 px-4 bg-gradient-to-t from-black/60 via-black/30 to-transparent">
+  <p className="... text-white ...">
+
+// AFTER
+<div className="absolute bottom-0 left-0 right-0 pt-4 pb-4 px-4 bg-white/82 backdrop-blur-sm">
+  <p className="... text-foreground ...">
+```
+
+## Visual Comparison
+
+The change for a standard story page:
+
+```
+BEFORE (dark gradient):                AFTER (frosted white bar, like PDF):
+┌─────────────────────┐               ┌─────────────────────┐
+│   [illustration]    │               │   [illustration]    │
+│                     │               │                     │
+│▓▓▓▒▒▒░░░░░░░░░░░░░░│               │                     │
+│ white text here     │               ├─────────────────────┤
+│                     │               │ [frosted white bar] │
+└─────────────────────┘               │  dark text here     │
+                                      └─────────────────────┘
+```
+
+The frosted bar has `backdrop-blur-sm` so it reads as glass — not a flat box. It's elegant and matches the PDF's white overlay rectangle exactly.
+
+## What Does NOT Change
+
+- Dedication pages — already use dark text (`text-foreground/80`) on a cream wash; no change needed
+- Cover page top wash (hiding AI text artifacts) — stays as-is
+- Gallery title and grid pages — already use dark text; no change needed
+- The PDF generator — already correct; this is what we're matching
+
+## Result
+
+Every surface where text appears on illustrations — BookPageViewer (editor), BookPreview (in-app dialog), SharedBookViewer (share link) — will match the PDF: frosted white panel, dark readable text, consistent across the entire product.
