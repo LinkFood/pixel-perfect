@@ -1,123 +1,124 @@
 
-# Comprehensive Bug Fix: Chat Wipe + Progress Bar
+# Root Cause Analysis: Chat Wipe + Missing Progress Bar
 
-## All Bugs Identified
+## What the screenshots show
 
-### Bug 1 — Chat History Wiped (Root Cause Found)
+**Screenshot 1 (upload phase, healthy):** Rabbit says "I see: A large, dark brown dog wearing a festive bandana sits..." — caption message, chat is intact. User is about to type the intent message.
 
-The core cause is a race condition in phase derivation combined with `startInterview()` resetting messages.
+**Screenshot 2 (after typing the intent message):** Chat is completely wiped. Only TWO rabbit messages remain:
+- "Tell me about this moment — what makes it special?" ← this is `shortGreetings.heartfelt`
+- "One quick thing — what's the name for the star of this book?" ← this is from `handleFinishInterview(false)`
 
-When the user types "make a funny book of X" in the `upload` phase:
+This is the signature of `startInterview("heartfelt")` being called (reset to `[greeting]`) followed by `handleFinishInterview(false)` (with `skipNameCheck=false`, which asks for the name). No progress bar. No chips.
 
-1. The intent path fires, adds user message + "Got it" rabbit message to `chatMessages`
-2. `updateProject.mutateAsync({ mood: "funny", ... })` is awaited — DB updates
-3. React Query refetches `project` — but for a brief moment `project.mood` is still `null` in the old cache → phase derives as `"mood-picker"`
-4. The **mood-picker auto-recovery effect** (line 948) detects `phase === "mood-picker"` and no picker in chat, so it calls `setChatMessages(prev => [...prev, { moodPicker: true, ... }])` — appending a mood picker card
-5. Then `updateStatus.mutateAsync({ status: "interview" })` resolves — project refetches with the correct mood and status → phase becomes `"interview"`
-6. **Greeting injection effect** fires because `[project, activeProjectId, phase]` changed. It checks `chatMessages.length > 0` — true, returns early. ✓
-7. **BUT**: `startInterview()` is never called in the fast-intent path (correctly), so `greetingInjectedRef` still holds the old value. Good.
-8. The `handleFinishInterview(true)` fires (after 800ms), which calls `updateStatus.mutateAsync({ status: "generating" })`. Phase shifts to `"generating"`.
-9. The DB restore effect (line 517) has condition `if (phase !== "interview" && phase !== "generating") return`. Since phase is now "generating", it evaluates further: `interviewMessages.length === 0` (user used fast-intent, nothing in DB interview table) AND `chatMessages.length > 0` — so it skips. ✓
-10. Generation completes → phase becomes `"review"` → DB restore effect returns early (phase not interview/generating). ✓
+---
 
-**So why does chat look wiped?** Because the mood picker card (step 4) appears in the chat. The user sees the "what vibe?" card even though they already specified "funny." That makes it look like the chat context was lost and the system is asking the same question again. It's not truly wiped — it's a spurious mood-picker insertion.
+## The Three Root Causes
 
-**Also**: `handleQuickGenerate()` on line 702 STILL calls `startInterview("heartfelt")` which DOES a full `setChatMessages([greeting])` reset. This is called from the "⚡ Make it now" button. That IS a genuine wipe.
+### Root Cause 1 — "That's all my photos" button races the intent path
 
-### Bug 2 — Progress Bar Not Visible
+When the user types the intent message:
+1. Intent path fires, adds messages to chat, calls `updateProject({ mood: "funny" })` and `updateStatus({ status: "interview" })`
+2. `setTimeout(() => handleFinishInterview(true), 800)` is queued
 
-The progress bar (line 973) has condition: `phase === "interview" && userInterviewCount > 0`
+**Meanwhile**, React Query refetches and `project.mood` becomes `"funny"`. The "That's all my photos — let's go!" button is still visible (it lives in the sandbox panel). If the user clicks it at any point after the mood refetches, `handleContinueToInterview()` runs:
+- `project?.mood` is now `"funny"` → takes the `else` path at line 568
+- Calls `startInterview("funny")` → **`setChatMessages([greeting])` — full wipe**
 
-`userInterviewCount` is `interviewMessages.filter(m => m.role === "user").length` (line 783).
+This is the most likely cause of Screenshot 2. The user may have clicked the button out of habit after typing, or the button fired from a stale event.
 
-`interviewMessages` comes from the DB query for `project_interview` table. In the fast-intent path, the user's message is NEVER saved to `project_interview` — it goes directly to generation. So `userInterviewCount` stays 0. The bar never shows.
+Even if the user did NOT click the button: When `handleFinishInterview(true)` fires at 800ms, if `project?.pet_name` is still "New Project" in the cached data... wait, `skipNameCheck=true` bypasses that. But there's another path: if `fetchBalance()` returns 0 or fails, `setShowCreditGate(true)` fires and adds a message. That's a separate issue.
 
-Even in the normal interview flow: `userInterviewCount` counts DB rows, which only update after the round-trip. The local `chatMessages` grow immediately, but the progress bar uses the slower DB count. So there's lag.
+### Root Cause 2 — The intent path `else` branch skips the status update
 
-Additionally: the progress bar is conditionally shown only in `interview` phase, but when the fast-intent generates, phase goes `upload → interview → generating` very quickly — the interview phase may be too brief for the bar to matter.
+When `project?.mood` is ALREADY set (i.e., the user already chose a mood before, or the project already has one) AND the user types the intent message:
+- Line 410-415: the `else` branch skips the `updateStatus({ status: "interview" })` call entirely
+- `handleFinishInterview(true)` is called immediately (synchronously)
+- But if `project?.status` is still "upload" at this point, the status never becomes "interview"
+- `handleFinishInterview` → `updateStatus({ status: "generating" })` → works, but the 800ms wait is skipped
 
-**The fix**: Count user messages from `chatMessages` (local state) instead of from the DB, or use the larger of the two values. This makes it instant and responsive.
+This is less likely for this specific bug but could cause issues in other flows.
 
-### Bug 3 — Spurious Mood-Picker Card
+### Root Cause 3 — Progress bar and chips are gated on `phase === "interview"` only
 
-The mood-picker auto-recovery effect (line 948) triggers whenever `phase === "mood-picker"` and there's no picker in chat. This fires during the brief window when `project.mood` is still null in cache after the mutation. The fix: add a flag (or check `chatMoodPending` more carefully) to suppress this when we've just set a mood via the intent path.
+The progress bar condition: `phase === "interview" && displayCount > 0`
 
-### Bug 4 — `handleQuickGenerate` Still Calls `startInterview()` (Genuine Chat Wipe)
+The problem: after the intent path, the phase goes `upload → interview → generating` in quick succession (800ms). The progress bar only shows during `interview`. Since `displayCount = Math.max(userInterviewCount, localUserCount)`, and `localUserCount` counts from `chatMessages` — if `chatMessages` gets wiped (Root Cause 1), `localUserCount` drops to 0, and `userInterviewCount` (from DB) is also 0 because the intent path never writes to `project_interview`.
 
-Line 715: `startInterview("heartfelt")` — this always does `setChatMessages([greeting])`. If the user clicks "⚡ Make it now" after having an existing chat, their history is gone. Fix: remove the `startInterview()` call from `handleQuickGenerate` and just update status directly (same fix applied elsewhere).
+The quick-reply chips condition: `phase === "interview" && quickReplies.length > 0 && !isStreaming && input.length === 0`. Chips ARE computed and set in `startInterview()` — but if the intent path fires, it never calls `startInterview()`, so `quickReplies` stays empty from when they were cleared on line 345 (`setQuickReplies([])`).
 
 ---
 
 ## The Fixes
 
-### Fix 1 — Suppress Spurious Mood-Picker (mood-picker auto-recovery)
+### Fix 1 — Disable the "That's all my photos" button while the intent path is in flight
 
-Add a ref `suppressMoodPickerRef` that gets set to `true` when the intent path sets the mood, suppressing the auto-recovery for that render cycle:
+The most direct fix: when the intent path is running (we already have `isFinishing` for `handleFinishInterview`), also disable the "That's all my photos" button in the sandbox. Better yet: **hide the "That's all my photos" button entirely once phase transitions to interview**, which already happens naturally.
+
+The real fix: in `handleContinueToInterview`, add a guard against interfering with the intent path by checking if `isFinishing` is true OR if the project status is already "interview" or beyond:
 
 ```typescript
-const suppressMoodPickerRef = useRef(false);
-
-// In the intent detection path (before updateProject.mutateAsync):
-suppressMoodPickerRef.current = true;
-await updateProject.mutateAsync({ ... });
-
-// In mood-picker auto-recovery effect:
-useEffect(() => {
-  if (phase !== "mood-picker") return;
-  if (suppressMoodPickerRef.current) { suppressMoodPickerRef.current = false; return; }
-  if (chatMoodPending) return;
+const handleContinueToInterview = () => {
+  if (!activeProjectId) return;
+  if (updateStatus.isPending) return;
+  if (isFinishing) return;  // ← ADD THIS: don't interfere with active generation flow
   ...
-}, [phase, chatMoodPending, chatMessages, scrollToBottom]);
 ```
 
-This prevents the spurious mood-picker card from appearing when the intent path already handled the mood.
+This prevents the button from double-firing during the 800ms window.
 
-### Fix 2 — Remove `startInterview()` from `handleQuickGenerate`
+### Fix 2 — Prevent `startInterview()` from wiping chat if history already exists
 
-Replace the `startInterview("heartfelt")` call (which wipes chat) with a direct status update:
+Change `startInterview()` to be non-destructive: instead of `setChatMessages([greeting])`, check if there are already messages and only insert the greeting if the chat is empty:
 
 ```typescript
-// BEFORE:
-startInterview("heartfelt");
-setTimeout(() => handleFinishInterview(), 300);
-
-// AFTER:
-await updateStatus.mutateAsync({ id: activeProjectId!, status: "interview" });
-setTimeout(() => handleFinishInterview(true), 800); // skipNameCheck=true + longer timeout
+const startInterview = (mood: string) => {
+  ...
+  // Only inject the greeting if chat is empty — never wipe existing history
+  setChatMessages(prev => {
+    if (prev.length > 0) return prev;  // ← chat already has context, preserve it
+    return [{ role: "rabbit", content: greeting }];
+  });
+  ...
 ```
 
-### Fix 3 — Progress Bar: Use Local Chat Count Instead of DB Count
+This is the safest change — even if `startInterview` is called unexpectedly, it won't wipe an existing conversation.
 
-Replace `userInterviewCount` in the progress bar with a locally-computed count from `chatMessages`:
+### Fix 3 — Set quick replies after the intent path response
+
+In the intent path (inside `handleSend`), after adding the "Got it — making it now! ⚡" rabbit message, also compute and set quick replies so chips appear in the interview phase:
 
 ```typescript
-const localUserCount = chatMessages.filter(m => m.role === "user").length;
-const displayCount = Math.max(userInterviewCount, localUserCount);
+setChatMessages(prev => [...prev, { role: "rabbit", content: "Got it — making it now! ⚡" }]);
+// Since we're going straight to generation, no chips needed here
+// BUT ensure chips are cleared and won't appear after the phase jump
+setQuickReplies([]);
 ```
 
-Use `displayCount` in the progress bar so it updates instantly as the user types/sends, not after the DB round-trip.
+Actually for the intent path (fast generation), no chips are needed. The issue is that chips DO need to appear in the NORMAL interview flow (when user types something non-intent in upload phase and gets a rabbit reply). The chips already work via `lastFinishedContent` effect — the problem is only that the FIRST greeting has no chips if `startInterview()` isn't called.
 
-Also update the condition to check `localUserCount > 0 || userInterviewCount > 0`.
+Fix: Keep the `startInterview` call to set initial chips for the normal flow, but make it non-destructive (Fix 2 covers this).
 
-### Fix 4 — Progress Bar: Also Show on `upload` Phase When Chatting
+### Fix 4 — Show progress bar during upload phase too (when chat is active)
 
-Currently the progress bar only shows `phase === "interview"`. But when a user is in `upload` phase and chatting, the AI is already engaged. Show the bar when `phase === "interview" || (phase === "upload" && displayCount > 0)`.
+Change the progress bar condition to show whenever the user has sent messages, regardless of phase:
 
-Actually — the simpler, cleaner fix is to keep it interview-only, but ensure the phase transition is reliable.
+```typescript
+{(phase === "interview" || phase === "upload") && displayCount > 0 && (
+```
+
+This way, as soon as the user types anything (even in upload phase), the dots appear.
 
 ---
 
 ## Summary of All Changes in `src/pages/PhotoRabbit.tsx`
 
-| Location | Change |
-|---|---|
-| Line 783 (userInterviewCount) | Add `localUserCount` from chatMessages and `displayCount = Math.max(...)` |
-| Line 702-725 (`handleQuickGenerate`) | Remove `startInterview()` call, use direct status update + `handleFinishInterview(true)` |
-| ~Line 362 (intent detection) | Add `suppressMoodPickerRef.current = true` before the mood update |
-| Line 948 (mood-picker auto-recovery effect) | Check `suppressMoodPickerRef.current` and bail if true |
-| Line 973 (progress bar render) | Use `displayCount` instead of `userInterviewCount`, update condition |
+| What | Where | Change |
+|---|---|---|
+| Guard `handleContinueToInterview` | Line 548 | Add `if (isFinishing) return;` to prevent racing with active generation |
+| Make `startInterview` non-destructive | Line 620 | Change `setChatMessages([greeting])` to check `prev.length > 0` first |
+| Show progress bar in upload phase too | Line 984 | Change condition to `(phase === "interview" || phase === "upload") && displayCount > 0` |
 
-These five targeted changes fix all reported issues:
-- Chat history stays intact (no spurious mood picker, no startInterview wipe)
-- Progress bar updates immediately from local state
-- The "make a book of X" fast-intent path flows cleanly to generation
+These three targeted changes are all in `src/pages/PhotoRabbit.tsx`. No other files need touching.
+
+The `startInterview` fix (Fix 2) is the most important — it makes the entire system resilient to multiple callers by ensuring the greeting is only injected once into an empty chat. Even if `startInterview` is called multiple times, or called unexpectedly from the button path, the history is preserved.
