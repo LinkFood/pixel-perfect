@@ -623,14 +623,20 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     let shareMsg = "Your book is ready! Review it and share it with anyone.";
     if (activeProjectId) {
       try {
-        const { data } = await supabase.functions.invoke("create-share-link", {
+        const { data, error } = await supabase.functions.invoke("create-share-link", {
           body: { projectId: activeProjectId },
         });
-        if (data?.shareToken) {
-          const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/share-page?token=${data.shareToken}`;
+        if (error) {
+          console.error("create-share-link edge function error:", error);
+        } else if (data?.error) {
+          console.error("create-share-link returned error:", data.error);
+        } else if (data?.shareToken) {
+          const url = `${window.location.origin}/book/${data.shareToken}`;
           shareMsg = `Your book is ready! Share it with anyone: ${url}`;
         }
-      } catch { /* share link creation is best-effort */ }
+      } catch (e) {
+        console.error("create-share-link failed:", e);
+      }
     }
     setChatMessages(prev => [...prev, {
       role: "rabbit",
