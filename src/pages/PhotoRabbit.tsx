@@ -319,6 +319,27 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     projectCreatedRef.current = false;
   }, []);
 
+  // ─── Build log helper ─────────────────────────────────────
+  const logEvent = useCallback((phase: string, message: string, meta?: Record<string, unknown>) => {
+    if (!activeProjectId) return;
+    supabase.from("build_log").insert([{
+      project_id: activeProjectId,
+      phase,
+      level: "info",
+      message,
+      metadata: (meta || {}) as unknown as import("@/integrations/supabase/types").Json,
+    }]);
+  }, [activeProjectId]);
+
+  // ─── Phase transition logging ──────────────────────────────
+  const prevPhaseRef = useRef<Phase | null>(null);
+  useEffect(() => {
+    if (prevPhaseRef.current && prevPhaseRef.current !== phase && phase !== "home") {
+      logEvent("system", `Phase: ${prevPhaseRef.current} → ${phase}`, { from: prevPhaseRef.current, to: phase });
+    }
+    prevPhaseRef.current = phase;
+  }, [phase, logEvent]);
+
   const handleNewProject = async () => {
     try {
       const newProj = await createProject.mutateAsync();
@@ -585,6 +606,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   const handleMoodSelect = async (mood: string, name: string) => {
     if (!activeProjectId) return;
+    logEvent("decision", `Mood: ${mood}`, { mood, name });
     try {
       await updateProject.mutateAsync({ id: activeProjectId, mood, pet_name: name });
       if (isDevMode()) { chainAddEvent({ phase: "appearance-profile", step: "build-appearance-profile", status: "running", model: "Gemini 2.5 Flash", input: JSON.stringify({ projectId: activeProjectId }).slice(0, 500) }); }
@@ -653,6 +675,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
 
     setIsFinishing(true);
+    logEvent("decision", "Generation started", { productType });
 
     try {
     // Ensure product_type is written to DB before generation (safety net)
@@ -660,6 +683,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
     // Dev mode: skip credit check entirely
     if (isDevMode()) {
+      logEvent("system", "Credit check skipped (dev mode)");
       await updateStatus.mutateAsync({ id: activeProjectId, status: "generating" });
       return;
     }
@@ -668,6 +692,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     const tokenCost = TOKEN_COSTS[productType] || 5;
     const currentBalance = await fetchBalance();
     if (currentBalance < tokenCost) {
+      logEvent("system", `Insufficient credits (need ${tokenCost}, have ${currentBalance})`, { tokenCost, balance: currentBalance });
       setShowCreditGate(true);
       setChatMessages(prev => [...prev, {
         role: "rabbit",
@@ -710,6 +735,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       : "Picture book";
     const success = await deduct(activeProjectId, `${productLabel} generation`, tokenCost);
     if (!success) {
+      logEvent("system", "Credit deduction failed", { tokenCost });
       // Roll back status
       updateStatus.mutate({ id: activeProjectId, status: "interview" });
       setChatMessages(prev => [...prev, {
@@ -719,6 +745,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       scrollToBottom();
       return;
     }
+    logEvent("system", `${tokenCost} token${tokenCost !== 1 ? "s" : ""} deducted`, { tokenCost });
     setChatMessages(prev => [...prev, {
       role: "rabbit",
       content: `I've got everything. Time to paint. This is going to be something.`,
@@ -857,6 +884,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
     if (decisionTier === "format") {
       // Save product type
+      logEvent("decision", `Format: ${value}`, { format: value });
       if (activeProjectId) {
         updateProject.mutate({ id: activeProjectId, product_type: value });
       }
@@ -877,6 +905,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
     } else if (decisionTier === "mood") {
       // Save mood
+      logEvent("decision", `Mood: ${value}`, { mood: value });
       if (activeProjectId) {
         suppressMoodPickerRef.current = true;
         updateProject.mutate({ id: activeProjectId, mood: value });
@@ -902,6 +931,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       }
 
     } else if (decisionTier === "length") {
+      logEvent("decision", `Length: ${value} pages`, { pages: parseInt(value, 10) });
       setPageTarget(parseInt(value, 10));
       setTimeout(() => {
         setChatMessages(prev => [...prev, { role: "rabbit", content: "Anything I should know? Names, nicknames, context? Skip if I've got enough." }]);
