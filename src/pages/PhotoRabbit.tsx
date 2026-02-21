@@ -14,6 +14,7 @@ import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatu
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto } from "@/hooks/usePhotos";
 import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
 import { isDevMode, enableDevMode } from "@/lib/devMode";
+import { useChainLogSafe } from "@/hooks/useChainLog";
 import { getQuickReplies } from "@/lib/quickReplies";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useCredits, TOKEN_COSTS } from "@/hooks/useAuth";
@@ -79,6 +80,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  const { addEvent: chainAddEvent, updateEvent: chainUpdateEvent } = useChainLogSafe();
 
   // ─── Eye tracking (mirrors HeroLanding pattern) ──────────
   const [eyeOffset, setEyeOffset] = useState({ x: 0, y: 0 });
@@ -558,6 +560,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         }
       }
     }
+    if (isDevMode()) { chainAddEvent({ phase: "appearance-profile", step: "build-appearance-profile", status: "running", model: "Gemini 2.5 Flash", input: JSON.stringify({ projectId: activeProjectId }).slice(0, 500) }); }
     appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
       body: { projectId: activeProjectId },
     });
@@ -568,6 +571,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if (!activeProjectId) return;
     try {
       await updateProject.mutateAsync({ id: activeProjectId, mood, pet_name: name });
+      if (isDevMode()) { chainAddEvent({ phase: "appearance-profile", step: "build-appearance-profile", status: "running", model: "Gemini 2.5 Flash", input: JSON.stringify({ projectId: activeProjectId }).slice(0, 500) }); }
       appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
         body: { projectId: activeProjectId },
       });
@@ -751,20 +755,27 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     // Create share link automatically on completion
     let shareMsg = "Your book is ready! Review it and share it with anyone.";
     if (activeProjectId) {
+      let eid = "";
+      const t0 = Date.now();
+      if (isDevMode()) { eid = chainAddEvent({ phase: "system", step: "create-share-link", status: "running", input: JSON.stringify({ projectId: activeProjectId }).slice(0, 500) }); }
       try {
         const { data, error } = await supabase.functions.invoke("create-share-link", {
           body: { projectId: activeProjectId },
         });
         if (error) {
           console.error("create-share-link edge function error:", error);
+          if (isDevMode() && eid) chainUpdateEvent(eid, { status: "error", errorMessage: error.message, durationMs: Date.now() - t0 });
         } else if (data?.error) {
           console.error("create-share-link returned error:", data.error);
+          if (isDevMode() && eid) chainUpdateEvent(eid, { status: "error", errorMessage: data.error, durationMs: Date.now() - t0 });
         } else if (data?.shareToken) {
           const url = `${window.location.origin}/book/${data.shareToken}`;
           shareMsg = `Your book is ready! Share it with anyone: ${url}`;
+          if (isDevMode() && eid) chainUpdateEvent(eid, { status: "success", output: JSON.stringify(data).slice(0, 500), durationMs: Date.now() - t0 });
         }
       } catch (e) {
         console.error("create-share-link failed:", e);
+        if (isDevMode() && eid) chainUpdateEvent(eid, { status: "error", errorMessage: (e as Error).message, durationMs: Date.now() - t0 });
       }
     }
     setChatMessages(prev => [...prev, {
