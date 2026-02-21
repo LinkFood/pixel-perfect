@@ -152,6 +152,13 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     projectCreatedRef.current = false;
   }, [paramId]);
 
+  // Redirect away from dead/non-existent project URLs
+  useEffect(() => {
+    if (paramId && !projectLoading && !project) {
+      navigate("/", { replace: true });
+    }
+  }, [paramId, projectLoading, project, navigate]);
+
   // Auto-recover stale "generating" projects (closed tab, crashed browser)
   const isStaleGenerating = project?.status === "generating" && project.updated_at &&
     (Date.now() - new Date(project.updated_at).getTime()) > 30 * 60 * 1000;
@@ -236,6 +243,12 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   const handlePhotoUpload = async (files: File[]) => {
     let pid = activeProjectId;
+    // Guard: if URL points to a project that doesn't exist, treat as no project
+    if (pid && !project && !projectLoading) {
+      setActiveProjectId(null);
+      pid = null;
+      projectCreatedRef.current = false;
+    }
     if (!pid && projectCreatedRef.current) {
       // Project is being created — queue these files for upload after creation
       pendingFilesRef.current = [...pendingFilesRef.current, ...files];
