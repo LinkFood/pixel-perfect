@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, MessageCircle, BookOpen, Palette } from "lucide-react";
+import { Palette } from "lucide-react";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { enableDevMode } from "@/lib/devMode";
@@ -9,52 +9,32 @@ interface HeroLandingProps {
   onPhotoDrop: (files: File[]) => void;
 }
 
-// ─── Rabbit personality lines (rotates on load) ────────────────
-const rabbitLines = [
-  "Drop some photos. I'll turn them into something that hits different.",
-  "Last book I painted was a frat's spring break recap. Before that, a memorial for someone's grandma. I don't judge. I just make it good.",
-  "One photo, fifty photos — I don't care. Give me something to work with.",
-  "Someone made a book about their cat knocking things off tables. 22 pages. It was a masterpiece.",
-  "I've made anniversary gifts, retirement tributes, and a book called 'Why Brad Can't Cook.' All bangers.",
-  "Funny, sad, weird, heartfelt — you pick the vibe, I'll paint it.",
-];
-
-// ─── Auto-playing flipbook spreads ─────────────────────────────
 const showcaseSpreads = [
   {
     title: "The Great Sock Heist",
-    text: "Max crept across the living room, his golden tail low, eyes locked on the prize — Dad's favorite argyle sock. This was not his first heist. It would not be his last.",
+    text: "Max crept across the living room, eyes locked on the prize — Dad's favorite argyle sock. This was not his first heist.",
     gradient: "from-amber-100 to-orange-50",
-    illustrationDesc: "A golden retriever army-crawling across the living room, eyes locked on a single argyle sock — tail frozen mid-wag",
+    illustrationDesc: "A golden retriever army-crawling toward an argyle sock — tail frozen mid-wag",
   },
   {
     title: "Why Brad Can't Cook",
-    text: "The smoke alarm went off for the third time. Brad stood in the kitchen holding a spatula and what used to be an omelet. 'It's rustic,' he said. Nobody believed him.",
+    text: "The smoke alarm went off for the third time. 'It's rustic,' he said. Nobody believed him.",
     gradient: "from-emerald-100 to-teal-50",
-    illustrationDesc: "A smoke-filled kitchen, a bewildered man holding a spatula, and something that used to be an omelet",
+    illustrationDesc: "A smoke-filled kitchen, a bewildered man holding a spatula and something unrecognizable",
   },
   {
     title: "Grandma's Garden",
-    text: "She never measured anything — not the soil, not the water, not the love. But everything she planted grew. And everyone who visited left carrying something home.",
+    text: "She never measured anything — not the soil, not the water, not the love. But everything grew.",
     gradient: "from-violet-100 to-indigo-50",
-    illustrationDesc: "Morning light through a greenhouse window, weathered hands pressing seeds into dark soil, everything blooming",
+    illustrationDesc: "Morning light through a greenhouse, weathered hands pressing seeds into dark soil",
   },
 ];
 
-// ─── Social proof lines ────────────────────────────────────────
-const proofLines = [
-  "New book: 'The Legend of Drunk Mike' — 18 pages of bad decisions",
-  "Someone just turned their Hawaii trip into a bedtime story for their kids",
-  "Just finished a retirement tribute — 22 pages, zero dry eyes",
-  "New book: 'Why We Don't Let Dad Cook' — sent to an entire family group chat",
-  "Someone made a 6-page book from one photo of their dog. It's perfect.",
-  "Just painted a couple's first-year anniversary book — she cried on page 4",
-];
-
-const steps = [
-  { icon: Camera, label: "Drop your photos", detail: "One photo or a hundred" },
-  { icon: MessageCircle, label: "Chat with Rabbit", detail: "Pick the vibe — funny, deep, weird, yours" },
-  { icon: BookOpen, label: "Get your book", detail: "Illustrated, shareable, yours to keep" },
+const bookCovers = [
+  { title: "The Great Sock Heist", excerpt: "This was not his first heist. It would not be his last.", gradient: "from-amber-200 to-orange-100", rotate: "-2deg" },
+  { title: "Why Brad Can't Cook", excerpt: "'It's rustic,' he said. Nobody believed him.", gradient: "from-emerald-200 to-teal-100", rotate: "1deg" },
+  { title: "Grandma's Garden", excerpt: "Everything she planted grew. Everyone left carrying something home.", gradient: "from-violet-200 to-indigo-100", rotate: "-1deg" },
+  { title: "First Year of Luna", excerpt: "She arrived in winter. By spring, she owned the house.", gradient: "from-rose-200 to-pink-100", rotate: "2deg" },
 ];
 
 const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop }, fwdRef) => {
@@ -63,12 +43,11 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
   const [isDragOver, setIsDragOver] = useState(false);
   const isMobile = useIsMobile();
 
-  // ─── Eye tracking ──────────────────────────────────────
+  // Eye tracking
   const [eyeOffset, setEyeOffset] = useState({ x: 0, y: 0 });
-
   const rafRef = useRef<number>(0);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (rafRef.current) return; // throttle to rAF
+    if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
       if (!heroRef.current) return;
@@ -81,53 +60,14 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
     });
   }, []);
 
-  // ─── Speech bubble rotation ────────────────────────────
-  const [lineIndex, setLineIndex] = useState(0);
-  const [showBubble, setShowBubble] = useState(false);
-
-  useEffect(() => {
-    let cycleInterval: ReturnType<typeof setInterval>;
-    let gapTimer: ReturnType<typeof setTimeout>;
-
-    const initTimer = setTimeout(() => {
-      setShowBubble(true);
-      cycleInterval = setInterval(() => {
-        setShowBubble(false);
-        gapTimer = setTimeout(() => {
-          setLineIndex(prev => (prev + 1) % rabbitLines.length);
-          setShowBubble(true);
-        }, 400);
-      }, 7000);
-    }, 1500);
-
-    return () => {
-      clearTimeout(initTimer);
-      clearInterval(cycleInterval);
-      clearTimeout(gapTimer);
-    };
-  }, []);
-
-  // ─── Flipbook auto-play ────────────────────────────────
+  // Spread auto-rotation
   const [spreadIndex, setSpreadIndex] = useState(0);
-
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSpreadIndex(prev => (prev + 1) % showcaseSpreads.length);
-    }, 4000);
+    const interval = setInterval(() => setSpreadIndex(prev => (prev + 1) % showcaseSpreads.length), 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // ─── Social proof ticker ───────────────────────────────
-  const [proofIndex, setProofIndex] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setProofIndex(prev => (prev + 1) % proofLines.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // ─── Drop handlers ─────────────────────────────────────
+  // Drop handlers
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -143,7 +83,29 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
     e.target.value = "";
   };
 
+  const openFilePicker = () => fileInputRef.current?.click();
+
   const currentSpread = showcaseSpreads[spreadIndex];
+
+  const ctaButton = (label: string) => (
+    <motion.button
+      type="button"
+      onClick={openFilePicker}
+      className="px-8 py-4 rounded-xl bg-gradient-to-r from-primary to-primary/85 text-primary-foreground font-body text-base font-semibold transition-all hover:brightness-105 active:scale-[0.99] shadow-elevated"
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.97 }}
+      animate={{
+        boxShadow: [
+          "0 0 0px hsl(var(--primary) / 0)",
+          "0 0 30px hsl(var(--primary) / 0.35)",
+          "0 0 0px hsl(var(--primary) / 0)",
+        ],
+      }}
+      transition={{ boxShadow: { duration: 2.5, repeat: Infinity, ease: "easeInOut" } }}
+    >
+      {label}
+    </motion.button>
+  );
 
   return (
     <div
@@ -156,204 +118,159 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
       onMouseMove={handleMouseMove}
       onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
       onDragLeave={e => {
-        // Only trigger if leaving the hero container itself
-        if (heroRef.current && !heroRef.current.contains(e.relatedTarget as Node)) {
-          setIsDragOver(false);
-        }
+        if (heroRef.current && !heroRef.current.contains(e.relatedTarget as Node)) setIsDragOver(false);
       }}
       onDrop={handleDrop}
     >
-      <div className="max-w-2xl mx-auto px-6 pt-3 pb-3 flex flex-col items-center gap-3">
+      <input type="file" ref={fileInputRef} className="sr-only" accept="image/*" multiple onChange={handleFileSelect} />
 
-        {/* ── Rabbit + Speech Bubble + Headline ── */}
-        <motion.div
-          className="flex flex-col items-center gap-3 text-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-        >
-          <div className={`transition-transform duration-300 ${isDragOver ? "scale-105" : ""}`}>
-            <RabbitCharacter
-              state={isDragOver ? "excited" : "idle"}
-              size={isMobile ? 110 : 110}
-              eyeOffset={eyeOffset}
-            />
-          </div>
-
-          {/* Speech bubble — below rabbit, centered */}
-          <div className="min-h-[40px] w-full max-w-sm">
-            <AnimatePresence mode="wait">
-              {showBubble && (
-                <motion.div
-                  key={lineIndex}
-                  className="relative mx-auto w-fit max-w-sm glass-warm rounded-2xl px-5 py-3 shadow-chat"
-                  initial={{ opacity: 0, scale: 0.9, y: 5 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <p className="font-body text-sm text-foreground leading-relaxed text-center">
-                    {rabbitLines[lineIndex]}
-                  </p>
-                  {/* Bubble tail pointing up to rabbit */}
-                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 glass-warm rotate-45" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground leading-tight tracking-tight mt-1">
-            Your photos. My brush.
-            <br />
-            <span className="text-primary">Zero rules.</span>
-          </h1>
-
-          <p className="font-body text-sm md:text-base text-muted-foreground max-w-md leading-relaxed">
-            Drop your photos, chat about the memories, and watch AI write and illustrate a one-of-a-kind picture book.
-          </p>
-        </motion.div>
-
-        {/* ── Upload CTA — ABOVE the fold ── */}
-        <motion.div
-          className="w-full max-w-lg"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
-        >
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="sr-only"
-            accept="image/*"
-            multiple
-            onChange={handleFileSelect}
-          />
-          <motion.button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-primary to-primary/85 text-primary-foreground font-body text-sm font-semibold transition-all hover:brightness-105 active:scale-[0.99] shadow-elevated"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            animate={{
-              boxShadow: [
-                "0 0 0px hsl(var(--primary) / 0)",
-                "0 0 24px hsl(var(--primary) / 0.3)",
-                "0 0 0px hsl(var(--primary) / 0)",
-              ],
-            }}
-            transition={{
-              boxShadow: { duration: 2.5, repeat: Infinity, ease: "easeInOut" },
-            }}
-          >
-            Choose photos to start
-          </motion.button>
-          <p className="text-center font-body text-[11px] text-muted-foreground/60 mt-2">
-            or drag and drop anywhere on this page
-          </p>
-        </motion.div>
-
-        {/* ── Social Proof Ticker ── */}
-        <motion.div
-          className="w-full max-w-lg h-6 overflow-hidden"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
+      {/* ═══ SECTION 1: HERO ═══ */}
+      <section className="relative min-h-[70vh] flex items-center justify-center px-6 py-16 overflow-hidden">
+        {/* Background book spread */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-[0.07] pointer-events-none select-none">
           <AnimatePresence mode="wait">
             <motion.div
-              key={proofIndex}
-              className="flex items-center justify-center gap-2"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-primary/60 pulse-glow" />
-              <span className="font-body text-[11px] text-muted-foreground/70 truncate">
-                {proofLines[proofIndex]}
-              </span>
-            </motion.div>
+              key={spreadIndex}
+              className={`w-[800px] h-[400px] rounded-2xl bg-gradient-to-br ${currentSpread.gradient} book-page-texture`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.8 }}
+            />
           </AnimatePresence>
-        </motion.div>
+        </div>
 
-        {/* ── Process Strip ── */}
         <motion.div
-          className="w-full max-w-lg"
-          initial={{ opacity: 0, y: 20 }}
+          className="relative z-10 flex flex-col items-center text-center gap-6 max-w-2xl"
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
         >
-          <div className="flex items-start justify-between gap-3">
-            {steps.map((step, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center text-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <step.icon className="w-5 h-5 text-primary" />
-                </div>
-                <span className="font-body text-xs font-semibold text-foreground">{step.label}</span>
-                <span className="font-body text-[10px] text-muted-foreground leading-snug">{step.detail}</span>
+          <div className={`transition-transform duration-300 ${isDragOver ? "scale-110" : ""}`}>
+            <RabbitCharacter state={isDragOver ? "excited" : "idle"} size={80} eyeOffset={eyeOffset} />
+          </div>
+
+          <h1 className="font-display text-5xl md:text-6xl font-bold text-foreground leading-[1.1] tracking-tight">
+            Drop a photo.<br />Get a storybook.
+          </h1>
+
+          <p className="font-body text-lg text-muted-foreground max-w-md">
+            No writing. No design. Just your photos and a few taps.
+          </p>
+
+          {ctaButton("Make your first book — it's free")}
+
+          <p className="font-body text-xs text-muted-foreground/50">or drag photos anywhere on this page</p>
+        </motion.div>
+      </section>
+
+      {/* ═══ SECTION 2: VISUAL WALKTHROUGH ═══ */}
+      <section className="px-6 py-16 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Step 1 */}
+          <motion.div
+            className="glass-warm shadow-float rounded-2xl p-6 flex flex-col items-center gap-4"
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.5, delay: 0 }}
+          >
+            <div className="w-full aspect-[4/3] rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center relative overflow-hidden">
+              <div className="w-16 h-16 rounded-lg bg-amber-200/60 border-2 border-dashed border-amber-300 flex items-center justify-center">
+                <span className="text-2xl">📷</span>
               </div>
-            ))}
-          </div>
-        </motion.div>
+              <div className="absolute bottom-2 right-2 glass-warm rounded-lg px-3 py-1.5 shadow-chat">
+                <p className="font-body text-[10px] text-foreground/80 italic">"I see a golden retriever with a stolen sock..."</p>
+              </div>
+            </div>
+            <p className="font-display text-sm font-bold text-foreground">Drop a photo</p>
+          </motion.div>
 
-        {/* ── Flipbook Showcase (hidden on mobile, below fold on desktop) ── */}
-        <motion.div
-          className="w-full max-w-lg hidden md:block"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
-        >
-          <div className="relative rounded-xl overflow-hidden shadow-float book-page-texture bg-card border border-border/40">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={spreadIndex}
-                className="flex flex-col md:flex-row"
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -30 }}
-                transition={{ duration: 0.5 }}
-              >
-                {/* Illustration side */}
-                <div className={`md:w-1/2 aspect-square bg-gradient-to-br ${currentSpread.gradient} relative flex items-center justify-center p-8 overflow-hidden`}>
-                  {/* Subtle paper texture overlay */}
-                  <div className="absolute inset-0 book-page-texture opacity-40" />
-                  <div className="relative text-center px-4 flex flex-col items-center justify-center gap-3">
-                    <Palette className="w-8 h-8 text-foreground/20" />
-                    <p className="font-display text-sm italic text-foreground/40 leading-relaxed">
-                      {currentSpread.illustrationDesc}
-                    </p>
-                  </div>
-                </div>
-                {/* Text side */}
-                <div className="md:w-1/2 p-6 flex flex-col justify-center">
-                  <p className="font-display text-lg font-bold text-foreground mb-3 leading-snug">
-                    {currentSpread.title}
-                  </p>
-                  <p className="font-body text-sm text-muted-foreground leading-relaxed italic">
-                    "{currentSpread.text}"
-                  </p>
-                  <div className="flex gap-1 mt-4">
-                    {showcaseSpreads.map((_, i) => (
-                      <div
-                        key={i}
-                        className={`h-1 rounded-full transition-all duration-500 ${i === spreadIndex ? "w-6 bg-primary" : "w-2 bg-border"}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </motion.div>
-      </div>
+          {/* Step 2 */}
+          <motion.div
+            className="glass-warm shadow-float rounded-2xl p-6 flex flex-col items-center gap-4"
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+          >
+            <div className="w-full aspect-[4/3] rounded-xl bg-gradient-to-br from-rose-50 to-pink-50 flex flex-col items-center justify-center gap-3 p-4">
+              <div className="flex flex-wrap gap-2 justify-center">
+                {["Funny", "Heartfelt", "Adventure", "Weird"].map(v => (
+                  <span key={v} className={`px-3 py-1.5 rounded-full text-xs font-body font-medium border transition-all ${v === "Funny" ? "bg-primary/15 border-primary text-primary" : "bg-background border-border text-muted-foreground"}`}>
+                    {v}
+                  </span>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {["Picture Book", "Comic"].map(f => (
+                  <span key={f} className={`px-3 py-1.5 rounded-full text-xs font-body font-medium border ${f === "Picture Book" ? "bg-primary/15 border-primary text-primary" : "bg-background border-border text-muted-foreground"}`}>
+                    {f}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <p className="font-display text-sm font-bold text-foreground">Tap a vibe</p>
+          </motion.div>
 
-      {/* Hidden dev mode re-entry — nearly invisible to real users */}
+          {/* Step 3 */}
+          <motion.div
+            className="glass-warm shadow-float rounded-2xl p-6 flex flex-col items-center gap-4"
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <div className="w-full aspect-[4/3] rounded-xl overflow-hidden flex shadow-elevated">
+              <div className={`w-1/2 bg-gradient-to-br ${showcaseSpreads[0].gradient} book-page-texture flex items-center justify-center`}>
+                <Palette className="w-8 h-8 text-foreground/15" />
+              </div>
+              <div className="w-1/2 bg-card book-page-texture p-3 flex flex-col justify-center border-l border-border/30">
+                <p className="font-display text-[11px] font-bold text-foreground leading-tight">{showcaseSpreads[0].title}</p>
+                <p className="font-body text-[9px] text-muted-foreground mt-1 italic leading-snug line-clamp-3">"{showcaseSpreads[0].text}"</p>
+              </div>
+            </div>
+            <p className="font-display text-sm font-bold text-foreground">Get your book</p>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ═══ SECTION 3: BOOK COVERS SHOWCASE ═══ */}
+      <section className="px-6 py-12">
+        <div className="flex gap-5 overflow-x-auto scrollbar-hide max-w-5xl mx-auto pb-4 md:justify-center">
+          {bookCovers.map((book, i) => (
+            <motion.div
+              key={i}
+              className="flex-shrink-0 w-56 h-72 rounded-2xl relative overflow-hidden book-page-texture shadow-float cursor-default"
+              style={{ rotate: book.rotate }}
+              whileHover={{ scale: 1.03, rotate: "0deg" }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            >
+              <div className={`absolute inset-0 bg-gradient-to-br ${book.gradient}`} />
+              <div className="relative z-10 h-full flex flex-col justify-end p-5">
+                <p className="font-display text-lg font-bold text-foreground leading-tight">{book.title}</p>
+                <p className="font-body text-xs text-foreground/60 italic mt-2 leading-relaxed">{book.excerpt}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══ SECTION 4: CLOSING CTA ═══ */}
+      <section className="px-6 py-16 flex flex-col items-center text-center gap-6">
+        <p className="font-display text-2xl md:text-3xl font-bold text-foreground max-w-lg leading-snug">
+          Your photos already have a story.<br />Let Rabbit find it.
+        </p>
+
+        {ctaButton("Start now")}
+
+        <RabbitCharacter state="celebrating" size={60} />
+      </section>
+
+      {/* Dev mode */}
       <div className="flex justify-center pb-3">
         <button
-          onClick={() => {
-            enableDevMode();
-            window.location.href = "/?dev=1";
-          }}
+          onClick={() => { enableDevMode(); window.location.href = "/?dev=1"; }}
           className="font-body text-[9px] text-muted-foreground/20 hover:text-muted-foreground/50 transition-colors"
         >
           dev
