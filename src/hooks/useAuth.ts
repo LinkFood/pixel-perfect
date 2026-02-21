@@ -76,11 +76,13 @@ export const useCredits = () => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from("user_credits" as any)
         .select("balance")
         .eq("user_id", user.id)
         .single();
       if (error) { setBalance(0); return 0; }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const bal = (data as any)?.balance ?? 0;
       setBalance(bal);
       return bal;
@@ -97,6 +99,7 @@ export const useCredits = () => {
         p_project_id: projectId,
         p_description: description,
         p_amount: amount,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
       if (error) return false;
       await fetchBalance();

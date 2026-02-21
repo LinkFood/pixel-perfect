@@ -13,7 +13,7 @@ export function isDevMode(): boolean {
       localStorage.setItem(KEY, "1");
       return true;
     }
-  } catch {}
+  } catch { /* URL parsing may fail in non-browser environments */ }
   return localStorage.getItem(KEY) === "1";
 }
 

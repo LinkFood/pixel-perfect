@@ -553,7 +553,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if (!project?.pet_name || project.pet_name === "New Project") {
       const captioned = photos.filter(p => p.ai_analysis || p.caption);
       if (captioned.length > 0) {
-        const analysis = (captioned[0] as any).ai_analysis;
+        const analysis = (captioned[0] as Record<string, unknown>).ai_analysis as Record<string, string[]> | undefined;
         const extractedName = analysis?.people_present?.[0] || analysis?.subject_name;
         if (extractedName) {
           updateProject.mutate({ id: activeProjectId, pet_name: extractedName });
@@ -914,7 +914,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       }]);
       scrollToBottom();
     }
-  }, [photos.length, phase, scrollToBottom]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [photos.length, phase, scrollToBottom]);
 
   // Rabbit message during photo captioning
   const prevCaptioningCountRef = useRef(0);
@@ -1017,7 +1017,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       }
     };
     generatePreview();
-  }, [photos, phase, activeProjectId, scrollToBottom]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [photos, phase, activeProjectId, scrollToBottom]);
 
   // Auto-recover mood-picker phase: if project has no mood, auto-set heartfelt and advance
   useEffect(() => {
