@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { type Project } from "@/hooks/useProject";
@@ -28,7 +28,7 @@ interface ProjectShelfProps {
   onDelete?: (projectId: string) => void;
 }
 
-const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, onDelete }: ProjectShelfProps) => {
+const ProjectShelf = React.forwardRef<HTMLDivElement, ProjectShelfProps>(({ projects, activeProjectId, onSelect, onNew, onRename, onDelete }, ref) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -54,7 +54,7 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
 
   return (
     <>
-      <div className="px-4 md:px-0 pb-3">
+      <div ref={ref} className="px-4 md:px-0 pb-3">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1" role="tablist" aria-label="Projects">
           {projects.map((project, index) => {
             const isActive = project.id === activeProjectId;
@@ -198,6 +198,8 @@ const ProjectShelf = ({ projects, activeProjectId, onSelect, onNew, onRename, on
       </AlertDialog>
     </>
   );
-};
+});
+
+ProjectShelf.displayName = "ProjectShelf";
 
 export default ProjectShelf;

@@ -554,7 +554,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       const captioned = photos.filter(p => p.ai_analysis || p.caption);
       if (captioned.length > 0) {
         const analysis = (captioned[0] as Record<string, unknown>).ai_analysis as Record<string, string[]> | undefined;
-        const extractedName = analysis?.people_present?.[0] || analysis?.subject_name;
+        const extractedName = analysis?.people_present?.[0] || analysis?.subject_name?.[0];
         if (extractedName) {
           updateProject.mutate({ id: activeProjectId, pet_name: extractedName });
         }
