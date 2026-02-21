@@ -1,39 +1,27 @@
 
 
-# Bug Audit: New Push
+# Fix Remaining forwardRef Warnings
 
-## Build Error (blocks compilation)
+The app compiles and runs fine. Two console warnings remain — the same pattern we fixed last round for HeroLanding and ChatInput.
 
-**`findLastIndex` not available in current TypeScript target (ES2022)**
-- File: `src/pages/PhotoRabbit.tsx`, line 932
-- `prev.findLastIndex(...)` requires `es2023` or later in the `lib` compiler option
-- Fix: Replace with a simple reverse `for` loop that works in all targets
+## Warning 1: PhotoThumb in PhotoUploadInline.tsx
 
-## Console Warnings (non-breaking but noisy)
+`PhotoThumb` is rendered inside an `AnimatePresence` block, which tries to attach a ref for exit animations. It's a plain function component and needs `forwardRef`.
 
-**Function components cannot be given refs**
-- `HeroLanding` and `ChatInput` are rendered inside `AnimatePresence` in `PhotoRabbitInner`, which tries to attach a ref for exit animations
-- Both are plain function components -- they need `React.forwardRef` wrapping
-- Fix: Wrap both components with `forwardRef` and forward the ref to their root DOM element
+**Change**: Wrap `PhotoThumb` (lines 6-21) with `React.forwardRef`, forwarding the ref to a wrapper `div` (or the `<>` fragment needs to become a `div` so there's a DOM node to attach the ref to).
 
-## Summary of Changes
+## Warning 2: SleepZzz in RabbitCharacter.tsx
 
-### 1. `src/pages/PhotoRabbit.tsx` (line 932)
-Replace `prev.findLastIndex(...)` with a backward for-loop:
-```typescript
-let lastIdx = -1;
-for (let i = prev.length - 1; i >= 0; i--) {
-  if (prev[i].role === "rabbit" && prev[i].content.includes("Studying")) {
-    lastIdx = i;
-    break;
-  }
-}
-```
+`SleepZzz` (line 307) is conditionally rendered inside an `AnimatePresence`-like context in `RabbitCharacter`. It's a plain function component returning a `<g>` SVG group.
 
-### 2. `src/components/workspace/HeroLanding.tsx`
-Wrap the component with `React.forwardRef` and forward the ref to the root `<div ref={heroRef}>` element (merge with existing `heroRef`).
+**Change**: Wrap `SleepZzz` with `React.forwardRef` and forward the ref to the root `<g>` element.
 
-### 3. `src/components/workspace/ChatInput.tsx`
-Wrap the component with `React.forwardRef` and forward the ref to the outer container `<div>`.
+## Summary
 
-All three changes are isolated, no ripple effects.
+| File | Component | Fix |
+|------|-----------|-----|
+| `src/components/workspace/PhotoUploadInline.tsx` | `PhotoThumb` | Wrap with `forwardRef`, convert fragment to `div` for ref target |
+| `src/components/rabbit/RabbitCharacter.tsx` | `SleepZzz` | Wrap with `forwardRef`, forward ref to `<g>` |
+
+Both changes are isolated, no ripple effects. After this, the console should be clean of ref warnings.
+
