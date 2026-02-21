@@ -240,16 +240,17 @@ Generate all pages now using the generate_pages function.`;
 
     const { pages } = JSON.parse(toolCall.function.arguments);
     const elapsedMs = Date.now() - startTime;
-    console.log(`Generated ${pages.length} pages in ${elapsedMs}ms`);
+    const usage = result.usage || null;
+    console.log(`Generated ${pages.length} pages in ${elapsedMs}ms`, usage ? `| Tokens: ${usage.total_tokens}` : "");
 
     // Build log: story complete
     await supabase.from("build_log").insert({
       project_id: projectId,
       phase: "story",
       level: "milestone",
-      message: `Story complete! ${pages.length} pages written in ${Math.round(elapsedMs / 1000)}s.`,
-      technical_message: `Generated ${pages.length} pages in ${elapsedMs}ms | Model: openai/gpt-5.2`,
-      metadata: { pages: pages.length, elapsed_ms: elapsedMs, model: "openai/gpt-5.2" },
+      message: `Story complete! ${pages.length} pages written in ${Math.round(elapsedMs / 1000)}s.${usage?.total_tokens ? ` (${usage.total_tokens} tokens)` : ""}`,
+      technical_message: `Generated ${pages.length} pages in ${elapsedMs}ms | Model: openai/gpt-5.2${usage ? ` | Tokens: ${JSON.stringify(usage)}` : ""}`,
+      metadata: { pages: pages.length, elapsed_ms: elapsedMs, model: "openai/gpt-5.2", usage },
     });
 
     // Delete existing pages for this project (in case of regeneration)
@@ -282,7 +283,7 @@ Generate all pages now using the generate_pages function.`;
     // status transitions — it sets "review" after illustrations complete.
     // Setting it here caused a race condition where users saw BookReview with no images.
 
-    return new Response(JSON.stringify({ success: true, pagesGenerated: pages.length }), {
+    return new Response(JSON.stringify({ success: true, pagesGenerated: pages.length, usage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

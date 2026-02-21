@@ -76,7 +76,7 @@ async function tryGenerate(
   content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>,
   maxAttempts: number,
   temperature = 0.8
-): Promise<{ base64: string | null; contentType: string; error: string | null; retryable: boolean }> {
+): Promise<{ base64: string | null; contentType: string; error: string | null; retryable: boolean; usage: any }> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -100,11 +100,11 @@ async function tryGenerate(
           await sleep(backoffMs);
           continue;
         }
-        return { base64: null, contentType: "image/png", error: "Rate limited after retries", retryable: true };
+        return { base64: null, contentType: "image/png", error: "Rate limited after retries", retryable: true, usage: null };
       }
 
       if (response.status === 402) {
-        return { base64: null, contentType: "image/png", error: "Credits exhausted", retryable: false };
+        return { base64: null, contentType: "image/png", error: "Credits exhausted", retryable: false, usage: null };
       }
 
       if (!response.ok) {
@@ -112,21 +112,22 @@ async function tryGenerate(
         console.error(`AI gateway error (attempt ${attempt}): ${response.status}`, text.slice(0, 500));
         // 400 = bad request (prompt issue), don't retry
         if (response.status === 400) {
-          return { base64: null, contentType: "image/png", error: `AI rejected request: ${text.slice(0, 200)}`, retryable: false };
+          return { base64: null, contentType: "image/png", error: `AI rejected request: ${text.slice(0, 200)}`, retryable: false, usage: null };
         }
         if (attempt < maxAttempts) {
           await sleep(1000);
           continue;
         }
-        return { base64: null, contentType: "image/png", error: `AI error: ${response.status}`, retryable: true };
+        return { base64: null, contentType: "image/png", error: `AI error: ${response.status}`, retryable: true, usage: null };
       }
 
       const result = await response.json();
+      const aiUsage = result.usage || null;
       const message = result.choices?.[0]?.message;
       const { base64, contentType } = extractImageData(message);
 
       if (base64) {
-        return { base64, contentType, error: null, retryable: false };
+        return { base64, contentType, error: null, retryable: false, usage: aiUsage };
       }
 
       console.error(`No image data on attempt ${attempt}. Message keys:`, Object.keys(message || {}));
@@ -134,17 +135,17 @@ async function tryGenerate(
         await sleep(1000);
         continue;
       }
-      return { base64: null, contentType: "image/png", error: "No image in response", retryable: true };
+      return { base64: null, contentType: "image/png", error: "No image in response", retryable: true, usage: null };
     } catch (e) {
       console.error(`Exception on attempt ${attempt}:`, e);
       if (attempt < maxAttempts) {
         await sleep(1000);
         continue;
       }
-      return { base64: null, contentType: "image/png", error: e instanceof Error ? e.message : "Unknown error", retryable: true };
+      return { base64: null, contentType: "image/png", error: e instanceof Error ? e.message : "Unknown error", retryable: true, usage: null };
     }
   }
-  return { base64: null, contentType: "image/png", error: "Max attempts reached", retryable: true };
+  return { base64: null, contentType: "image/png", error: "Max attempts reached", retryable: true, usage: null };
 }
 
 serve(async (req) => {
@@ -409,6 +410,7 @@ STYLE RULES:
           content_type: detectedContentType,
           elapsed_ms: illElapsedMs,
           model: modelUsed,
+          usage: result.usage || null,
         },
       });
     }

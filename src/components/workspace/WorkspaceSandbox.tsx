@@ -43,6 +43,9 @@ interface WorkspaceSandboxProps {
   interviewHighlights?: string[];
   mood?: string | null;
   productType?: "single_illustration" | "short_story" | "picture_book";
+  // Credit/cost props
+  tokenCost?: number;
+  creditBalance?: number | null;
   // Review props
   onBackFromReview: () => void;
   // Dev status props
@@ -73,6 +76,8 @@ const WorkspaceSandbox = ({
   interviewHighlights,
   mood,
   productType = "picture_book",
+  tokenCost = 0,
+  creditBalance = null,
   onBackFromReview,
   dbStatus,
 }: WorkspaceSandboxProps) => {
@@ -352,6 +357,8 @@ const WorkspaceSandbox = ({
               onNewIllustration={onNewIllustration}
               interviewHighlights={interviewHighlights}
               mood={mood}
+              tokenCost={tokenCost}
+              creditBalance={creditBalance}
             />
           </motion.div>
         )}

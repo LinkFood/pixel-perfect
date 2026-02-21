@@ -1357,6 +1357,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         interviewHighlights={interviewHighlights}
         mood={project?.mood}
         productType={productType}
+        tokenCost={TOKEN_COSTS[productType] || 5}
+        creditBalance={balance}
         onBackFromReview={handleBackFromReview}
         dbStatus={project?.status}
       />

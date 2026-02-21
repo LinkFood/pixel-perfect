@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, SkipForward, StopCircle, Check } from "lucide-react";
+import { RefreshCw, SkipForward, StopCircle, Check, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
@@ -20,6 +20,8 @@ interface GenerationViewProps {
   onNewIllustration?: (pageNum: number, url: string) => void;
   interviewHighlights?: string[];
   mood?: string | null;
+  tokenCost?: number;
+  creditBalance?: number | null;
 }
 
 function sleep(ms: number) {
@@ -267,7 +269,7 @@ const IllustrationReveal = ({ src, alt, className }: { src: string; alt: string;
   );
 };
 
-const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllustration, interviewHighlights = [], mood }: GenerationViewProps) => {
+const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllustration, interviewHighlights = [], mood, tokenCost = 0, creditBalance = null }: GenerationViewProps) => {
   const updateStatus = useUpdateProjectStatus();
   const [phase, setPhase] = useState<Phase>("loading");
   const [rabbitState, setRabbitState] = useState<RabbitState>("thinking");
@@ -701,13 +703,51 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
           })}
         </div>
 
-        {/* Progress bar under step 2 */}
+        {/* Progress bar — indeterminate shimmer during story, real progress during illustrations */}
+        {(phase === "story" || phase === "loading") && (
+          <div className="mt-2 max-w-xs mx-auto">
+            <div className="h-2 rounded-full bg-secondary overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-primary/60"
+                initial={{ x: "-100%" }}
+                animate={{ x: "100%" }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                style={{ width: "40%" }}
+              />
+            </div>
+          </div>
+        )}
         {phase === "illustrations" && totalPages > 0 && (
           <div className="mt-2 max-w-xs mx-auto">
             <Progress
               value={progressPercent}
               className="h-2 rounded-full bg-secondary"
             />
+          </div>
+        )}
+
+        {/* Cost bar — always visible during generation */}
+        {(phase === "story" || phase === "illustrations" || phase === "loading") && (
+          <div className="mt-3 mx-auto max-w-sm bg-muted/50 rounded-lg px-4 py-2 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="font-body text-xs text-muted-foreground">
+                <span className="text-foreground font-medium">{formatElapsed(elapsedSeconds)}</span>
+              </span>
+            </div>
+            {tokenCost > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="font-body text-xs text-muted-foreground">
+                  <span className="text-foreground font-medium">{tokenCost}</span> token{tokenCost !== 1 ? "s" : ""}
+                </span>
+              </div>
+            )}
+            {creditBalance !== null && (
+              <span className="font-body text-xs text-muted-foreground">
+                <span className="text-foreground font-medium">{Math.max(0, (creditBalance ?? 0) - tokenCost)}</span> left
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -774,7 +814,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
           </div>
         )}
 
-        {/* Pulse indicator + timer */}
+        {/* Pulse indicator */}
         {(phase === "story" || phase === "illustrations") && (
           <div className="flex items-center gap-3 py-2">
             <motion.div
@@ -784,9 +824,6 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
             />
             <span className="font-body text-xs text-muted-foreground">
               {phase === "story" ? "Writing story" : "Painting illustrations"}
-            </span>
-            <span className="font-body text-xs ml-auto text-muted-foreground">
-              {formatElapsed(elapsedSeconds)}
             </span>
           </div>
         )}
