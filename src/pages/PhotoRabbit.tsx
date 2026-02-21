@@ -795,6 +795,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
 
   const handleGenerationComplete = async () => {
+    // Clear generation "oven" messages — keep only pre-generation conversation
+    setChatMessages(prev => prev.filter(m => !m.photos || m.role === "user"));
     // Create share link automatically on completion
     let shareMsg = "It's ready. I'm really proud of this one.";
     if (activeProjectId) {

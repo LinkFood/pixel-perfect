@@ -244,11 +244,14 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
           </div>
           {/* Title overlay at bottom */}
           {textContent && (
-            <div className="absolute bottom-0 left-0 right-0 bg-white/85 backdrop-blur-sm pt-4 pb-5 px-5">
+            <div className={cn(
+              "absolute bottom-0 left-0 right-0 bg-white/85 backdrop-blur-sm",
+              isHalf ? "pt-2 pb-2.5 px-3" : "pt-4 pb-5 px-5"
+            )}>
               <p
                 className={cn(
                   "font-display font-bold leading-relaxed text-foreground text-center",
-                  isHalf ? "text-xl" : "text-3xl"
+                  isHalf ? "text-sm" : "text-3xl"
                 )}
               >
                 {textContent}
@@ -309,20 +312,26 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
               : `Page ${pageNumber}`}
           </span>
         </div>
-        {/* Text overlay at bottom */}
+        {/* Text overlay at bottom — compact in spread mode */}
         {textContent && (
-          <div className="absolute bottom-0 left-0 right-0 bg-white/85 backdrop-blur-sm pt-4 pb-5 px-5">
+          <div className={cn(
+            "absolute bottom-0 left-0 right-0 bg-white/85 backdrop-blur-sm",
+            isHalf ? "pt-2 pb-2.5 px-3 max-h-[35%] overflow-y-auto" : "pt-4 pb-5 px-5"
+          )}>
             <p className={cn(
               "font-display leading-relaxed text-foreground text-center",
-              isHalf ? "text-sm" : "text-base"
+              isHalf ? "text-xs" : "text-base"
             )}>
               {textContent}
             </p>
           </div>
         )}
         {!textContent && (
-          <div className="absolute bottom-0 left-0 right-0 bg-white/70 backdrop-blur-sm pt-3 pb-4 px-5">
-            <p className={cn("font-display leading-relaxed text-muted-foreground text-center italic", isHalf ? "text-xs" : "text-sm")}>
+          <div className={cn(
+            "absolute bottom-0 left-0 right-0 bg-white/70 backdrop-blur-sm",
+            isHalf ? "pt-2 pb-2.5 px-3" : "pt-3 pb-4 px-5"
+          )}>
+            <p className={cn("font-display leading-relaxed text-muted-foreground text-center italic", isHalf ? "text-[10px]" : "text-sm")}>
               Text will appear here after generation...
             </p>
           </div>
