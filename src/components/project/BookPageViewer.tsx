@@ -165,6 +165,9 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
         <div className="aspect-square relative overflow-hidden">
           {illustrationUrl && !imgError ? (
             <>
+              {illustrationUrl && !imgLoaded && !imgError && (
+                <div className="absolute inset-0 shimmer bg-primary/5" />
+              )}
               <img
                 src={illustrationUrl}
                 alt="Dedication illustration"
@@ -212,6 +215,9 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
         <div className="aspect-square relative overflow-hidden">
           {illustrationUrl && !imgError ? (
             <>
+              {illustrationUrl && !imgLoaded && !imgError && (
+                <div className="absolute inset-0 shimmer bg-primary/5" />
+              )}
               <img
                 src={illustrationUrl}
                 alt="Cover illustration"
@@ -262,17 +268,22 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
     )}>
       <div className="aspect-square bg-secondary/50 relative overflow-hidden">
         {illustrationUrl && !imgError ? (
-          <img
-            src={illustrationUrl}
-            alt={`Page ${pageNumber} illustration`}
-            className={cn(
-              "w-full h-full object-cover transition-opacity duration-500",
-              imgLoaded ? "opacity-100" : "opacity-0"
+          <>
+            {illustrationUrl && !imgLoaded && !imgError && (
+              <div className="absolute inset-0 shimmer bg-primary/5" />
             )}
-            onLoad={() => setImgLoaded(true)}
-            onError={handleError}
-            loading="lazy"
-          />
+            <img
+              src={illustrationUrl}
+              alt={`Page ${pageNumber} illustration`}
+              className={cn(
+                "w-full h-full object-cover transition-opacity duration-500",
+                imgLoaded ? "opacity-100" : "opacity-0"
+              )}
+              onLoad={() => setImgLoaded(true)}
+              onError={handleError}
+              loading="lazy"
+            />
+          </>
         ) : illustrationUrl && imgError ? (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center space-y-2 p-6">

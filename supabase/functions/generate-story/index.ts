@@ -134,7 +134,12 @@ serve(async (req) => {
 
     const interviewCount = interview?.length || 0;
     const photoCount = photos?.length || 0;
-    console.log(`Generating ${project.product_type || "storybook"} for ${project.pet_name}, mood=${project.mood || "none"}, ${interviewCount} interview messages, ${photoCount} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
+
+    // Derive product_type from DB first, fall back to photo-count heuristic
+    const effectiveProductType = project.product_type
+      || (photoCount <= 1 ? "single_illustration" : photoCount <= 5 ? "short_story" : "picture_book");
+
+    console.log(`Generating ${effectiveProductType} for ${project.pet_name}, mood=${project.mood || "none"}, ${interviewCount} interview messages, ${photoCount} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
 
     // Build log: story starting
     const startTime = Date.now();
@@ -147,7 +152,7 @@ serve(async (req) => {
       metadata: { model: "openai/gpt-5.2", interview_messages: interviewCount, photos: photoCount },
     });
 
-    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, project.product_type, project.mood);
+    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, effectiveProductType, project.mood);
 
     const petDesc = project.pet_type && project.pet_type !== "unknown" && project.pet_type !== "general"
       ? `, a ${project.pet_breed || ""} ${project.pet_type}`
@@ -261,6 +266,16 @@ Generate all pages now using the generate_pages function.`;
         scene_description: page.scene_description,
       });
       if (insertErr) console.error(`Failed to insert page ${page.page_number}:`, insertErr);
+
+      // Build log per page
+      await supabase.from("build_log").insert({
+        project_id: projectId,
+        phase: "story",
+        level: "info",
+        message: `Page ${page.page_number} written: ${page.scene_description?.slice(0, 60) || page.page_type}`,
+        technical_message: `page_type=${page.page_type}, mood=${page.mood}`,
+        metadata: { page_number: page.page_number, page_type: page.page_type },
+      });
     }
 
     // NOTE: Do NOT update project status here. The client (GenerationView) owns

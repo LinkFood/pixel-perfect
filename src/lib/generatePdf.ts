@@ -74,6 +74,7 @@ interface GeneratePdfOptions {
   petName: string;
   storyPages: StoryPage[];
   galleryPhotos: GalleryPhoto[];
+  onProgress?: (stage: string, percent: number) => void;
 }
 
 // 8.5" x 8.5" in points (72 points per inch)
@@ -137,7 +138,7 @@ function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
   return lines;
 }
 
-export async function generatePdf({ petName, storyPages, galleryPhotos }: GeneratePdfOptions) {
+export async function generatePdf({ petName, storyPages, galleryPhotos, onProgress }: GeneratePdfOptions) {
   const { default: jsPDF, GState } = await import("jspdf");
   const doc = new jsPDF({
     orientation: "portrait",
@@ -151,6 +152,8 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
   // Cap gallery photos at 30 for memory safety — loading 50+ as base64 can crash mobile browsers
   const cappedGalleryPhotos = galleryPhotos.slice(0, 30);
 
+  onProgress?.("Loading fonts...", 10);
+
   // Pre-fetch ALL images + fonts in parallel
   const allUrls = [
     ...storyPages.map(p => p.illustrationUrl),
@@ -161,13 +164,17 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
     registerFonts(doc),
   ]);
 
+  onProgress?.("Images loaded", 30);
+
   // Font helpers — fall back to helvetica if custom fonts failed to load
   const displayFont = fontsLoaded ? "PlayfairDisplay" : "helvetica";
   const bodyFont = fontsLoaded ? "PlusJakartaSans" : "helvetica";
 
   // --- Story Pages ---
   let storyPageNumber = 0; // visible page counter (excludes cover, dedication, back_cover)
-  for (const page of storyPages) {
+  for (let i = 0; i < storyPages.length; i++) {
+    const page = storyPages[i];
+    onProgress?.(`Rendering page ${i+1}...`, 30 + (i / storyPages.length) * 50);
     if (!isFirstPage) doc.addPage([PAGE_SIZE, PAGE_SIZE]);
     isFirstPage = false;
 
@@ -300,6 +307,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
 
   // --- Photo Gallery Section ---
   if (cappedGalleryPhotos.length > 0) {
+    onProgress?.("Adding photo gallery...", 85);
     // Skip gallery title page for 1-2 photos
     if (cappedGalleryPhotos.length > 2) {
       doc.addPage([PAGE_SIZE, PAGE_SIZE]);
@@ -403,6 +411,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
     } // close else for multi-photo grid
   }
 
+  onProgress?.("Finalizing PDF...", 95);
   // Download
   const filename = `${petName.replace(/[^a-zA-Z0-9]/g, "_")}_Book.pdf`;
   doc.save(filename);

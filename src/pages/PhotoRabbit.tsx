@@ -110,7 +110,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const updateStatus = useUpdateProjectStatus();
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
-  const { uploadBatch, uploadProgress, isBatchUploading } = useUploadPhoto();
+  const { uploadBatch, uploadProgress, isBatchUploading, captioningIds } = useUploadPhoto();
   const updatePhoto = useUpdatePhoto();
   const deletePhoto = useDeletePhoto();
   const { balance, deduct, fetchBalance } = useCredits();
@@ -411,12 +411,18 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if ((phase === "interview" || phase === "generating") && project) {
       const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
       setRabbitState("thinking");
+      // Brief anticipatory message (replaced by real stream within 1-2s)
+      setChatMessages(prev => [...prev, { role: "rabbit" as const, content: "Hmm, let me think about that..." }]);
+      scrollToBottom();
       await sendMessage(trimmed, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
     } else if (user && (phase === "home" || phase === "upload" || phase === "mood-picker")) {
       const captionedPhotos = photos.filter(p => p.caption);
       if (captionedPhotos.length > 0 && activeProjectId) {
         const photoCaptions = captionedPhotos.map(p => p.caption as string);
         setRabbitState("thinking");
+        // Brief anticipatory message (replaced by real stream within 1-2s)
+        setChatMessages(prev => [...prev, { role: "rabbit" as const, content: "Hmm, let me think about that..." }]);
+        scrollToBottom();
         await sendMessage(
           trimmed,
           interviewMessages,
@@ -461,7 +467,11 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         clearTimeout(fallbackTimerRef.current);
         fallbackTimerRef.current = undefined;
       }
-      setChatMessages(prev => [...prev, { role: "rabbit", content: lastFinishedContent }]);
+      // Remove anticipatory "thinking" message if present
+      setChatMessages(prev => {
+        const filtered = prev.filter(m => m.content !== "Hmm, let me think about that...");
+        return [...filtered, { role: "rabbit", content: lastFinishedContent }];
+      });
       setRabbitState(phase === "generating" ? "painting" : "listening");
       // Show AI-generated quick replies during interview, fall back to static if none
       if (phase === "interview") {
@@ -625,6 +635,9 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     setIsFinishing(true);
 
     try {
+    // Ensure product_type is written to DB before generation (safety net)
+    await updateProject.mutateAsync({ id: activeProjectId, product_type: productType });
+
     // Dev mode: skip credit check entirely
     if (isDevMode()) {
       await updateStatus.mutateAsync({ id: activeProjectId, status: "generating" });
@@ -650,6 +663,11 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
     // Wait for appearance profile to finish before generating
     if (appearanceProfilePromise.current) {
+      setChatMessages(prev => [...prev, {
+        role: "rabbit" as const,
+        content: "Finishing up my study of your photos...",
+      }]);
+      scrollToBottom();
       await appearanceProfilePromise.current.catch(() => {});
       appearanceProfilePromise.current = null;
     }
@@ -790,8 +808,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     : 4;
   const canFinish = displayCount >= canFinishThreshold;
 
-  // Sync product_type to project whenever it changes
-  const prevProductTypeRef = useRef(productType);
+  // Sync product_type to project whenever it changes (null init forces first-render write)
+  const prevProductTypeRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeProjectId) return;
     if (productType === prevProductTypeRef.current) return;
@@ -887,6 +905,43 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
   }, [photos.length, phase, scrollToBottom]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Rabbit message during photo captioning
+  const prevCaptioningCountRef = useRef(0);
+  useEffect(() => {
+    const count = captioningIds.size;
+    if (count > 0 && prevCaptioningCountRef.current === 0) {
+      // Captioning started
+      setChatMessages(prev => [...prev, {
+        role: "rabbit" as const,
+        content: `Studying your photos${count > 1 ? ` (${count} to go)...` : "..."}`,
+      }]);
+      scrollToBottom();
+    } else if (count === 0 && prevCaptioningCountRef.current > 0) {
+      // Captioning finished
+      setChatMessages(prev => [...prev, {
+        role: "rabbit" as const,
+        content: "Done studying! I know them well now.",
+      }]);
+      scrollToBottom();
+    } else if (count > 0 && count !== prevCaptioningCountRef.current) {
+      // Update count
+      const done = prevCaptioningCountRef.current > count ? prevCaptioningCountRef.current - count : 0;
+      if (done > 0) {
+        setChatMessages(prev => {
+          // Update the last captioning message instead of adding a new one
+          const lastIdx = prev.findLastIndex(m => m.role === "rabbit" && m.content.includes("Studying"));
+          if (lastIdx >= 0) {
+            const updated = [...prev];
+            updated[lastIdx] = { ...updated[lastIdx], content: `Studying your photos... (${count} left)` };
+            return updated;
+          }
+          return prev;
+        });
+      }
+    }
+    prevCaptioningCountRef.current = count;
+  }, [captioningIds.size, scrollToBottom]);
+
   // ─── Instant magic: generate preview illustration once captions arrive ───
   const previewTriggeredRef = useRef<string | null>(null);
   useEffect(() => {
@@ -899,12 +954,26 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     previewTriggeredRef.current = activeProjectId;
     const capturedProjectId = activeProjectId;
     const generatePreview = async () => {
+      // Add loading message
+      setChatMessages(prev => [...prev, {
+        role: "rabbit" as const,
+        content: "Let me sketch something for you...",
+      }]);
+      scrollToBottom();
+      setRabbitState("painting");
+
       try {
         const { data, error } = await supabase.functions.invoke("generate-preview-illustration", {
           body: { projectId: capturedProjectId },
         });
         if (error || !data?.publicUrl) {
           console.warn("Preview illustration failed:", error || "no URL");
+          // Graceful failure message
+          setChatMessages(prev => [...prev, {
+            role: "rabbit" as const,
+            content: "I'll save the sketching for the full book — tell me about them first!",
+          }]);
+          setRabbitState("excited");
           return;
         }
         setChatMessages(prev => {
@@ -922,6 +991,12 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         scrollToBottom();
       } catch (err) {
         console.warn("Preview illustration error:", err);
+        // Graceful failure message
+        setChatMessages(prev => [...prev, {
+          role: "rabbit" as const,
+          content: "I'll save the sketching for the full book — tell me about them first!",
+        }]);
+        setRabbitState("excited");
       }
     };
     generatePreview();
@@ -1051,7 +1126,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
               <ChatMessage role="rabbit" content={streamingContent} isStreaming />
             )}
 
-            {!isStreaming && rabbitState === "thinking" && phase === "interview" && (
+            {!isStreaming && rabbitState === "thinking" && (
               <TypingIndicator />
             )}
 
@@ -1257,6 +1332,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         photos={photos}
         isBatchUploading={isBatchUploading}
         uploadProgress={isBatchUploading ? uploadProgress : undefined}
+        captioningIds={captioningIds}
         onPhotoUpload={handlePhotoUpload}
         onToggleFavorite={activeProjectId ? (id, cur) => updatePhoto.mutate({ id, projectId: activeProjectId, is_favorite: !cur }) : undefined}
         onDeletePhoto={activeProjectId ? (id, path) => deletePhoto.mutate({ id, projectId: activeProjectId, storagePath: path }) : undefined}

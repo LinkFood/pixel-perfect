@@ -267,6 +267,15 @@ STYLE RULES:
 
     const illStartTime = Date.now();
 
+    // Build log: starting illustration
+    await supabase.from("build_log").insert({
+      project_id: projectId,
+      phase: "illustration",
+      level: "info",
+      message: `Painting page ${page.page_number}...`,
+      metadata: { page_number: page.page_number, model: PRIMARY_MODEL },
+    });
+
     // Try primary model (3 attempts)
     const modelUsed = PRIMARY_MODEL;
     let result = await tryGenerate(LOVABLE_API_KEY, modelUsed, finalContent, 3, temperature);
@@ -275,6 +284,15 @@ STYLE RULES:
     // If primary failed, report the error directly
 
     if (!result.base64) {
+      // Log the failure
+      await supabase.from("build_log").insert({
+        project_id: projectId,
+        phase: "illustration",
+        level: "error",
+        message: `Page ${page.page_number} illustration failed: ${result.error}. ${result.retryable ? "Will retry." : "Not retryable."}`,
+        metadata: { page_number: page.page_number, error: result.error, retryable: result.retryable },
+      });
+
       const status = result.retryable ? 503 : 402;
       return new Response(JSON.stringify({
         error: result.error,

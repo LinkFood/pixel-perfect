@@ -536,7 +536,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
 
       // Brief delay between batches
       if (batch + CONCURRENCY < initialWork.length) {
-        await sleep(1000);
+        await sleep(250);
       }
     }
 

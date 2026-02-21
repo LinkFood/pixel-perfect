@@ -189,7 +189,7 @@ const SharedBookViewer = () => {
   }, [book?.petName]);
 
   // Auto-flip timer
-  const AUTO_FLIP_DURATION = 6000;
+  const AUTO_FLIP_DURATION = 7000;
   useEffect(() => {
     if (!autoPlaying || !revealed || spreadIdx >= spreads.length - 1) return;
     const interval = setInterval(() => {
@@ -437,6 +437,23 @@ type VirtualPageType = {
   photos: { photoUrl: string; caption: string | null }[];
 };
 
+function StoryPageImage({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <>
+      {!loaded && <div className="absolute inset-0 shimmer bg-primary/5" />}
+      <img
+        src={src}
+        alt={alt}
+        className={`w-full h-full object-cover transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+        onLoad={() => setLoaded(true)}
+        loading="lazy"
+        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
+    </>
+  );
+}
+
 function renderSharedPage(vp: VirtualPageType | null) {
   if (!vp) {
     return (
@@ -497,13 +514,7 @@ function renderSharedPage(vp: VirtualPageType | null) {
   return (
     <div className="aspect-square relative overflow-hidden bg-card">
       {page.illustrationUrl ? (
-        <img
-          src={page.illustrationUrl}
-          alt={`Page ${page.pageNumber}`}
-          className="w-full h-full object-cover"
-          loading="lazy"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-        />
+        <StoryPageImage src={page.illustrationUrl} alt={`Page ${page.pageNumber}`} />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-border/25">
           <BookOpen className="w-12 h-12" />

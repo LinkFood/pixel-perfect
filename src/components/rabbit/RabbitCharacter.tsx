@@ -338,13 +338,25 @@ const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset, moo
 
   const isSleeping = currentState === "sleeping";
   const isHappy = currentState === "celebrating" || currentState === "excited";
+  const isPulsing = currentState === "thinking" || currentState === "painting";
 
   // Eye tracking — clamp offset to stay within eye bounds
   const ex = eyeOffset ? Math.max(-2.5, Math.min(2.5, eyeOffset.x * 2.5)) : 0;
   const ey = eyeOffset ? Math.max(-1.5, Math.min(1.5, eyeOffset.y * 1.5)) : 0;
 
   return (
-    <div className={className} style={{ width: size, height: size * 1.4 }}>
+    <motion.div
+      className={className}
+      style={{ width: size, height: size * 1.4 }}
+      animate={isPulsing && !shouldReduceMotion ? {
+        scale: [1, 1.015, 1],
+      } : { scale: 1 }}
+      transition={isPulsing ? {
+        duration: 2,
+        repeat: Infinity,
+        ease: "easeInOut",
+      } : { duration: 0.3 }}
+    >
       <svg
         viewBox="0 0 200 280"
         width="100%"
@@ -568,7 +580,7 @@ const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset, moo
           />
         </motion.g>
       </svg>
-    </div>
+    </motion.div>
   );
 };
 

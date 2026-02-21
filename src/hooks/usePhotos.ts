@@ -212,10 +212,13 @@ export const useUploadPhoto = () => {
       batchActiveRef.current = false;
       setIsBatchUploading(false);
 
-      // Fire captioning in the background (not blocking the UI)
-      for (const item of successfulIds) {
-        await describePhoto(item.id, item.projectId);
-        await new Promise(r => setTimeout(r, 500));
+      // Fire captioning in the background (not blocking the UI) — parallel batches of 3
+      const CAPTION_CONCURRENCY = 3;
+      for (let i = 0; i < successfulIds.length; i += CAPTION_CONCURRENCY) {
+        const chunk = successfulIds.slice(i, i + CAPTION_CONCURRENCY);
+        await Promise.allSettled(
+          chunk.map(item => describePhoto(item.id, item.projectId))
+        );
       }
     } finally {
       // Safety net in case of error — ensure flag is always cleared

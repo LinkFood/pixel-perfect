@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, X, Star } from "lucide-react";
+import { Camera, Upload, X, Star, Sparkles } from "lucide-react";
 import { type ProjectPhoto, getPhotoUrl } from "@/hooks/usePhotos";
 
 const PhotoThumb = ({ storagePath, alt }: { storagePath: string; alt: string }) => {
@@ -24,6 +24,7 @@ interface PhotoUploadInlineProps {
   photos: ProjectPhoto[];
   isUploading: boolean;
   uploadProgress?: { total: number; completed: number; failed: number };
+  captioningIds?: Set<string>;
   onUpload: (files: File[]) => void;
   onToggleFavorite?: (photoId: string, current: boolean) => void;
   onDelete?: (photoId: string, storagePath: string) => void;
@@ -33,6 +34,7 @@ const PhotoUploadInline = ({
   photos,
   isUploading,
   uploadProgress,
+  captioningIds,
   onUpload,
   onToggleFavorite,
   onDelete,
@@ -155,7 +157,9 @@ const PhotoUploadInline = ({
         <div className="max-h-[400px] overflow-y-auto rounded-xl">
           <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 gap-2">
             <AnimatePresence>
-              {photos.map((photo, index) => (
+              {photos.map((photo, index) => {
+                const isCaptioning = captioningIds?.has(photo.id) || false;
+                return (
                 <motion.div
                   key={photo.id}
                   initial={{ opacity: 0, scale: 0.8, rotate: getRotation(index) * 3 }}
@@ -170,10 +174,15 @@ const PhotoUploadInline = ({
                   whileHover={{ scale: 1.08, rotate: 0, zIndex: 10 }}
                   className="relative rounded-xl overflow-hidden group aspect-square shadow-chat cursor-pointer"
                 >
-                  {isUploading && index >= (photos.length - (uploadProgress?.total || 0)) && index >= (photos.length - (uploadProgress?.total || 0) + (uploadProgress?.completed || 0)) ? (
-                    <div className="absolute inset-0 shimmer rounded-xl" />
-                  ) : null}
                   <PhotoThumb storagePath={photo.storage_path} alt={photo.caption || "Photo"} />
+                  {isCaptioning && (
+                    <div className="absolute inset-0 bg-background/30 backdrop-blur-[1px] flex items-center justify-center">
+                      <div className="flex items-center gap-1.5 bg-background/90 rounded-full px-2 py-1 border border-border">
+                        <Sparkles className="w-3 h-3 text-primary animate-pulse" />
+                        <span className="text-[10px] font-body text-muted-foreground">Studying...</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
                     {onToggleFavorite && (
                       <button
@@ -202,7 +211,8 @@ const PhotoUploadInline = ({
                     </motion.div>
                   )}
                 </motion.div>
-              ))}
+                );
+              })}
             </AnimatePresence>
           </div>
         </div>

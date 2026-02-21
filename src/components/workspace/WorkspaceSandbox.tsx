@@ -21,6 +21,7 @@ interface WorkspaceSandboxProps {
   photos: ProjectPhoto[];
   isBatchUploading: boolean;
   uploadProgress?: { total: number; completed: number; failed: number };
+  captioningIds?: Set<string>;
   onPhotoUpload: (files: File[]) => void;
   onToggleFavorite?: (photoId: string, current: boolean) => void;
   onDeletePhoto?: (photoId: string, storagePath: string) => void;
@@ -53,6 +54,7 @@ const WorkspaceSandbox = ({
   photos,
   isBatchUploading,
   uploadProgress,
+  captioningIds,
   onPhotoUpload,
   onToggleFavorite,
   onDeletePhoto,
@@ -112,10 +114,10 @@ const WorkspaceSandbox = ({
         } catch (err) {
           console.error("Failed to fetch cover for reveal:", err);
         }
-        // Button becomes clickable after 3 seconds regardless of fetch result
-        setTimeout(() => setRevealReady(true), 3000);
       };
       fetchCover();
+      // Start timer in parallel with cover fetch
+      setTimeout(() => setRevealReady(true), 3000);
     }
     prevPhaseRef.current = phase;
   }, [phase, activeProjectId]);
@@ -183,6 +185,7 @@ const WorkspaceSandbox = ({
               photos={photos}
               isUploading={isBatchUploading}
               uploadProgress={isBatchUploading ? uploadProgress : undefined}
+              captioningIds={captioningIds}
               onUpload={onPhotoUpload}
               onToggleFavorite={onToggleFavorite}
               onDelete={onDeletePhoto}
@@ -244,6 +247,7 @@ const WorkspaceSandbox = ({
               photos={photos}
               isUploading={isBatchUploading}
               uploadProgress={isBatchUploading ? uploadProgress : undefined}
+              captioningIds={captioningIds}
               onUpload={onPhotoUpload}
               onToggleFavorite={onToggleFavorite}
               onDelete={onDeletePhoto}

@@ -82,6 +82,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const [showDoneOverlay, setShowDoneOverlay] = useState(false);
   const [showDoneConfetti, setShowDoneConfetti] = useState(false);
   const doneOverlayShownRef = useRef(false);
+  const [pdfProgress, setPdfProgress] = useState<string | null>(null);
 
   // Canonical public base — always points to the published URL (no auth wall)
   const APP_BASE = import.meta.env.VITE_APP_URL
@@ -101,7 +102,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
     });
   }, []);
 
-  const { data: pages = [] } = useQuery({
+  const { data: pages = [], isLoading: pagesLoading } = useQuery({
     queryKey: ["pages", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -363,17 +364,22 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       }
     }
 
-    for (const p of missingPages) {
-      try {
-        const { error } = await supabase.functions.invoke("generate-illustration", {
-          body: { pageId: p.id, projectId: id },
-        });
-        if (!error) {
+    const CONCURRENCY = 3;
+    for (let i = 0; i < missingPages.length; i += CONCURRENCY) {
+      const batch = missingPages.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map(p =>
+          supabase.functions.invoke("generate-illustration", {
+            body: { pageId: p.id, projectId: id },
+          })
+        )
+      );
+      for (let r = 0; r < results.length; r++) {
+        const result = results[r];
+        if (result.status === "fulfilled" && !result.value.error) {
           successes++;
-          succeededPageIds.push(p.id);
+          succeededPageIds.push(batch[r].id);
         }
-      } catch (e) {
-        console.error(`Failed for page ${p.id}:`, e);
       }
     }
 
@@ -415,8 +421,10 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
         petName: project.pet_name,
         storyPages: storyPagesData,
         galleryPhotos: galleryData,
+        onProgress: (stage) => setPdfProgress(stage),
       });
 
+      setPdfProgress(null);
       toast.success("PDF downloaded!");
     } catch (e) {
       console.error("PDF generation failed:", e);
@@ -732,7 +740,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
-                {isDownloadingPdf ? "PDF..." : "PDF"}
+                {isDownloadingPdf ? (pdfProgress || "PDF...") : "PDF"}
               </Button>
               <Button variant="hero" size="sm" className="rounded-xl gap-2" onClick={approveAll} disabled={approvedCount === pages.length}>
                 <CheckCircle className="w-4 h-4" /> Approve All
@@ -912,6 +920,15 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                   </div>
                 )}
               </div>
+            </div>
+          ) : pagesLoading ? (
+            <div className="space-y-8">
+              <div className="flex gap-1 max-w-4xl mx-auto">
+                <div className="flex-1 aspect-square rounded-l-2xl shimmer bg-primary/5" />
+                <div className="w-1 bg-border/20" />
+                <div className="flex-1 aspect-square rounded-r-2xl shimmer bg-primary/5" />
+              </div>
+              <p className="font-body text-sm text-muted-foreground text-center">Loading your book...</p>
             </div>
           ) : (
             <div className="text-center py-20">
