@@ -300,19 +300,39 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
 
   // --- Photo Gallery Section ---
   if (cappedGalleryPhotos.length > 0) {
-    // Gallery title page
-    doc.addPage([PAGE_SIZE, PAGE_SIZE]);
-    doc.setFillColor(255, 250, 240); // warm cream
-    doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
-    doc.setFont(displayFont, "bold");
-    doc.setFontSize(32);
-    doc.setTextColor(60, 50, 40);
-    doc.text(`The Real ${petName}`, PAGE_SIZE / 2, PAGE_SIZE / 2 - 20, { align: "center" });
-    doc.setFont(bodyFont, "normal");
-    doc.setFontSize(14);
-    doc.setTextColor(120, 110, 100);
-    doc.text("The real moments behind the story", PAGE_SIZE / 2, PAGE_SIZE / 2 + 20, { align: "center" });
+    // Skip gallery title page for 1-2 photos
+    if (cappedGalleryPhotos.length > 2) {
+      doc.addPage([PAGE_SIZE, PAGE_SIZE]);
+      doc.setFillColor(255, 250, 240); // warm cream
+      doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
+      doc.setFont(displayFont, "bold");
+      doc.setFontSize(32);
+      doc.setTextColor(60, 50, 40);
+      doc.text(`The Real ${petName}`, PAGE_SIZE / 2, PAGE_SIZE / 2 - 20, { align: "center" });
+      doc.setFont(bodyFont, "normal");
+      doc.setFontSize(14);
+      doc.setTextColor(120, 110, 100);
+      doc.text("The real moments behind the story", PAGE_SIZE / 2, PAGE_SIZE / 2 + 20, { align: "center" });
+    }
 
+    // Single photo: full-page hero
+    if (cappedGalleryPhotos.length === 1) {
+      doc.addPage([PAGE_SIZE, PAGE_SIZE]);
+      doc.setFillColor(255, 252, 248);
+      doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
+      const heroImg = imageCache.get(cappedGalleryPhotos[0].photoUrl) ?? null;
+      if (heroImg) {
+        const margin = 60;
+        const size = PAGE_SIZE - 2 * margin;
+        doc.addImage(heroImg, "JPEG", margin, margin, size, size);
+      }
+      if (cappedGalleryPhotos[0].caption) {
+        doc.setFont(bodyFont, "normal");
+        doc.setFontSize(11);
+        doc.setTextColor(100, 90, 80);
+        doc.text(cappedGalleryPhotos[0].caption, PAGE_SIZE / 2, PAGE_SIZE - 30, { align: "center", maxWidth: textArea - 40 });
+      }
+    } else {
     // Photo grid pages — 6 photos per page (2x3)
     for (let i = 0; i < cappedGalleryPhotos.length; i += 6) {
       doc.addPage([PAGE_SIZE, PAGE_SIZE]);
@@ -380,6 +400,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos }: Genera
         }
       }
     }
+    } // close else for multi-photo grid
   }
 
   // Download

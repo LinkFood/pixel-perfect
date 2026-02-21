@@ -100,11 +100,38 @@ export const useAutoFillInterview = (projectId: string | undefined) => {
   });
 };
 
+/** Parse the ---CHIPS--- and ---MOOD--- delimiters from LLM output. */
+function parseChipsAndMood(raw: string): [string, string[], string | null] {
+  let content = raw;
+  let detectedMood: string | null = null;
+
+  // Extract ---MOOD--- (may appear after chips)
+  const moodIdx = content.indexOf("---MOOD---");
+  if (moodIdx !== -1) {
+    const moodBlock = content.slice(moodIdx + "---MOOD---".length).trim();
+    const moodLine = moodBlock.split("\n")[0]?.trim().toLowerCase();
+    if (["funny", "heartfelt", "adventure", "memorial"].includes(moodLine)) {
+      detectedMood = moodLine;
+    }
+    content = content.slice(0, moodIdx).trimEnd();
+  }
+
+  // Extract ---CHIPS---
+  const chipIdx = content.indexOf("---CHIPS---");
+  if (chipIdx === -1) return [content, [], detectedMood];
+  const message = content.slice(0, chipIdx).trimEnd();
+  const chipBlock = content.slice(chipIdx + "---CHIPS---".length).trim();
+  const chips = chipBlock.split("\n").map(l => l.trim()).filter(l => l.length > 0 && l.length <= 60).slice(0, 3);
+  return [message, chips, detectedMood];
+}
+
 export const useInterviewChat = (projectId: string | undefined) => {
   const queryClient = useQueryClient();
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [lastFinishedContent, setLastFinishedContent] = useState("");
+  const [lastSuggestedReplies, setLastSuggestedReplies] = useState<string[]>([]);
+  const [lastDetectedMood, setLastDetectedMood] = useState<string | null>(null);
 
   const sendMessage = useCallback(async (
     userMessage: string,
@@ -180,19 +207,29 @@ export const useInterviewChat = (projectId: string | undefined) => {
           try {
             const parsed = JSON.parse(json);
             const content = parsed.choices?.[0]?.delta?.content;
-            if (content) { fullContent += content; setStreamingContent(fullContent); }
+            if (content) {
+              fullContent += content;
+              // Strip chips from streaming display so user doesn't see raw delimiter
+              const [visibleContent] = parseChipsAndMood(fullContent);
+              setStreamingContent(visibleContent);
+            }
           } catch { buffer = line + "\n" + buffer; break; }
         }
       }
 
-      // Save assistant message
-      if (fullContent) {
-        await supabase.from("project_interview").insert({ project_id: projectId, role: "assistant", content: fullContent });
+      // Parse chips and mood from raw output
+      const [messageContent, suggestedReplies, detectedMood] = parseChipsAndMood(fullContent);
+
+      // Save assistant message (without chips)
+      if (messageContent) {
+        await supabase.from("project_interview").insert({ project_id: projectId, role: "assistant", content: messageContent });
         queryClient.invalidateQueries({ queryKey: ["interview", projectId] });
       }
 
-      // Store finished content BEFORE clearing streaming state
-      setLastFinishedContent(fullContent);
+      // Store finished content and suggested replies BEFORE clearing streaming state
+      setLastFinishedContent(messageContent);
+      setLastSuggestedReplies(suggestedReplies);
+      if (detectedMood) setLastDetectedMood(detectedMood);
     } catch (e) {
       console.error("Interview chat error:", e);
       toast.error("Failed to get AI response");
@@ -202,5 +239,5 @@ export const useInterviewChat = (projectId: string | undefined) => {
     }
   }, [projectId, queryClient]);
 
-  return { sendMessage, isStreaming, streamingContent, lastFinishedContent };
+  return { sendMessage, isStreaming, streamingContent, lastFinishedContent, lastSuggestedReplies, lastDetectedMood };
 };

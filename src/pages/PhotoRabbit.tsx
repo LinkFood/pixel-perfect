@@ -16,7 +16,7 @@ import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearI
 import { isDevMode, enableDevMode } from "@/lib/devMode";
 import { getQuickReplies } from "@/lib/quickReplies";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth, useCredits } from "@/hooks/useAuth";
+import { useAuth, useCredits, TOKEN_COSTS } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import CreditGate from "@/components/workspace/CreditGate";
 import { toast } from "sonner";
@@ -105,7 +105,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const { data: project, isLoading: projectLoading } = useProject(activeProjectId || undefined);
   const { data: photos = [] } = usePhotos(activeProjectId || undefined);
   const { data: interviewMessages = [] } = useInterviewMessages(activeProjectId || undefined);
-  const { sendMessage, isStreaming, streamingContent, lastFinishedContent } = useInterviewChat(activeProjectId || undefined);
+  const { sendMessage, isStreaming, streamingContent, lastFinishedContent, lastSuggestedReplies, lastDetectedMood } = useInterviewChat(activeProjectId || undefined);
   const createProject = useCreateMinimalProject();
   const updateStatus = useUpdateProjectStatus();
   const updateProject = useUpdateProject();
@@ -122,9 +122,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const clearInterview = useClearInterview(activeProjectId || undefined);
   const [rabbitState, setRabbitState] = useState<RabbitState>("idle");
   const [isFinishing, setIsFinishing] = useState(false);
-  const [chatMoodPending, setChatMoodPending] = useState(false);
-  const [chatNamePending, setChatNamePending] = useState(false);
-  const [pendingPetName, setPendingPetName] = useState("");
+  // Legacy pending states removed — organic discovery replaces them
+  const chatMoodPending = false; // kept as constant for JSX references during migration
+  const chatNamePending = false; // kept as constant for JSX references during migration
+  const pendingPetName = ""; // kept as constant for references during migration
   const [showSpeedChoice, setShowSpeedChoice] = useState(false);
   const speedChoiceShownRef = useRef(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[]; moodPicker?: boolean; projectId?: string }>>([]);
@@ -310,9 +311,6 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     setActiveProjectId(id);
     navigate(`/project/${id}`);
     prevCanFinish.current = false;
-    setChatNamePending(false);
-    setChatMoodPending(false);
-    setPendingPetName("");
     setShowSpeedChoice(false);
     speedChoiceShownRef.current = false;
   };
@@ -338,53 +336,34 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   // ─── Interview chat ─────────────────────────────────────────
 
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text) return;
+  // Unified send function — the ONLY path for sending user text (input box + chip clicks)
+  const sendChatMessage = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+    if (isStreaming) return;
+    const trimmed = text.trim();
     resetIdleTimer();
     setQuickReplies([]);
 
-    // Intercept name input before mood picker
-    if (chatNamePending) {
-      setChatMessages(prev => [...prev, { role: "user", content: text }]);
-      setInput("");
-      setPendingPetName(text);
-      setChatNamePending(false);
-      // Now show mood picker
-      setChatMoodPending(true);
-      setChatMessages(prev => [...prev, {
-        role: "rabbit",
-        content: `"${text}" — love it! Now, what's the vibe for this book?`,
-        moodPicker: true,
-      }]);
-      scrollToBottom();
-      return;
-    }
-
     // ── Intent detection: user says "just make it / go for it / generate" etc. ──
-    // If they clearly want to generate NOW and we have photos, honor it immediately.
-    // Broad intent detection: catches "make a story", "write me a book", "create it", "generate", "go for it", etc.
     const intentKeywords = /\b(make|create|write|generate|build)\b.{0,40}\b(book|story|pages?|it|this|now)\b|\b(just do it|go for it|let'?s go|make it now|make my book|just start|do it now|just make it|make it please)\b/i;
     if (
-      intentKeywords.test(text) &&
+      intentKeywords.test(trimmed) &&
       photos.length >= 1 &&
       !isFinishing &&
       (phase === "interview" || phase === "upload" || phase === "mood-picker")
     ) {
-      setChatMessages(prev => [...prev, { role: "user", content: text }]);
+      setChatMessages(prev => [...prev, { role: "user", content: trimmed }]);
       setInput("");
-      setChatMessages(prev => [...prev, { role: "rabbit", content: "Got it — making it now! ⚡" }]);
+      setChatMessages(prev => [...prev, { role: "rabbit", content: "Got it — making it now!" }]);
       setShowSpeedChoice(false);
       scrollToBottom();
-      // Extract mood hint from the user's message text
-      const moodHint = /\bfunny|humor|hilarious|laugh\b/i.test(text) ? "funny"
-        : /\badventure|epic|wild|thrilling\b/i.test(text) ? "adventure"
-        : /\bmemorial|memory|remember|miss\b/i.test(text) ? "memorial"
+      const moodHint = /\bfunny|humor|hilarious|laugh\b/i.test(trimmed) ? "funny"
+        : /\badventure|epic|wild|thrilling\b/i.test(trimmed) ? "adventure"
+        : /\bmemorial|memory|remember|miss\b/i.test(trimmed) ? "memorial"
         : null;
       const moodToUse = moodHint || project?.mood || "heartfelt";
 
-      // Extract subject name from "book of X" / "about X" / "for X" / "starring X"
-      const nameMatch = text.match(
+      const nameMatch = trimmed.match(
         /\b(?:of|about|for|starring|featuring)\s+([a-zA-Z][a-zA-Z\s]{1,25}?)(?:\s+(?:and\b|going|playing|at\b|in\b|the\b)|[,.]|$)/i
       );
       const extractedName = nameMatch?.[1]?.trim();
@@ -394,25 +373,20 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           ? project.pet_name
           : pendingPetName || null;
 
-      // Save the user's creative intent to project_interview BEFORE generation
-      // This is the story brief — generate-story reads from project_interview only
       if (activeProjectId) {
         await supabase.from("project_interview").insert({
           project_id: activeProjectId,
           role: "user",
-          content: text,
+          content: trimmed,
         });
         await supabase.from("project_interview").insert({
           project_id: activeProjectId,
           role: "assistant",
-          content: `Got it! I'll make a ${moodToUse} book${nameToUse ? ` about ${nameToUse}` : ""}. ⚡`,
+          content: `Got it! I'll make a ${moodToUse} book${nameToUse ? ` about ${nameToUse}` : ""}.`,
         });
       }
 
-      // Need a mood first if we don't have one
       if (!project?.mood && phase !== "interview") {
-        // Don't call startInterview() — it wipes the chat. Set status directly.
-        // Suppress mood-picker auto-recovery during the brief window while DB refetches
         suppressMoodPickerRef.current = true;
         await updateProject.mutateAsync({
           id: activeProjectId!,
@@ -420,10 +394,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           pet_name: nameToUse || "New Project",
         });
         await updateStatus.mutateAsync({ id: activeProjectId!, status: "interview" });
-        // 800ms gives the DB update time to propagate before phase re-derives
         setTimeout(() => handleFinishInterview(true), 800);
       } else {
-        // If we extracted a name, update it now before generating
         if (nameToUse && nameToUse !== project?.pet_name) {
           await updateProject.mutateAsync({ id: activeProjectId!, pet_name: nameToUse });
         }
@@ -432,21 +404,21 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       return;
     }
 
-    setChatMessages(prev => [...prev, { role: "user", content: text }]);
+    setChatMessages(prev => [...prev, { role: "user", content: trimmed }]);
     setInput("");
     scrollToBottom();
 
     if ((phase === "interview" || phase === "generating") && project) {
       const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
       setRabbitState("thinking");
-      await sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
+      await sendMessage(trimmed, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
     } else if (user && (phase === "home" || phase === "upload" || phase === "mood-picker")) {
       const captionedPhotos = photos.filter(p => p.caption);
       if (captionedPhotos.length > 0 && activeProjectId) {
         const photoCaptions = captionedPhotos.map(p => p.caption as string);
         setRabbitState("thinking");
         await sendMessage(
-          text,
+          trimmed,
           interviewMessages,
           project?.pet_name || "your subject",
           project?.pet_type || "general",
@@ -455,7 +427,6 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           project?.product_type || "picture_book",
           project?.mood || "heartfelt"
         );
-        // Safety net: if no rabbit reply arrives within 8s, show fallback
         fallbackTimerRef.current = window.setTimeout(() => {
           setChatMessages(prev => {
             const lastMsg = prev[prev.length - 1];
@@ -467,7 +438,6 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           scrollToBottom();
         }, 8000);
       } else {
-        // No photos yet — use canned responses
         const earlyResponses = [
           "Drop some photos and I'll show you what I can do!",
           "I'm ready to paint — just need some photos to work with.",
@@ -481,7 +451,9 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         }, 500);
       }
     }
-  };
+  }, [isStreaming, chatNamePending, phase, photos, project, activeProjectId, isFinishing, interviewMessages, user, chatMessages.length, pendingPetName, resetIdleTimer, scrollToBottom, sendMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSend = () => sendChatMessage(input);
 
   useEffect(() => {
     if (lastFinishedContent) {
@@ -491,14 +463,25 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       }
       setChatMessages(prev => [...prev, { role: "rabbit", content: lastFinishedContent }]);
       setRabbitState(phase === "generating" ? "painting" : "listening");
-      // Only show quick replies during the interview phase
+      // Show AI-generated quick replies during interview, fall back to static if none
       if (phase === "interview") {
-        const replies = getQuickReplies(lastFinishedContent, project?.pet_name || "them", project?.mood);
-        setQuickReplies(replies);
+        if (lastSuggestedReplies.length > 0) {
+          setQuickReplies(lastSuggestedReplies);
+        } else {
+          const replies = getQuickReplies(lastFinishedContent, project?.pet_name || "them", project?.mood);
+          setQuickReplies(replies);
+        }
       }
       scrollToBottom();
     }
   }, [lastFinishedContent]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-update project mood when LLM detects a shift
+  useEffect(() => {
+    if (!lastDetectedMood || !activeProjectId) return;
+    if (lastDetectedMood === project?.mood) return;
+    updateProject.mutate({ id: activeProjectId, mood: lastDetectedMood });
+  }, [lastDetectedMood]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear quick replies while streaming
   useEffect(() => {
@@ -546,31 +529,29 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const handleContinueToInterview = () => {
     if (!activeProjectId) return;
     if (updateStatus.isPending) return;
-    if (isFinishing) return; // Don't race with active intent-path generation
+    if (isFinishing) return;
+    // Default mood = heartfelt. The LLM will detect and shift mood during conversation.
+    const moodToUse = project?.mood || "heartfelt";
     if (!project?.mood) {
-      // No mood yet — first ask for the name, then mood
-      updateStatus.mutate(
-        { id: activeProjectId, status: "interview" },
-        {
-          onError: (err) => {
-            console.error("handleContinueToInterview status update failed:", err);
-            toast.error("Couldn't advance to interview — try again");
-          },
-        }
-      );
-      setChatNamePending(true);
-      setChatMessages(prev => [...prev, {
-        role: "rabbit",
-        content: "Love these! Who's the star of this book? (Type their name)",
-      }]);
-      scrollToBottom();
-      return;
+      // Auto-set mood so phase transitions cleanly
+      suppressMoodPickerRef.current = true;
+      updateProject.mutate({ id: activeProjectId, mood: moodToUse });
     }
-    // Mood already set (returning user) — go straight to interview
+    // Auto-extract name from photo analysis if still default
+    if (!project?.pet_name || project.pet_name === "New Project") {
+      const captioned = photos.filter(p => p.ai_analysis || p.caption);
+      if (captioned.length > 0) {
+        const analysis = (captioned[0] as any).ai_analysis;
+        const extractedName = analysis?.people_present?.[0] || analysis?.subject_name;
+        if (extractedName) {
+          updateProject.mutate({ id: activeProjectId, pet_name: extractedName });
+        }
+      }
+    }
     appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
       body: { projectId: activeProjectId },
     });
-    startInterview(project.mood);
+    startInterview(moodToUse);
   };
 
   const handleMoodSelect = async (mood: string, name: string) => {
@@ -654,13 +635,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       return;
     }
 
-    // Credit check before generation
+    // Credit check before generation — variable cost based on product type
+    const tokenCost = TOKEN_COSTS[productType] || 5;
     const currentBalance = await fetchBalance();
-    if (currentBalance <= 0) {
+    if (currentBalance < tokenCost) {
       setShowCreditGate(true);
       setChatMessages(prev => [...prev, {
         role: "rabbit",
-        content: "I need a credit to paint your book. Let's get that sorted first!",
+        content: currentBalance === 0
+          ? `I need ${tokenCost} token${tokenCost !== 1 ? "s" : ""} for this. Let's get that sorted first!`
+          : `This needs ${tokenCost} tokens but you have ${currentBalance}. Let's get more!`,
       }]);
       scrollToBottom();
       return;
@@ -686,8 +670,11 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       return;
     }
 
-    // Status updated successfully — NOW deduct credit
-    const success = await deduct(activeProjectId, "Book generation");
+    // Status updated successfully — NOW deduct tokens
+    const productLabel = productType === "single_illustration" ? "Single illustration"
+      : productType === "short_story" ? "Short story"
+      : "Picture book";
+    const success = await deduct(activeProjectId, `${productLabel} generation`, tokenCost);
     if (!success) {
       // Roll back status
       updateStatus.mutate({ id: activeProjectId, status: "interview" });
@@ -792,23 +779,35 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   };
 
   const userInterviewCount = interviewMessages.filter(m => m.role === "user").length;
-  // localUserCount reads from local chatMessages for instant updates (no DB round-trip lag)
   const localUserCount = chatMessages.filter(m => m.role === "user").length;
   const displayCount = Math.max(userInterviewCount, localUserCount);
-  const canFinish = displayCount >= 4;
 
-  // Signal when canFinish becomes true — rabbit hints that the "Make my book" button is ready
+  // Derive product type from photo count: 1 = single illustration, 2-5 = short story, 6+ = full book
+  const productType: "single_illustration" | "short_story" | "picture_book" =
+    photos.length <= 1 ? "single_illustration"
+    : photos.length <= 5 ? "short_story"
+    : "picture_book";
+
+  // Adaptive canFinish threshold based on product type
+  const canFinishThreshold = productType === "single_illustration" ? 1
+    : productType === "short_story" ? 2
+    : 4;
+  const canFinish = displayCount >= canFinishThreshold;
+
+  // Sync product_type to project whenever it changes
+  const prevProductTypeRef = useRef(productType);
+  useEffect(() => {
+    if (!activeProjectId) return;
+    if (productType === prevProductTypeRef.current) return;
+    prevProductTypeRef.current = productType;
+    updateProject.mutate({ id: activeProjectId, product_type: productType });
+  }, [productType, activeProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track canFinish for sandbox button — no system message injection (button guides the user)
   const prevCanFinish = useRef(false);
   useEffect(() => {
-    if (canFinish && !prevCanFinish.current && phase === "interview") {
-      setChatMessages(prev => [...prev, {
-        role: "rabbit",
-        content: "I have enough to start — hit \"Make my book\" whenever you're ready. Or keep sharing for an even richer story!",
-      }]);
-      scrollToBottom();
-    }
     prevCanFinish.current = canFinish;
-  }, [canFinish, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [canFinish]);
 
   // Show speed-choice sticky banner as soon as user has photos — works in BOTH upload and interview phase.
   // Fires regardless of how many messages the user has sent. Resets when switching projects.
@@ -855,13 +854,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     } else if (phase === "review") {
       greeting = "Your book is ready! Review it on the right, then share it with anyone.";
     } else if (photos.length > 0) {
-      // Photos exist — if name is still default, ask for it right away
-      if (!project.pet_name || project.pet_name === "New Project") {
-        setChatNamePending(true);
-        greeting = `I see ${photos.length} photo${photos.length !== 1 ? "s" : ""}! First — who's the star of this book?`;
-      } else {
-        greeting = `${photos.length} photo${photos.length !== 1 ? "s" : ""} loaded. Ready when you are!`;
-      }
+      greeting = `${photos.length} photo${photos.length !== 1 ? "s" : ""} loaded. Ready when you are!`;
     } else {
       greeting = "Ready when you are — drop some photos and let's get started.";
     }
@@ -876,48 +869,27 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     prevPhotoCountRef.current = 0;         // Reset photo count so greeting updates correctly
   }, [activeProjectId]);
 
-  // Reactively update the first greeting when photos arrive or get captioned
+  // Append new messages when photos arrive — never mutate existing messages
   const prevPhotoCountRef = useRef(0);
   useEffect(() => {
     if (phase !== "upload" && phase !== "home") return;
     if (photos.length === 0) return;
-    // Only update if photo count changed (new photos arrived)
-    if (photos.length === prevPhotoCountRef.current) {
-      // Check if captions just arrived (describe-photo completed)
-      const captioned = photos.filter(p => p.caption);
-      if (captioned.length > 0 && chatMessages.length >= 1 && chatMessages[0].role === "rabbit" && !chatMessages[0].photos && !chatMessages[0].moodPicker) {
-        const firstCaption = captioned[0].caption!;
-        const snippet = firstCaption.length > 60 ? firstCaption.slice(0, 60).replace(/\s+\S*$/, "") + "..." : firstCaption;
-        const newGreeting = photos.length < 3
-          ? `I see: "${snippet}" — add more photos for a richer story, or continue when you're ready.`
-          : `${photos.length} photos! I can see "${snippet}" and more. Ready when you are.`;
-        // Only update if different
-        if (chatMessages[0].content !== newGreeting) {
-          setChatMessages(prev => [{ role: "rabbit", content: newGreeting }, ...prev.slice(1)]);
-        }
-      }
-      return;
-    }
+    if (photos.length === prevPhotoCountRef.current) return;
+    const prevCount = prevPhotoCountRef.current;
     prevPhotoCountRef.current = photos.length;
-    // Photos arrived — update the first message
-    if (chatMessages.length >= 1 && chatMessages[0].role === "rabbit" && !chatMessages[0].photos && !chatMessages[0].moodPicker) {
-      const captioned = photos.filter(p => p.caption);
-      let newGreeting: string;
-      if (captioned.length > 0) {
-        const firstCaption = captioned[0].caption!;
-        const snippet = firstCaption.length > 60 ? firstCaption.slice(0, 60).replace(/\s+\S*$/, "") + "..." : firstCaption;
-        newGreeting = photos.length < 3
-          ? `I see: "${snippet}" — add more photos for a richer story, or continue when you're ready.`
-          : `${photos.length} photos! I can see "${snippet}" and more. Ready when you are.`;
-      } else if (isBatchUploading) {
-        newGreeting = "I'm studying your photos right now...";
-      } else {
-        newGreeting = `${photos.length} photo${photos.length !== 1 ? "s" : ""} — still reading them. Ready when you are.`;
-      }
-      setChatMessages(prev => [{ role: "rabbit", content: newGreeting }, ...prev.slice(1)]);
+    // Only append a new message when photos arrive (not on initial load which has greeting)
+    if (prevCount === 0) return;
+    const newCount = photos.length - prevCount;
+    if (newCount > 0) {
+      setChatMessages(prev => [...prev, {
+        role: "rabbit" as const,
+        content: newCount === 1
+          ? "Got it! Drop more or continue when ready."
+          : `${newCount} more photos! Looking good.`,
+      }]);
       scrollToBottom();
     }
-  }, [photos, phase, isBatchUploading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [photos.length, phase, scrollToBottom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Instant magic: generate preview illustration once captions arrive ───
   const previewTriggeredRef = useRef<string | null>(null);
@@ -959,22 +931,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     generatePreview();
   }, [photos, phase, activeProjectId, scrollToBottom]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-recover mood picker if phase is mood-picker but no picker in chat
+  // Auto-recover mood-picker phase: if project has no mood, auto-set heartfelt and advance
   useEffect(() => {
     if (phase !== "mood-picker") return;
-    // Bail if the intent path just set a mood — suppress the spurious recovery
     if (suppressMoodPickerRef.current) { suppressMoodPickerRef.current = false; return; }
-    if (chatMoodPending) return;
-    const hasMoodPicker = chatMessages.some(m => m.moodPicker);
-    if (hasMoodPicker) return;
-    setChatMoodPending(true);
-    setChatMessages(prev => [...prev, {
-      role: "rabbit" as const,
-      content: "Nice photos! Before we dive in — what's the vibe for this book?",
-      moodPicker: true,
-    }]);
-    scrollToBottom();
-  }, [phase, chatMoodPending, chatMessages, scrollToBottom]);
+    // Instead of showing mood picker in chat, auto-set default mood and advance
+    if (activeProjectId && !project?.mood) {
+      suppressMoodPickerRef.current = true;
+      updateProject.mutate({ id: activeProjectId, mood: "heartfelt" });
+    }
+  }, [phase, activeProjectId, project?.mood]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Chat panel content (used for both layouts) ─────────
   const chatPanel = (
@@ -1102,6 +1068,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                   setShowCreditGate(false);
                   handleFinishInterview();
                 }}
+                tokenCost={TOKEN_COSTS[productType] || 5}
+                productLabel={productType === "single_illustration" ? "illustration" : productType === "short_story" ? "short story" : "picture book"}
               />
             )}
           </>
@@ -1235,7 +1203,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
             className="flex flex-wrap gap-2 px-4 py-2.5 shrink-0"
           >
             {quickReplies.map((reply) => {
-              const isOwnStory = reply.startsWith("✍️");
+              const isOwnStory = reply.startsWith("✍️") || reply.toLowerCase() === "tell my own story";
               return (
                 <motion.button
                   key={reply}
@@ -1246,31 +1214,12 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                       // Just focus the input — let user type their own story
                       setQuickReplies([]);
                       setTimeout(() => {
-                        const inputEl = document.querySelector<HTMLInputElement>('[aria-label="Type a message"]');
+                        const inputEl = document.querySelector<HTMLTextAreaElement>('[aria-label="Type a message"]');
                         inputEl?.focus();
                       }, 50);
                     } else {
-                      // Instant-send: clear chips, set input, then trigger send directly
-                      setQuickReplies([]);
-                      // Directly invoke send with the chip text
-                      const sendChip = async () => {
-                        const text = reply.trim();
-                        if (!text || !project) return;
-                        setChatMessages(prev => [...prev, { role: "user", content: text }]);
-                        setInput("");
-                        scrollToBottom();
-                        if (phase === "interview") {
-                          const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
-                          try {
-                            setRabbitState("thinking");
-                            await sendMessage(text, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
-                          } catch {
-                            setChatMessages(prev => [...prev, { role: "rabbit", content: "Hmm, something glitched. Try sending that again?" }]);
-                            scrollToBottom();
-                          }
-                        }
-                      };
-                      sendChip();
+                      // Use unified send path
+                      sendChatMessage(reply);
                     }
                   }}
                   className="px-3.5 py-1.5 rounded-full text-sm font-body font-medium bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors border border-primary/20 hover:border-primary shadow-sm"
@@ -1330,6 +1279,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         onNewIllustration={handleNewIllustration}
         interviewHighlights={interviewHighlights}
         mood={project?.mood}
+        productType={productType}
         onBackFromReview={handleBackFromReview}
         dbStatus={project?.status}
       />

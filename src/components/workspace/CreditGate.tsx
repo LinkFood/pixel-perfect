@@ -9,9 +9,11 @@ import { toast } from "sonner";
 interface CreditGateProps {
   balance: number;
   onCreditAvailable: () => void;
+  tokenCost?: number;
+  productLabel?: string;
 }
 
-const CreditGate = ({ balance, onCreditAvailable }: CreditGateProps) => {
+const CreditGate = ({ balance, onCreditAvailable, tokenCost = 1, productLabel }: CreditGateProps) => {
   const { isAnonymous } = useAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -67,8 +69,8 @@ const CreditGate = ({ balance, onCreditAvailable }: CreditGateProps) => {
           </p>
           <p className="font-body text-xs text-muted-foreground">
             {isAnonymous
-              ? "Create a free account to generate your book"
-              : "You've used all your credits"}
+              ? `Create a free account — get 5 free tokens`
+              : `Need ${tokenCost} token${tokenCost !== 1 ? "s" : ""}${productLabel ? ` for ${productLabel}` : ""} · ${balance} remaining`}
           </p>
         </div>
       </div>

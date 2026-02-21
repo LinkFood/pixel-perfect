@@ -81,7 +81,14 @@ After each response, internally evaluate: "Do I have 4-5 distinct scenes or memo
 - Rich, detailed messages count more than short ones.
 - When you believe you have enough material (typically after 4-8 exchanges), proactively say something like: "I think I have everything I need to make something amazing — unless there's anything else you want to include?"
   - Do NOT wrap up too early. You need real scenes with sensory details, not just facts. EXCEPTION: For the "funny" mood, 2-3 good anecdotes is genuinely enough — funny books are PUNCHY, not epic. Don't drag it out looking for more depth when the mood is funny.
-  - Hard ceiling: after 15 user messages, you MUST wrap up regardless.`;
+  - Hard ceiling: after 15 user messages, you MUST wrap up regardless.
+
+SUGGESTED REPLIES:
+After every response, add a delimiter line "---CHIPS---" on its own line, then provide exactly 3 short (2-6 word) suggested replies the user could send, one per line. Make them SPECIFIC to what you just asked — not generic. The last one should always be: "Tell my own story". Example:
+---CHIPS---
+The time he ate my shoe
+His morning zoomies ritual
+Tell my own story`;
 
 function buildSystemPrompt(
   petName: string,
@@ -120,6 +127,14 @@ Interview style:
 
   prompt += `\n\nThe subject's name is "${petName}".${petType && petType !== "unknown" && petType !== "general" ? ` They are a ${petType}.` : ""} Use their name naturally in conversation. You are helping create a ${product}.`;
 
+  // Organic mood detection — start with default, shift based on user's tone
+  prompt += `\n\nMOOD DETECTION: You started with the "${effectiveMood}" tone. In your first 2 messages, pay close attention to the user's language and shift accordingly:
+- If they're joking or light-hearted → shift to funny energy
+- If they mention loss, passing, or missing someone → shift gently to memorial tone
+- If they describe wild adventures or escapades → shift to adventure energy
+- If they're warm and reflective → stay heartfelt
+After detecting their tone, optionally append "---MOOD---" followed by the detected mood (funny/heartfelt/adventure/memorial) on a new line after the chips. Only include this if you detect a clear shift from the default.`;
+
   if (photoContextBrief) {
     prompt += `\n\nYou have DEEPLY analyzed the photos related to ${petName}. Here is what you saw in each photo:\n\n${photoContextBrief}\n\nCRITICAL FOR YOUR FIRST 1-2 RESPONSES: You MUST reference a specific visual detail from the photos. Not "I can see your photos" but "That shot where they're lying in the sunbeam with their paws tucked under them — I love that." Prove you actually LOOKED at each one. Pick something specific: a color, a pose, a setting, an expression, a detail nobody would notice unless they really studied the photo. This is how you earn trust.`;
   } else if (photoCaptions && photoCaptions.length > 0) {
@@ -133,6 +148,13 @@ Interview style:
   // Funny mood gets an explicit early wrap-up nudge after 3 messages
   if (effectiveMood === "funny" && userMessageCount >= 3) {
     prompt += `\n\nIMPORTANT FOR FUNNY MOOD: You now have enough funny material. Your NEXT response should be your LAST question or a warm wrap-up — do NOT ask another open-ended question after this. Funny books are punchy (3-4 great moments is the sweet spot). Wrap it up with energy, not more questions.`;
+  }
+
+  // Adjust interview length based on product type
+  if (product === "single_illustration") {
+    prompt += `\n\nPRODUCT TYPE: Single illustration. This user only has 1 photo — keep the interview SHORT (1-2 exchanges max). Ask what they want the illustration to capture, then wrap up.`;
+  } else if (product === "short_story") {
+    prompt += `\n\nPRODUCT TYPE: Short story (5 pages). Keep the interview concise (2-4 exchanges). Get the key moments, then wrap up.`;
   }
 
   prompt += `\n\nCurrent exchange count: ${userMessageCount} user messages so far.`;
@@ -175,13 +197,13 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5-mini",
+        model: "openai/gpt-5.2",
         messages: [
           { role: "system", content: systemContent },
           ...windowedMessages,
         ],
         stream: true,
-        temperature: 1,
+        temperature: 0.8,
         max_completion_tokens: 1200,
       }),
     });

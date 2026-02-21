@@ -271,7 +271,8 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const virtualPages: VirtualPage[] = [
     ...pages.map(p => ({ type: "story" as const, page: p })),
     ...(galleryPhotos.length > 0 ? [
-      { type: "photo_gallery_title" as const, petName: project?.pet_name || "Your Story" },
+      // Skip gallery title page for 1-2 photos — just show photos inline
+      ...(galleryPhotos.length > 2 ? [{ type: "photo_gallery_title" as const, petName: project?.pet_name || "Your Story" }] : []),
       ...galleryGridPages.map(photos => ({
         type: "photo_gallery_grid" as const,
         photos,
@@ -506,15 +507,16 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       galleryPhotos: undefined as GalleryGridPhoto[] | undefined,
     })),
     ...(galleryPhotos.length > 0 ? [
-      {
+      // Skip gallery title for 1-2 photos
+      ...(galleryPhotos.length > 2 ? [{
         pageNumber: pages.length + 1,
         pageType: "photo_gallery_title",
         textContent: `The Real ${project?.pet_name || ""}`,
         illustrationUrl: null,
         galleryPhotos: undefined as GalleryGridPhoto[] | undefined,
-      },
+      }] : []),
       ...galleryGridPages.map((gridPhotos, i) => ({
-        pageNumber: pages.length + 2 + i,
+        pageNumber: pages.length + (galleryPhotos.length > 2 ? 2 : 1) + i,
         pageType: "photo_gallery_grid",
         textContent: null,
         illustrationUrl: null,

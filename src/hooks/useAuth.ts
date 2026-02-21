@@ -58,6 +58,14 @@ export const useAuth = () => {
   return { user, session, loading, isAnonymous, signUp, signIn, signOut };
 };
 
+export const TOKEN_COSTS = {
+  single_illustration: 1,
+  short_story: 3,
+  picture_book: 5,
+} as const;
+
+export type ProductType = keyof typeof TOKEN_COSTS;
+
 export const useCredits = () => {
   const { user } = useAuth();
   const [balance, setBalance] = useState<number | null>(null);
@@ -81,14 +89,15 @@ export const useCredits = () => {
     }
   };
 
-  const deduct = async (projectId: string, description: string = "Book generation"): Promise<boolean> => {
+  const deduct = async (projectId: string, description: string = "Book generation", amount: number = 1): Promise<boolean> => {
     if (!user) return false;
     try {
       const { error } = await supabase.rpc("deduct_credit", {
         p_user_id: user.id,
         p_project_id: projectId,
         p_description: description,
-      });
+        p_amount: amount,
+      } as any);
       if (error) return false;
       await fetchBalance();
       return true;

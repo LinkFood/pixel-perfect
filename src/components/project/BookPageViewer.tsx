@@ -64,12 +64,35 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
     );
   }
 
-  // Gallery grid page — 2x3 grid of photos
+  // Gallery grid page — adaptive layout based on photo count
   if (isGalleryGrid && galleryPhotos) {
+    const count = galleryPhotos.length;
+    // 1 photo: full-page hero
+    if (count === 1) {
+      return (
+        <div className="rounded-2xl border-2 overflow-hidden bg-card border-primary/20">
+          <div className="aspect-square bg-gradient-to-b from-amber-50/50 to-white dark:from-amber-950/20 dark:to-card flex items-center justify-center p-4">
+            <div className="relative rounded-xl overflow-hidden shadow-lg border-4 border-white dark:border-gray-700 w-[85%] h-[85%]">
+              <img
+                src={galleryPhotos[0].photoUrl}
+                alt={galleryPhotos[0].caption || "Photo"}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    // 2-3 photos: 2-column grid, no empty slots
+    const gridClass = count <= 3
+      ? "grid grid-cols-2 gap-2 h-full"
+      : "grid grid-cols-2 grid-rows-3 gap-2 h-full";
     return (
       <div className="rounded-2xl border-2 overflow-hidden bg-card border-primary/20">
         <div className="aspect-square bg-gradient-to-b from-amber-50/50 to-white dark:from-amber-950/20 dark:to-card p-3">
-          <div className="grid grid-cols-2 grid-rows-3 gap-2 h-full">
+          <div className={gridClass}>
             {galleryPhotos.map((photo, i) => (
               <div key={i} className="relative rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm border border-border/50 flex flex-col">
                 <div className="flex-1 min-h-0">
@@ -89,12 +112,6 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
                     {photo.caption}
                   </p>
                 )}
-              </div>
-            ))}
-            {/* Fill empty slots if fewer than 6 */}
-            {Array.from({ length: Math.max(0, 6 - galleryPhotos.length) }).map((_, i) => (
-              <div key={`empty-${i}`} className="rounded-lg bg-secondary/30 border border-border/30 flex items-center justify-center">
-                <Camera className="w-6 h-6 text-muted-foreground/20" />
               </div>
             ))}
           </div>

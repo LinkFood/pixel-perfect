@@ -10,6 +10,7 @@ import { isDevMode } from "@/lib/devMode";
 import { type ProjectPhoto } from "@/hooks/usePhotos";
 import { supabase } from "@/integrations/supabase/client";
 import ConfettiBurst from "@/components/ConfettiBurst";
+import MoodPicker from "./MoodPicker";
 import { useState, useEffect, useRef } from "react";
 
 type Phase = "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
@@ -40,6 +41,7 @@ interface WorkspaceSandboxProps {
   onNewIllustration?: (pageNum: number, url: string) => void;
   interviewHighlights?: string[];
   mood?: string | null;
+  productType?: "single_illustration" | "short_story" | "picture_book";
   // Review props
   onBackFromReview: () => void;
   // Dev status props
@@ -68,11 +70,12 @@ const WorkspaceSandbox = ({
   onNewIllustration,
   interviewHighlights,
   mood,
+  productType = "picture_book",
   onBackFromReview,
   dbStatus,
 }: WorkspaceSandboxProps) => {
   const shouldReduceMotion = useReducedMotion();
-  // photoStripOpen removed — full grid shown during interview now
+  const [showMoodOverride, setShowMoodOverride] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
   const [revealReady, setRevealReady] = useState(false);
@@ -159,12 +162,20 @@ const WorkspaceSandbox = ({
               <h2 className="font-display text-xl font-bold text-foreground">
                 {photos.length === 0
                   ? "Drop photos to start"
-                  : photos.length < 5
-                    ? `${photos.length} photo${photos.length !== 1 ? "s" : ""} — add more?`
-                    : `${photos.length} photos — looking great!`}
+                  : photos.length === 1
+                    ? "Your Photo"
+                    : photos.length < 6
+                      ? `Your Photos (${photos.length})`
+                      : `${photos.length} photos — looking great!`}
               </h2>
               <p className="font-body text-sm text-muted-foreground">
-                Pets, kids, trips, couples — anything with a story
+                {photos.length === 0
+                  ? "Pets, kids, trips, couples — anything with a story"
+                  : photos.length === 1
+                    ? "One photo = one beautiful illustration"
+                    : photos.length < 6
+                      ? "A few photos make a short story"
+                      : "Enough for a full picture book"}
               </p>
             </div>
 
@@ -184,9 +195,15 @@ const WorkspaceSandbox = ({
                   className="rounded-xl gap-2 px-8 bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={onContinueToInterview}
                 >
-                  That's all my photos — let's go!
+                  {photos.length === 1
+                    ? "Continue with this photo"
+                    : photos.length < 6
+                      ? "That's my photos — let's go!"
+                      : "That's all my photos — let's go!"}
                 </Button>
-                <p className="font-body text-xs mt-2 text-muted-foreground">Or keep adding more photos</p>
+                <p className="font-body text-xs mt-2 text-muted-foreground">
+                  {photos.length === 1 ? "Or add more for a richer story" : "Or keep adding more photos"}
+                </p>
               </motion.div>
             )}
           </motion.div>
@@ -203,12 +220,22 @@ const WorkspaceSandbox = ({
             className="flex-1 flex flex-col p-6 gap-4"
           >
             <div className="space-y-1">
-              <h2 className="font-display text-xl font-bold text-foreground">
-                {phase === "mood-picker" ? "Your Photos" : "Tell Me About Them"}
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-xl font-bold text-foreground">
+                  {phase === "mood-picker" ? "Your Photos" : "Tell Me About Them"}
+                </h2>
+                {phase === "interview" && mood && (
+                  <button
+                    onClick={() => setShowMoodOverride(prev => !prev)}
+                    className="text-xs font-body text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-secondary/50"
+                  >
+                    Vibe: {mood.startsWith("custom:") ? mood.slice(7).trim() : mood} · change
+                  </button>
+                )}
+              </div>
               <p className="font-body text-sm text-muted-foreground">
                 {phase === "mood-picker"
-                  ? "Pick a vibe in the chat — I'll set the tone for your book"
+                  ? "Setting up your interview..."
                   : "Chat with Rabbit — share memories, stories, personality"}
               </p>
             </div>
@@ -222,6 +249,26 @@ const WorkspaceSandbox = ({
               onDelete={onDeletePhoto}
             />
 
+            {/* Optional mood override */}
+            <AnimatePresence>
+              {showMoodOverride && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <MoodPicker
+                    petName={petName}
+                    onSelect={(newMood, name) => {
+                      onMoodSelect(newMood, name);
+                      setShowMoodOverride(false);
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="flex-1" />
 
             {phase === "interview" && !canFinish && !allowQuickFinish && (
@@ -231,12 +278,20 @@ const WorkspaceSandbox = ({
             )}
 
             {phase === "interview" && (canFinish || allowQuickFinish) && (() => {
-              const buttonText = userInterviewCount >= 8 ? "Paint my book!" : "Make my book!";
-              const subtitle = userInterviewCount >= 8
-                ? "I have everything I need. Let's make something incredible."
-                : userInterviewCount >= 6
-                  ? "You've shared great stuff. Ready when you are."
-                  : "Or keep sharing — the more you tell me, the richer the story.";
+              const buttonText = productType === "single_illustration"
+                ? "Illustrate this!"
+                : productType === "short_story"
+                  ? "Make my story!"
+                  : userInterviewCount >= 8 ? "Paint my book!" : "Make my book!";
+              const subtitle = productType === "single_illustration"
+                ? "One photo, one stunning illustration."
+                : productType === "short_story"
+                  ? "A short and sweet story from your photos."
+                  : userInterviewCount >= 8
+                    ? "I have everything I need. Let's make something incredible."
+                    : userInterviewCount >= 6
+                      ? "You've shared great stuff. Ready when you are."
+                      : "Or keep sharing — the more you tell me, the richer the story.";
               const glowSpread = userInterviewCount >= 8 ? "16px" : userInterviewCount >= 6 ? "12px" : "8px";
               const glowOpacity = userInterviewCount >= 8 ? "0.25" : userInterviewCount >= 6 ? "0.2" : "0.15";
 
