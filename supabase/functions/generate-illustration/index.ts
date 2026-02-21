@@ -334,6 +334,18 @@ STYLE RULES:
       });
     if (uploadErr) throw new Error(`Upload failed: ${uploadErr.message}`);
 
+    // Guard: verify project and page still exist (race condition if user deleted during generation)
+    const { data: projectCheck } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle();
+    const { data: pageCheck } = await supabase.from("project_pages").select("id").eq("id", pageId).maybeSingle();
+    if (!projectCheck || !pageCheck) {
+      console.warn(`Project or page deleted during generation (project=${!!projectCheck}, page=${!!pageCheck}). Skipping insert.`);
+      // Clean up the uploaded file since we can't link it
+      await supabase.storage.from("pet-photos").remove([storagePath]);
+      return new Response(JSON.stringify({ success: false, skipped: true, reason: "Project or page deleted during generation" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (variant) {
       // Don't deselect existing — user chose that selection
     } else {
@@ -353,7 +365,7 @@ STYLE RULES:
         project_id: projectId,
         storage_path: storagePath,
         generation_prompt: scenePrompt,
-        is_selected: !variant, // Only auto-select if not a variant
+        is_selected: !variant,
       });
     if (insertErr) throw new Error(`Insert failed: ${insertErr.message}`);
 
