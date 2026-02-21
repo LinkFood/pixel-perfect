@@ -4,7 +4,7 @@ type Analysis = Record<string, unknown>;
 
 export function buildPhotoSummary(analyses: Analysis[]): string {
   const valid = analyses.filter(a => a && typeof a === "object");
-  if (valid.length === 0) return "I've studied your photos — let's make something!";
+  if (valid.length === 0) return "I've looked at these. Let's make something.";
 
   // Extract key fields from each analysis
   const summaries = valid.map(a => {
@@ -26,7 +26,7 @@ export function buildPhotoSummary(analyses: Analysis[]): string {
     if (s.subjectType) {
       return `I see ${s.subjectType.startsWith("a") ? "" : "a "}${s.subjectType}${s.subjectMood ? ` looking ${s.subjectMood}` : ""}. What do you want to make?`;
     }
-    return "I've studied your photo — I can see the story in it. What do you want to make?";
+    return "There's definitely a story here. What do you want to make?";
   }
 
   // Multiple photos — summarize the collection
@@ -41,5 +41,5 @@ export function buildPhotoSummary(analyses: Analysis[]): string {
     return `I see ${valid.length} photos — ${scenes.join(", ")}, and ${last}. What do you want to make?`;
   }
 
-  return `I've studied all ${valid.length} of your photos — I can see what makes them special. What do you want to make?`;
+  return `I've been through all ${valid.length} photos. I can see what makes these special. What do you want to make?`;
 }

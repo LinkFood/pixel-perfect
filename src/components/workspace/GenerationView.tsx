@@ -66,35 +66,35 @@ function getIllustrationReactions(mood: string | null | undefined): string[] {
   switch (normalized) {
     case "memorial":
       return [
-        "Painting this memory with care...",
-        "I want to honor every detail...",
-        "This one means a lot...",
-        "Taking my time with this one...",
-        "Holding this memory gently...",
+        "Painting this one carefully...",
+        "This memory deserves every detail...",
+        "Taking my time here...",
+        "I want to get this right...",
+        "Holding this one gently...",
       ];
     case "funny":
       return [
-        "Oh wait till you see this one...",
-        "I may have gotten carried away with this page...",
-        "This is going to crack you up...",
-        "I'm giggling while I paint this...",
-        "This one has serious comedic timing...",
+        "Oh, wait till you see this...",
+        "I may have gone a little overboard on this page...",
+        "This one's going to make you laugh...",
+        "I'm cracking up painting this...",
+        "The timing on this one is chef's kiss...",
       ];
     case "heartfelt":
       return [
-        "Putting all the love into this one...",
-        "I can feel how much they mean to you...",
-        "This page made me tear up a little...",
-        "Every brushstroke feels important here...",
-        "This one is full of warmth...",
+        "Putting everything into this one...",
+        "I can feel it in this page...",
+        "This one hit me...",
+        "Every brushstroke matters here...",
+        "This page is full of warmth...",
       ];
     case "adventure":
       return [
-        "Buckle up, this page is wild...",
-        "The action scene is coming together...",
-        "This one has serious main-character energy...",
-        "Epic moment incoming...",
-        "I'm painting this one with maximum drama...",
+        "Buckle up for this one...",
+        "The action scene is coming alive...",
+        "Main character energy, fully unlocked...",
+        "This moment is going to look incredible...",
+        "Maximum drama on this page...",
       ];
     default: // custom or unknown
       return [
@@ -116,7 +116,7 @@ function getStoryMessages(mood: string | null | undefined, petName: string, inte
     switch (normalized) {
       case "memorial":
         return [
-          `Reading everything you shared about ${petName}...`,
+          `Going back through everything you told me about ${petName}...`,
           ...highlightMsgs,
           `Choosing words that honor their memory...`,
           `Writing with the care this story deserves...`,
@@ -124,7 +124,7 @@ function getStoryMessages(mood: string | null | undefined, petName: string, inte
         ];
       case "funny":
         return [
-          `Reading everything you shared about ${petName}...`,
+          `Going back through everything you told me about ${petName}...`,
           ...highlightMsgs,
           `Finding the funniest angles...`,
           `Writing the jokes in... this is good...`,
@@ -132,15 +132,15 @@ function getStoryMessages(mood: string | null | undefined, petName: string, inte
         ];
       case "heartfelt":
         return [
-          `Reading everything you shared about ${petName}...`,
+          `Going back through everything you told me about ${petName}...`,
           ...highlightMsgs,
           `Weaving in all that love...`,
-          `Choosing the warmest words...`,
+          `Finding the right words...`,
           `This story is full of heart...`,
         ];
       case "adventure":
         return [
-          `Reading everything you shared about ${petName}...`,
+          `Going back through everything you told me about ${petName}...`,
           ...highlightMsgs,
           `Building up the adventure arc...`,
           `Adding some epic twists...`,
@@ -148,10 +148,10 @@ function getStoryMessages(mood: string | null | undefined, petName: string, inte
         ];
       default:
         return [
-          `Reading everything you shared about ${petName}...`,
+          `Going back through everything you told me about ${petName}...`,
           ...highlightMsgs,
-          `Weaving your memories into prose...`,
-          `Choosing the perfect words...`,
+          `Turning your memories into something you can hold...`,
+          `Finding the right words...`,
           `This is going to be a good one...`,
         ];
     }
@@ -160,38 +160,38 @@ function getStoryMessages(mood: string | null | undefined, petName: string, inte
   switch (normalized) {
     case "memorial":
       return [
-        `Reading everything you shared about ${petName}...`,
-        `Getting to know ${petName}...`,
+        `Going back through everything you told me about ${petName}...`,
+        `Getting to know ${petName} a little better...`,
         `Honoring every detail you told me...`,
         `Choosing words that feel right...`,
         `Writing this with the gentleness it deserves...`,
-        `Almost there... taking my time with this...`,
+        `Almost there... just tightening things up...`,
         `This story will be something to treasure...`,
       ];
     case "funny":
       return [
-        `Reading everything you shared about ${petName}...`,
-        `Getting to know ${petName}...`,
+        `Going back through everything you told me about ${petName}...`,
+        `Getting to know ${petName} a little better...`,
         `Finding the funniest moments...`,
         `Writing the comedy gold in...`,
         `This story is cracking me up already...`,
-        `Polishing the punchlines...`,
+        `Almost there... just tightening things up...`,
         `Oh this is going to be good...`,
       ];
     case "heartfelt":
       return [
-        `Reading everything you shared about ${petName}...`,
-        `Getting to know ${petName}...`,
+        `Going back through everything you told me about ${petName}...`,
+        `Getting to know ${petName} a little better...`,
         `Weaving in all the love...`,
-        `Choosing the warmest words I know...`,
+        `Finding the right words...`,
         `Writing page by page with care...`,
         `This story is full of heart...`,
-        `Almost done... it's beautiful...`,
+        `Almost there... just tightening things up...`,
       ];
     case "adventure":
       return [
-        `Reading everything you shared about ${petName}...`,
-        `Getting to know ${petName}...`,
+        `Going back through everything you told me about ${petName}...`,
+        `Getting to know ${petName} a little better...`,
         `Building the adventure arc...`,
         `Adding twists and epic moments...`,
         `Writing the action sequences...`,
@@ -200,13 +200,13 @@ function getStoryMessages(mood: string | null | undefined, petName: string, inte
       ];
     default:
       return [
-        `Reading everything you shared about ${petName}...`,
-        `Getting to know ${petName}...`,
-        `Crafting the narrative arc...`,
-        `Weaving your memories into prose...`,
+        `Going back through everything you told me about ${petName}...`,
+        `Getting to know ${petName} a little better...`,
+        `Figuring out the shape of this story...`,
+        `Turning your memories into something you can hold...`,
         `Writing the story page by page...`,
-        `Choosing the perfect words...`,
-        `Polishing the story...`,
+        `Finding the right words...`,
+        `Almost there... just tightening things up...`,
       ];
   }
 }
@@ -478,7 +478,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
     if (initialWork.length === 0 && variantPages.length === 0) {
       setPhase("done");
       setRabbitState("celebrating");
-      addMessage(`The book is ready! Take a look!`);
+      addMessage(`Done. Go take a look — I think this one's special.`);
       updateStatus.mutate({ id: projectId, status: "review" });
       return;
     }
@@ -487,7 +487,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
     if (initialWork.length === 0) {
       setPhase("done");
       setRabbitState("celebrating");
-      addMessage(`The book is ready! Take a look!`);
+      addMessage(`Done. Go take a look — I think this one's special.`);
       updateStatus.mutate({ id: projectId, status: "review" });
       fireVariantsInBackground(variantPages);
       return;
@@ -584,7 +584,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
       setFailedCount(initialWork.length);
       setPhase("failed");
       setRabbitState("sympathetic");
-      addMessage("The illustrations didn't come out right. You can retry or continue.");
+      addMessage("These didn't come out the way I wanted. Want me to try again?");
       return;
     }
 
@@ -596,8 +596,8 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
     setRabbitState("celebrating");
     addMessage(
       variantPages.length > 0
-        ? `The book is ready! I'll keep painting more style options while you review.`
-        : `The book is ready! Take a look!`
+        ? `It's ready. I'm still painting a few extra options in the background — go look.`
+        : `Done. Go take a look — I think this one's special.`
     );
     updateStatus.mutate({ id: projectId, status: "review" });
 
@@ -628,7 +628,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
       // Phase 1: Story
       setPhase("story");
       setRabbitState("thinking");
-      addMessage(`Let me read through everything you shared about ${petName}...`);
+      addMessage(`Let me read through everything you told me about ${petName}...`);
 
       let storyEventId = "";
       const storyStart = Date.now();
@@ -660,7 +660,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
         });
       }
 
-      addMessage(`The story is written! Now let me illustrate it...`);
+      addMessage(`Story's done! Now let me illustrate it...`);
 
       // Phase 2: Illustrations
       await generateIllustrations();
