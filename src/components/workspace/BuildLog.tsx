@@ -23,6 +23,10 @@ const phaseColors: Record<string, string> = {
   illustration: "text-blue-400",
   appearance: "text-emerald-400",
   caption: "text-violet-400",
+  chat: "text-rose-400",
+  upload: "text-cyan-400",
+  decision: "text-orange-400",
+  system: "text-gray-400",
 };
 
 function formatTime(iso: string) {
@@ -30,25 +34,59 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+function mapInterviewToEntry(m: { id: string; role: string; content: string; created_at: string }): BuildLogEntry {
+  const truncated = m.content.length > 80 ? m.content.slice(0, 80) + "…" : m.content;
+  return {
+    id: m.id,
+    phase: "chat",
+    level: "info",
+    message: `${m.role === "assistant" ? "rabbit" : m.role}: ${truncated}`,
+    technical_message: `${m.role === "assistant" ? "rabbit" : m.role}: ${m.content}`,
+    metadata: {} as Record<string, unknown>,
+    created_at: m.created_at,
+  };
+}
+
+function mergeAndSort(entries: BuildLogEntry[]): BuildLogEntry[] {
+  return [...entries].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
 const BuildLog = ({ projectId }: BuildLogProps) => {
   const [entries, setEntries] = useState<BuildLogEntry[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Fetch existing + subscribe to realtime
+  // Fetch existing build_log + project_interview, subscribe to both
   useEffect(() => {
-    // Fetch existing logs
+    let buildEntries: BuildLogEntry[] = [];
+    let chatEntries: BuildLogEntry[] = [];
+
+    const refresh = () => setEntries(mergeAndSort([...buildEntries, ...chatEntries]));
+
+    // Fetch build_log
     supabase
       .from("build_log")
       .select("*")
       .eq("project_id", projectId)
       .order("created_at", { ascending: true })
       .then(({ data }) => {
-        if (data) setEntries(data as unknown as BuildLogEntry[]);
+        if (data) buildEntries = data as unknown as BuildLogEntry[];
+        refresh();
       });
 
-    // Subscribe to new logs
-    const channel = supabase
+    // Fetch project_interview
+    supabase
+      .from("project_interview")
+      .select("id, role, content, created_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (data) chatEntries = data.map(mapInterviewToEntry);
+        refresh();
+      });
+
+    // Subscribe to new build_log entries
+    const buildChannel = supabase
       .channel(`build-log-${projectId}`)
       .on(
         "postgres_changes",
@@ -60,13 +98,34 @@ const BuildLog = ({ projectId }: BuildLogProps) => {
         },
         (payload) => {
           const newEntry = payload.new as unknown as BuildLogEntry;
-          setEntries((prev) => [...prev, newEntry]);
+          buildEntries = [...buildEntries, newEntry];
+          refresh();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to new interview messages
+    const chatChannel = supabase
+      .channel(`interview-log-${projectId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "project_interview",
+          filter: `project_id=eq.${projectId}`,
+        },
+        (payload) => {
+          const m = payload.new as { id: string; role: string; content: string; created_at: string };
+          chatEntries = [...chatEntries, mapInterviewToEntry(m)];
+          refresh();
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(buildChannel);
+      supabase.removeChannel(chatChannel);
     };
   }, [projectId]);
 

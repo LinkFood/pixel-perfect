@@ -160,6 +160,15 @@ export const useUploadPhoto = () => {
       const projectId = queue[0]?.projectId;
       if (!projectId) return;
 
+      // Log batch start
+      supabase.from("build_log").insert([{
+        project_id: projectId,
+        phase: "upload",
+        level: "info",
+        message: `Uploading ${total} photo${total !== 1 ? "s" : ""}`,
+        metadata: { total } as unknown as import("@/integrations/supabase/types").Json,
+      }]);
+
       const { count: existingCount } = await supabase
         .from("project_photos")
         .select("*", { count: "exact", head: true })
@@ -231,6 +240,17 @@ export const useUploadPhoto = () => {
 
       // Final refresh
       queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
+
+      // Log batch complete
+      supabase.from("build_log").insert([{
+        project_id: projectId,
+        phase: "upload",
+        level: batchFailed > 0 ? "warn" : "info",
+        message: batchFailed > 0
+          ? `Upload done: ${batchCompleted} succeeded, ${batchFailed} failed`
+          : `All ${total} photos uploaded`,
+        metadata: { total, succeeded: batchCompleted, failed: batchFailed } as unknown as import("@/integrations/supabase/types").Json,
+      }]);
 
       if (batchFailed > 0) {
         toast.error(`${batchFailed} of ${total} photos failed to upload`);
