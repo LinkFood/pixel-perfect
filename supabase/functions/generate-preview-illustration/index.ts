@@ -8,6 +8,7 @@ const corsHeaders = {
 
 const MODEL = "google/gemini-3-pro-image-preview";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractImageData(message: any): { base64: string | null; contentType: string } {
   let base64Data: string | null = null;
   let detectedContentType = "image/png";
@@ -90,7 +91,9 @@ serve(async (req) => {
     }
 
     // Build a scene description from the first few photos
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sceneParts = photos.map((p: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const analysis = p.ai_analysis as Record<string, any> | null;
       return analysis?.scene_summary || p.caption || "";
     }).filter(Boolean);

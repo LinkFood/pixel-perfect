@@ -61,6 +61,7 @@ export const useCreateProject = () => {
       if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("projects")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .insert({ pet_name: values.pet_name, pet_type: values.pet_type, pet_breed: values.pet_breed || null, user_id: user.id } as any)
         .select()
         .single();
@@ -88,6 +89,7 @@ export const useCreateMinimalProject = () => {
       if (!user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("projects")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .insert({ pet_name: "New Project", pet_type: "general", user_id: user.id } as any)
         .select()
         .single();

@@ -86,11 +86,10 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
   const [showBubble, setShowBubble] = useState(false);
 
   useEffect(() => {
-    let initTimer: ReturnType<typeof setTimeout>;
     let cycleInterval: ReturnType<typeof setInterval>;
     let gapTimer: ReturnType<typeof setTimeout>;
 
-    initTimer = setTimeout(() => {
+    const initTimer = setTimeout(() => {
       setShowBubble(true);
       cycleInterval = setInterval(() => {
         setShowBubble(false);

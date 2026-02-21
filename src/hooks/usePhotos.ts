@@ -164,7 +164,7 @@ export const useUploadPhoto = () => {
         .from("project_photos")
         .select("*", { count: "exact", head: true })
         .eq("project_id", projectId);
-      let sortBase = existingCount || 0;
+      const sortBase = existingCount || 0;
 
       // Process in chunks of CONCURRENCY with pacing
       for (let i = 0; i < queue.length; i += CONCURRENCY) {

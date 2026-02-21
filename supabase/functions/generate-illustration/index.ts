@@ -13,6 +13,7 @@ async function sleep(ms: number) {
 }
 
 // Extract base64 image data from various AI gateway response formats
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractImageData(message: any): { base64: string | null; contentType: string } {
   let base64Data: string | null = null;
   let detectedContentType = "image/png";
@@ -76,6 +77,7 @@ async function tryGenerate(
   content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>,
   maxAttempts: number,
   temperature = 0.8
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ base64: string | null; contentType: string; error: string | null; retryable: boolean; usage: any }> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -279,7 +281,7 @@ STYLE RULES:
 
     // Try primary model (3 attempts)
     const modelUsed = PRIMARY_MODEL;
-    let result = await tryGenerate(LOVABLE_API_KEY, modelUsed, finalContent, 3, temperature);
+    const result = await tryGenerate(LOVABLE_API_KEY, modelUsed, finalContent, 3, temperature);
 
     // Removed: fallback model (Gemini 2.5 Flash) cannot generate images
     // If primary failed, report the error directly
@@ -305,7 +307,7 @@ STYLE RULES:
     }
 
     // Strip ALL whitespace/newlines from base64 before decoding
-    let base64Data = result.base64.replace(/[\s\n\r]/g, "");
+    const base64Data = result.base64.replace(/[\s\n\r]/g, "");
     let detectedContentType = result.contentType;
 
     console.log(`Base64 length: ${base64Data.length}, first 50 chars: ${base64Data.slice(0, 50)}`);
