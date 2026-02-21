@@ -134,7 +134,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[]; moodPicker?: boolean; projectId?: string }>>([]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [decisionBubbles, setDecisionBubbles] = useState<Array<{ label: string; value: string; emoji?: string }>>([]);
-  const [decisionTier, setDecisionTier] = useState<"format" | "mood" | "length" | "context" | null>(null);
+  const [decisionTier, setDecisionTier] = useState<"format" | "mood" | "names" | "length" | "context" | null>(null);
   const [pageTarget, setPageTarget] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
@@ -383,6 +383,56 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if (!text.trim()) return;
     if (isStreaming) return;
     const trimmed = text.trim();
+
+    // ── Names tier: user is providing character names ──
+    if (decisionTier === "names" && activeProjectId) {
+      setChatMessages(prev => [...prev, { role: "user", content: trimmed }]);
+      setInput("");
+      scrollToBottom();
+
+      // Parse names: split on "and", comma, or treat as single
+      const nameParts = trimmed.split(/\s+and\s+|,\s*/i).map(n => n.trim()).filter(Boolean);
+      const primaryName = nameParts[0] || trimmed;
+
+      // Update pet_name with primary name
+      await updateProject.mutateAsync({ id: activeProjectId, pet_name: primaryName });
+
+      // Update character_profiles with real names if they exist
+      if (project) {
+        const existingProfiles = (project as Record<string, unknown>).character_profiles as Array<{ name: string; profile: string }> | null;
+        if (existingProfiles && existingProfiles.length > 0) {
+          const updated = existingProfiles.map((cp, i) => ({
+            ...cp,
+            name: nameParts[i] || cp.name,
+          }));
+          await supabase.from("projects").update({ character_profiles: updated }).eq("id", activeProjectId);
+        }
+      }
+
+      logEvent("decision", `Names: ${nameParts.join(" & ")}`, { names: nameParts });
+
+      // Advance to next tier
+      const formatChoice = chatMessages.find(m => m.role === "user" && FORMAT_BUBBLES.some(b => m.content.includes(b.label)));
+      const chosenFormat = formatChoice ? FORMAT_BUBBLES.find(b => formatChoice.content.includes(b.label))?.value : productType;
+
+      if (chosenFormat === "picture_book") {
+        setTimeout(() => {
+          setChatMessages(prev => [...prev, { role: "rabbit", content: `${nameParts.length > 1 ? nameParts.join(" & ") + " — love it." : primaryName + " — perfect."} How many pages are we talking?` }]);
+          setDecisionTier("length");
+          setDecisionBubbles(LENGTH_BUBBLES);
+          scrollToBottom();
+        }, 400);
+      } else {
+        setTimeout(() => {
+          setChatMessages(prev => [...prev, { role: "rabbit", content: `${primaryName} — got it. Anything else I should know? Skip if I've got enough.` }]);
+          setDecisionTier("context");
+          setDecisionBubbles(CONTEXT_BUBBLES);
+          scrollToBottom();
+        }, 400);
+      }
+      return;
+    }
+
     resetIdleTimer();
     setQuickReplies([]);
 
@@ -914,24 +964,50 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         suppressMoodPickerRef.current = true;
         updateProject.mutate({ id: activeProjectId, mood: value });
       }
-      // If picture_book based on format choice, ask length; otherwise skip to context
-      const formatChoice = chatMessages.find(m => m.role === "user" && FORMAT_BUBBLES.some(b => m.content.includes(b.label)));
-      const chosenFormat = formatChoice ? FORMAT_BUBBLES.find(b => formatChoice.content.includes(b.label))?.value : productType;
-      
-      if (chosenFormat === "picture_book") {
+
+      // Check if name is still default — if so, insert names tier
+      const needsName = !project?.pet_name || project.pet_name === "New Project";
+
+      if (needsName) {
+        // Check if multi-character
+        const charProfiles = (project as Record<string, unknown> | undefined)?.character_profiles as Array<{ name: string; profile: string }> | null;
+        const multiChar = charProfiles && charProfiles.length > 1;
         setTimeout(() => {
-          setChatMessages(prev => [...prev, { role: "rabbit", content: "How many pages are we talking?" }]);
-          setDecisionTier("length");
-          setDecisionBubbles(LENGTH_BUBBLES);
+          setChatMessages(prev => [...prev, {
+            role: "rabbit",
+            content: multiChar
+              ? `I see ${charProfiles!.length} characters in your photos. What are their names?`
+              : "One more thing — what should I call them?",
+          }]);
+          setDecisionTier("names");
+          setDecisionBubbles([]); // No bubbles — text input only
           scrollToBottom();
+          // Focus the input
+          setTimeout(() => {
+            const inputEl = document.querySelector<HTMLTextAreaElement>('[aria-label="Type a message"]');
+            inputEl?.focus();
+          }, 100);
         }, 400);
       } else {
-        setTimeout(() => {
-          setChatMessages(prev => [...prev, { role: "rabbit", content: "Anything I should know? Names, nicknames, context? Skip if I've got enough." }]);
-          setDecisionTier("context");
-          setDecisionBubbles(CONTEXT_BUBBLES);
-          scrollToBottom();
-        }, 400);
+        // Name already set — proceed to length or context
+        const formatChoice = chatMessages.find(m => m.role === "user" && FORMAT_BUBBLES.some(b => m.content.includes(b.label)));
+        const chosenFormat = formatChoice ? FORMAT_BUBBLES.find(b => formatChoice.content.includes(b.label))?.value : productType;
+
+        if (chosenFormat === "picture_book") {
+          setTimeout(() => {
+            setChatMessages(prev => [...prev, { role: "rabbit", content: "How many pages are we talking?" }]);
+            setDecisionTier("length");
+            setDecisionBubbles(LENGTH_BUBBLES);
+            scrollToBottom();
+          }, 400);
+        } else {
+          setTimeout(() => {
+            setChatMessages(prev => [...prev, { role: "rabbit", content: "Anything I should know? Names, nicknames, context? Skip if I've got enough." }]);
+            setDecisionTier("context");
+            setDecisionBubbles(CONTEXT_BUBBLES);
+            scrollToBottom();
+          }, 400);
+        }
       }
 
     } else if (decisionTier === "length") {

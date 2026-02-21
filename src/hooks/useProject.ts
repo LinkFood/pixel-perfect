@@ -11,6 +11,7 @@ export type Project = {
   pet_breed: string | null;
   pet_appearance_profile: string | null;
   photo_context_brief: string | null;
+  character_profiles: unknown;
   product_type: string | null;
   mood: string | null;
 
