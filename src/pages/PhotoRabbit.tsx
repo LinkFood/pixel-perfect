@@ -1329,7 +1329,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       </AnimatePresence>
 
       {/* Chat scroll area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 space-y-5 pb-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 space-y-5 pb-4">
         {/* Greeting is now injected into chatMessages — no static element */}
 
         {/* Interview + generating chat messages */}
@@ -1719,7 +1719,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
             transition={{ duration: 0.35 }}
           >
             {/* Sandbox section — collapsible on mobile */}
-            <div className={`shrink-0 ${mobileSandboxCollapsed ? "max-h-0 overflow-hidden" : "max-h-[50vh] overflow-y-auto border-b border-border"}`}>
+            <div className={`shrink-0 ${mobileSandboxCollapsed ? "max-h-0 overflow-hidden" : "max-h-[50vh] overflow-hidden border-b border-border"}`}>
               {sandboxPanel}
             </div>
             {/* Toggle button for sandbox */}

@@ -279,7 +279,7 @@ const SharedBookViewer = () => {
           initial={{ opacity: 0, scale: 1.02 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="min-h-screen flex flex-col bg-background"
+          className="h-screen flex flex-col bg-background overflow-hidden"
         >
           {/* Minimal header */}
           <header className="flex items-center justify-between px-6 py-4">
@@ -404,7 +404,7 @@ const SharedBookViewer = () => {
           </div>
 
           {/* CTA footer — strong viral loop */}
-          <div className="text-center py-12 border-t border-border bg-gradient-to-b from-background to-primary/5">
+          <div className="shrink-0 text-center py-6 border-t border-border bg-gradient-to-b from-background to-primary/5">
             <RabbitCharacter state="presenting" size={120} />
             <h2 className="font-display text-3xl font-bold mt-5 text-foreground">
               I loved making this book.

@@ -809,7 +809,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
       </div>
 
       {/* Narrated messages + illustration reveals */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-0 space-y-4 pb-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 md:px-0 space-y-4 pb-4">
         {rabbitMessages.map((msg, i) => (
           <ChatMessage key={`${i}-${msg.slice(0, 20)}`} role="rabbit" content={msg} />
         ))}
@@ -851,7 +851,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
             <p className="font-body text-xs mb-2 text-muted-foreground">
               Completed pages
             </p>
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="flex gap-2 overflow-hidden pb-2">
               <AnimatePresence>
                 {completedIllustrations.slice(0, -1).map((url, i) => (
                   <motion.div

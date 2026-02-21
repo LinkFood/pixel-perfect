@@ -561,7 +561,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto relative">
+    <div className="flex-1 overflow-hidden relative">
       {/* Book Done Celebration Overlay */}
       <AnimatePresence>
         {showDoneOverlay && (
@@ -666,7 +666,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       </AnimatePresence>
       <ConfettiBurst trigger={showDoneConfetti} onComplete={() => setShowDoneConfetti(false)} />
 
-      <div className="pb-16 px-4 md:px-6">
+      <div className="flex-1 overflow-y-auto scrollbar-hide px-4 md:px-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           {/* Share bar — glass treatment */}
           <div className="flex items-center gap-3 pt-4 mb-4 p-4 rounded-2xl glass-warm border border-primary/20 glow-soft">
