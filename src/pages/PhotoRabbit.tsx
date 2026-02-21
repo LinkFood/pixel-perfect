@@ -360,7 +360,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     ) {
       setChatMessages(prev => [...prev, { role: "user", content: trimmed }]);
       setInput("");
-      setChatMessages(prev => [...prev, { role: "rabbit", content: "Got it — making it now!" }]);
+      setChatMessages(prev => [...prev, { role: "rabbit", content: "Say no more. I'm on it." }]);
       setShowSpeedChoice(false);
       scrollToBottom();
       const moodHint = /\bfunny|humor|hilarious|laugh\b/i.test(trimmed) ? "funny"
@@ -418,7 +418,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       const photoCaptions = photos.filter(p => p.caption).map(p => p.caption as string);
       setRabbitState("thinking");
       // Brief anticipatory message (replaced by real stream within 1-2s)
-      setChatMessages(prev => [...prev, { role: "rabbit" as const, content: "Hmm, let me think about that..." }]);
+      setChatMessages(prev => [...prev, { role: "rabbit" as const, content: "Oh, hold on..." }]);
       scrollToBottom();
       await sendMessage(trimmed, interviewMessages, project.pet_name, project.pet_type, photoCaptions, project.photo_context_brief, project.product_type, project.mood);
     } else if (user && (phase === "home" || phase === "upload" || phase === "mood-picker")) {
@@ -427,12 +427,12 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         const photoCaptions = captionedPhotos.map(p => p.caption as string);
         setRabbitState("thinking");
         // Brief anticipatory message (replaced by real stream within 1-2s)
-        setChatMessages(prev => [...prev, { role: "rabbit" as const, content: "Hmm, let me think about that..." }]);
-        scrollToBottom();
-        await sendMessage(
-          trimmed,
-          interviewMessages,
-          project?.pet_name || "your subject",
+      setChatMessages(prev => [...prev, { role: "rabbit" as const, content: "Oh, hold on..." }]);
+      scrollToBottom();
+      await sendMessage(
+        trimmed,
+        interviewMessages,
+        project?.pet_name || "your subject",
           project?.pet_type || "general",
           photoCaptions,
           project?.photo_context_brief || null,
@@ -443,7 +443,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           setChatMessages(prev => {
             const lastMsg = prev[prev.length - 1];
             if (lastMsg?.role === "user") {
-              return [...prev, { role: "rabbit" as const, content: "I'm still getting to know your photos! Drop more in or hit 'That's all my photos' when you're ready." }];
+              return [...prev, { role: "rabbit" as const, content: "Still getting the full picture — drop more in or we can start whenever." }];
             }
             return prev;
           });
@@ -451,10 +451,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         }, 8000);
       } else {
         const earlyResponses = [
-          "Drop some photos and I'll show you what I can do!",
-          "I'm ready to paint — just need some photos to work with.",
-          "Got something good? Drag your photos in and let's make a book.",
-          "The more photos you give me, the better the story. Drop 'em in!",
+          "I need something to work with — drop your photos in.",
+          "Got my brushes ready. Just need your photos.",
+          "Drag your photos in. I'll handle the rest.",
+          "More photos = better book. Give me everything you've got.",
         ];
         const idx = chatMessages.filter(m => m.role === "rabbit").length % earlyResponses.length;
         setTimeout(() => {
@@ -475,8 +475,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       }
       // Remove anticipatory "thinking" message if present
       setChatMessages(prev => {
-        const filtered = prev.filter(m => m.content !== "Hmm, let me think about that...");
-        return [...filtered, { role: "rabbit", content: lastFinishedContent }];
+      const filtered = prev.filter(m => m.content !== "Oh, hold on...");
+      return [...filtered, { role: "rabbit", content: lastFinishedContent }];
       });
       setRabbitState(phase === "generating" ? "painting" : "listening");
       // Show AI-generated quick replies during interview, fall back to static if none
@@ -528,16 +528,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   // Adaptive greetings
   const shortGreetings: Record<string, string> = {
-    funny: `Tell me about this — what's the funniest thing about ${project?.pet_name || "them"}?`,
-    heartfelt: `Tell me about this moment — what makes it special?`,
-    adventure: `What's the story behind this? I want to hear it all.`,
-    memorial: `Tell me about them — what do you want people to remember?`,
+    funny: `Alright, tell me — what's the most ridiculous thing about ${project?.pet_name || "them"}?`,
+    heartfelt: `Tell me about this moment. What makes it matter?`,
+    adventure: `What's the story here? I want all of it.`,
+    memorial: `Tell me about them. What should people know?`,
   };
   const fullGreetings: Record<string, string> = {
-    funny: `I've studied all your photos — I can already tell ${project?.pet_name || "they"} is a character! What's the most ridiculous thing they've ever done?`,
-    heartfelt: `I've studied all your photos — I can see the bond you share with ${project?.pet_name || "them"}. Take your time — tell me about them.`,
-    adventure: `I've studied all your photos — ${project?.pet_name || "they"} looks like a real explorer! What's their greatest adventure?`,
-    memorial: `I've studied all your photos of ${project?.pet_name || "them"} — what a beautiful life. Take your time — tell me about them.`,
+    funny: `I've been through all your photos. ${project?.pet_name || "They"} is clearly a character. Give me the best story.`,
+    heartfelt: `I've looked at every photo. I can see the bond. Take your time — tell me about ${project?.pet_name || "them"}.`,
+    adventure: `I've seen every photo — ${project?.pet_name || "they"} looks like trouble in the best way. What's the greatest adventure?`,
+    memorial: `I've looked at every photo of ${project?.pet_name || "them"}. What a life. Take all the time you need.`,
   };
 
   const appearanceProfilePromise = useRef<Promise<unknown> | null>(null);
@@ -672,7 +672,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if (appearanceProfilePromise.current) {
       setChatMessages(prev => [...prev, {
         role: "rabbit" as const,
-        content: "Finishing up my study of your photos...",
+        content: "Almost done looking at these... one second.",
       }]);
       scrollToBottom();
       await appearanceProfilePromise.current.catch(() => {});
@@ -685,7 +685,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     } catch {
       setChatMessages(prev => [...prev, {
         role: "rabbit",
-        content: "Something went wrong starting the generation. Your credit is safe — try again?",
+        content: "That didn't work. Your credit is safe — want to try again?",
       }]);
       scrollToBottom();
       return;
@@ -701,14 +701,14 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       updateStatus.mutate({ id: activeProjectId, status: "interview" });
       setChatMessages(prev => [...prev, {
         role: "rabbit",
-        content: "Something went wrong with credits. Try again?",
+        content: "Hmm, something went sideways with credits. Try again?",
       }]);
       scrollToBottom();
       return;
     }
     setChatMessages(prev => [...prev, {
       role: "rabbit",
-      content: `I have everything I need. Watch this — I'm going to paint ${project?.pet_name || "your"} book! Keep chatting while I work.`,
+      content: `I've got everything. Time to paint. This is going to be something.`,
     }]);
     } finally {
       setIsFinishing(false);
@@ -725,7 +725,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         : pendingPetName || "your subject";
     setChatMessages(prev => [...prev, {
         role: "rabbit",
-        content: `I've got everything I need from your photos. Making it now! ⚡`,
+        content: `I know exactly what to do with these. Making it now.`,
       }]);
       scrollToBottom();
       // Suppress mood-picker auto-recovery during the brief DB refetch window
@@ -736,7 +736,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     } else {
       setChatMessages(prev => [...prev, {
         role: "rabbit",
-        content: `I've studied every photo. I've got ${project?.pet_name || "this"}. Watch me go! ⚡`,
+        content: `I know ${project?.pet_name || "this"} inside and out now. Watch this.`,
       }]);
       scrollToBottom();
       handleFinishInterview();
@@ -747,7 +747,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const handleNewIllustration = useCallback((pageNum: number, url: string) => {
     setChatMessages(prev => [...prev, {
       role: "rabbit" as const,
-      content: `Look at page ${pageNum}!`,
+      content: `Page ${pageNum} just came out of the oven.`,
       photos: [url],
     }]);
     scrollToBottom();
@@ -756,7 +756,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
   const handleGenerationComplete = async () => {
     // Create share link automatically on completion
-    let shareMsg = "Your book is ready! Review it and share it with anyone.";
+    let shareMsg = "It's ready. I'm really proud of this one.";
     if (activeProjectId) {
       let eid = "";
       const t0 = Date.now();
@@ -773,7 +773,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           if (isDevMode() && eid) chainUpdateEvent(eid, { status: "error", errorMessage: data.error, durationMs: Date.now() - t0 });
         } else if (data?.shareToken) {
           const url = `${window.location.origin}/book/${data.shareToken}`;
-          shareMsg = `Your book is ready! Share it with anyone: ${url}`;
+          shareMsg = `It's ready. I'm really proud of this one. Share it: ${url}`;
           if (isDevMode() && eid) chainUpdateEvent(eid, { status: "success", output: JSON.stringify(data).slice(0, 500), durationMs: Date.now() - t0 });
         }
       } catch (e) {
@@ -856,7 +856,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       }
       // Show mood bubbles
       setTimeout(() => {
-        setChatMessages(prev => [...prev, { role: "rabbit", content: "Nice. What's the vibe?" }]);
+        setChatMessages(prev => [...prev, { role: "rabbit", content: "Love it. Now — what's the vibe?" }]);
         setDecisionTier("mood");
         setDecisionBubbles(MOOD_BUBBLES);
         scrollToBottom();
@@ -874,14 +874,14 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       
       if (chosenFormat === "picture_book") {
         setTimeout(() => {
-          setChatMessages(prev => [...prev, { role: "rabbit", content: "How big should we go?" }]);
+          setChatMessages(prev => [...prev, { role: "rabbit", content: "How many pages are we talking?" }]);
           setDecisionTier("length");
           setDecisionBubbles(LENGTH_BUBBLES);
           scrollToBottom();
         }, 400);
       } else {
         setTimeout(() => {
-          setChatMessages(prev => [...prev, { role: "rabbit", content: "Any names or details I should know? (skip is fine)" }]);
+          setChatMessages(prev => [...prev, { role: "rabbit", content: "Anything I should know? Names, nicknames, context? Skip if I've got enough." }]);
           setDecisionTier("context");
           setDecisionBubbles(CONTEXT_BUBBLES);
           scrollToBottom();
@@ -891,7 +891,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     } else if (decisionTier === "length") {
       setPageTarget(parseInt(value, 10));
       setTimeout(() => {
-        setChatMessages(prev => [...prev, { role: "rabbit", content: "Any names or details I should know? (skip is fine)" }]);
+        setChatMessages(prev => [...prev, { role: "rabbit", content: "Anything I should know? Names, nicknames, context? Skip if I've got enough." }]);
         setDecisionTier("context");
         setDecisionBubbles(CONTEXT_BUBBLES);
         scrollToBottom();
@@ -911,7 +911,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         }
         // Auto-trigger generation
         setTimeout(() => {
-          setChatMessages(prev => [...prev, { role: "rabbit", content: "On it! Watch the magic happen ✨" }]);
+          setChatMessages(prev => [...prev, { role: "rabbit", content: "On it. This is my favorite part." }]);
           scrollToBottom();
           if (activeProjectId && project?.status === "upload") {
             updateStatus.mutateAsync({ id: activeProjectId, status: "interview" }).then(() => {
@@ -924,7 +924,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       } else {
         // "Let me add some context" — clear bubbles, focus input
         setTimeout(() => {
-          setChatMessages(prev => [...prev, { role: "rabbit", content: "Go ahead — tell me anything. Names, details, inside jokes... whatever makes this yours." }]);
+          setChatMessages(prev => [...prev, { role: "rabbit", content: "Tell me anything — names, inside jokes, the stuff only you'd know. That's what makes this yours." }]);
           scrollToBottom();
           setTimeout(() => {
             const inputEl = document.querySelector<HTMLTextAreaElement>('[aria-label="Type a message"]');
@@ -1005,15 +1005,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       const greetings = photos.length <= 3 ? shortGreetings : fullGreetings;
       greeting = greetings[project.mood] || greetings.heartfelt;
     } else if (phase === "mood-picker") {
-      greeting = "Nice photos! Before we dive in — what's the vibe for this book?";
+      greeting = "Love these. What kind of book are we making?";
     } else if (phase === "generating") {
-      greeting = "I'm painting your book right now — watch the progress on the right!";
+      greeting = "I'm painting. You can watch if you want — I don't get stage fright.";
     } else if (phase === "review") {
-      greeting = "Your book is ready! Review it on the right, then share it with anyone.";
+      greeting = "It's done. Go look — I think you're going to love it.";
     } else if (photos.length > 0) {
-      greeting = `${photos.length} photo${photos.length !== 1 ? "s" : ""} loaded. Ready when you are!`;
+      greeting = `${photos.length} photo${photos.length !== 1 ? "s" : ""}. I've seen them all. Ready when you are.`;
     } else {
-      greeting = "Ready when you are — drop some photos and let's get started.";
+      greeting = "Whenever you're ready. Drop your photos and I'll take it from here.";
     }
     setChatMessages([{ role: "rabbit", content: greeting }]);
     scrollToBottom();
@@ -1041,8 +1041,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       setChatMessages(prev => [...prev, {
         role: "rabbit" as const,
         content: newCount === 1
-          ? "Got it! Drop more or continue when ready."
-          : `${newCount} more photos! Looking good.`,
+          ? "Got it. Keep 'em coming or let's go."
+          : `${newCount} more. I like where this is going.`,
       }]);
       scrollToBottom();
     }
@@ -1056,7 +1056,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       // Captioning started
       setChatMessages(prev => [...prev, {
         role: "rabbit" as const,
-        content: `Studying your photos${count > 1 ? ` (${count} to go)...` : "..."}`,
+        content: `Looking at these closely...${count > 1 ? ` (${count} to go)` : ""}`,
       }]);
       scrollToBottom();
     } else if (count === 0 && prevCaptioningCountRef.current > 0) {
@@ -1078,14 +1078,14 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           // Update the last captioning message instead of adding a new one
           let lastIdx = -1;
           for (let i = prev.length - 1; i >= 0; i--) {
-            if (prev[i].role === "rabbit" && prev[i].content.includes("Studying")) {
+            if (prev[i].role === "rabbit" && prev[i].content.includes("Looking at these")) {
               lastIdx = i;
               break;
             }
           }
           if (lastIdx >= 0) {
             const updated = [...prev];
-            updated[lastIdx] = { ...updated[lastIdx], content: `Studying your photos... (${count} left)` };
+            updated[lastIdx] = { ...updated[lastIdx], content: `Still studying... (${count} left)` };
             return updated;
           }
           return prev;
@@ -1110,7 +1110,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       // Add loading message
       setChatMessages(prev => [...prev, {
         role: "rabbit" as const,
-        content: "Let me sketch something for you...",
+        content: "Give me a second — I want to try something...",
       }]);
       scrollToBottom();
       setRabbitState("painting");
@@ -1124,7 +1124,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           // Graceful failure message
           setChatMessages(prev => [...prev, {
             role: "rabbit" as const,
-            content: "I'll save the sketching for the full book — tell me about them first!",
+            content: "I'll save my best work for the real thing. Tell me about them.",
           }]);
           setRabbitState("excited");
           return;
@@ -1134,7 +1134,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
           if (prev.some(m => m.role === "rabbit" && m.photos?.length && (m as { projectId?: string }).projectId === capturedProjectId)) return prev;
           return [...prev, {
             role: "rabbit" as const,
-            content: "Here's a little taste of what your book could look like... ✨",
+            content: "Here's a sneak peek. The real book will be even better.",
             photos: [data.publicUrl],
             projectId: capturedProjectId,
           }];
@@ -1147,7 +1147,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         // Graceful failure message
         setChatMessages(prev => [...prev, {
           role: "rabbit" as const,
-          content: "I'll save the sketching for the full book — tell me about them first!",
+          content: "I'll save my best work for the real thing. Tell me about them.",
         }]);
         setRabbitState("excited");
       }
@@ -1196,10 +1196,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
             </div>
             <span className="text-[11px] text-muted-foreground font-body">
               {displayCount < 4
-                ? "Share more for a richer story"
+                ? "Keep going — more details = richer book"
                 : displayCount < 7
-                ? "Going great — rabbit is hooked"
-                : "Ready · hit Make My Book anytime"}
+                ? "I'm hooked. Keep talking."
+                : "I've got enough. Make your book whenever."}
             </span>
           </motion.div>
         )}
@@ -1494,10 +1494,10 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         disabled={isStreaming}
         placeholder={
           phase === "generating"
-            ? "Chat while I paint..."
+            ? "Talk to me while I paint..."
             : phase === "interview"
-            ? "Share a memory..."
-            : "Drop photos or say hi..."
+            ? "Tell me something..."
+            : "Drop photos or just say hi..."
         }
         showPhotoButton={phase === "home" || phase === "upload" || phase === "mood-picker"}
       />
@@ -1580,7 +1580,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                 onSend={handleSend}
                 onPhotos={handlePhotoUpload}
                 disabled={false}
-                placeholder="Drop photos or say hi..."
+                placeholder="Drop photos or just say hi..."
                 showPhotoButton
               />
             </div>
