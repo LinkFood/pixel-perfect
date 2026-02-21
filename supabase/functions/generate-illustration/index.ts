@@ -109,7 +109,11 @@ async function tryGenerate(
 
       if (!response.ok) {
         const text = await response.text();
-        console.error(`AI gateway error (attempt ${attempt}): ${response.status}`, text);
+        console.error(`AI gateway error (attempt ${attempt}): ${response.status}`, text.slice(0, 500));
+        // 400 = bad request (prompt issue), don't retry
+        if (response.status === 400) {
+          return { base64: null, contentType: "image/png", error: `AI rejected request: ${text.slice(0, 200)}`, retryable: false };
+        }
         if (attempt < maxAttempts) {
           await sleep(1000);
           continue;
