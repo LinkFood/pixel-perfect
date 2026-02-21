@@ -617,13 +617,9 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     // Name fallback: if the project still has the default name, ask for it first
     // (skipped when coming from the quick-intent path, where the user's message itself is the brief)
     if (!skipNameCheck && (!project?.pet_name || project.pet_name === "New Project")) {
-      setChatNamePending(true);
-      setChatMessages(prev => [...prev, {
-        role: "rabbit",
-        content: "One quick thing — what's the name for the star of this book?",
-      }]);
-      scrollToBottom();
-      return;
+      // Auto-set a fallback name instead of blocking generation
+      const fallbackName = "Your Story";
+      await supabase.from("projects").update({ pet_name: fallbackName }).eq("id", activeProjectId);
     }
 
     setIsFinishing(true);
@@ -1032,8 +1028,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
                               <button
                                 key={mood}
                                 onClick={() => {
-                                  setChatMoodPending(false);
-                                  setChatMessages(prev => [...prev, { role: "user", content: label }]);
+                                   setChatMessages(prev => [...prev, { role: "user", content: label }]);
                                   handleMoodSelect(mood, pendingPetName || project?.pet_name || "New Project");
                                 }}
                                 className="px-4 py-2 rounded-full text-sm font-body font-medium bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors border border-primary/20 hover:border-primary shadow-sm"
