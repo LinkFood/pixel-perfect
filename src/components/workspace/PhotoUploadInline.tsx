@@ -42,6 +42,7 @@ const PhotoUploadInline = ({
 }: PhotoUploadInlineProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [gridPage, setGridPage] = useState(0);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -154,11 +155,15 @@ const PhotoUploadInline = ({
       )}
 
       {/* Photo grid */}
-      {count > 0 && (
-        <div className="max-h-[400px] overflow-y-auto rounded-xl">
+      {count > 0 && (() => {
+        const PAGE_SIZE = 12;
+        const totalPages = Math.ceil(count / PAGE_SIZE);
+        const visiblePhotos = photos.slice(gridPage * PAGE_SIZE, (gridPage + 1) * PAGE_SIZE);
+        return (
+        <div className="rounded-xl">
           <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 gap-2">
             <AnimatePresence>
-              {photos.map((photo, index) => {
+              {visiblePhotos.map((photo, index) => {
                 const isCaptioning = captioningIds?.has(photo.id) || false;
                 return (
                 <motion.div
@@ -216,8 +221,20 @@ const PhotoUploadInline = ({
               })}
             </AnimatePresence>
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-2">
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setGridPage(i)}
+                  className={`w-2 h-2 rounded-full transition-all ${gridPage === i ? "bg-primary scale-125" : "bg-border hover:bg-muted-foreground/40"}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

@@ -146,7 +146,7 @@ const WorkspaceSandbox = ({
 
   return (
     <ChainLogProvider>
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col h-full overflow-hidden">
       {isDevMode() && (
         <DevStatusBar
           phase={phase}
