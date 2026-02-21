@@ -1,0 +1,1 @@
+ALTER TABLE public.projects ADD COLUMN character_profiles jsonb DEFAULT '[]'::jsonb;

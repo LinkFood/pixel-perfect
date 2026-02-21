@@ -252,6 +252,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          character_profiles: Json | null
           created_at: string
           id: string
           mood: string | null
@@ -267,6 +268,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          character_profiles?: Json | null
           created_at?: string
           id?: string
           mood?: string | null
@@ -282,6 +284,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          character_profiles?: Json | null
           created_at?: string
           id?: string
           mood?: string | null

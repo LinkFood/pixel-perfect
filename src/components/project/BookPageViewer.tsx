@@ -312,15 +312,15 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
               : `Page ${pageNumber}`}
           </span>
         </div>
-        {/* Text overlay at bottom — compact in spread mode */}
+        {/* Text overlay at bottom — gradient float, children's book sizing */}
         {textContent && (
           <div className={cn(
-            "absolute bottom-0 left-0 right-0 bg-white/85 backdrop-blur-sm",
-            isHalf ? "pt-2 pb-2.5 px-3 max-h-[35%] overflow-y-auto" : "pt-4 pb-5 px-5"
+            "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white/90 via-white/70 to-transparent",
+            isHalf ? "pt-6 pb-4 px-3" : "pt-8 pb-6 px-6"
           )}>
             <p className={cn(
-              "font-display leading-relaxed text-foreground text-center",
-              isHalf ? "text-xs" : "text-base"
+              "font-display font-medium leading-relaxed text-foreground text-center",
+              isHalf ? "text-sm" : "text-lg"
             )}>
               {textContent}
             </p>
@@ -328,10 +328,10 @@ const BookPageViewer = ({ pageNumber, pageType, textContent, illustrationPrompt,
         )}
         {!textContent && (
           <div className={cn(
-            "absolute bottom-0 left-0 right-0 bg-white/70 backdrop-blur-sm",
-            isHalf ? "pt-2 pb-2.5 px-3" : "pt-3 pb-4 px-5"
+            "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white/70 via-white/50 to-transparent",
+            isHalf ? "pt-6 pb-4 px-3" : "pt-8 pb-6 px-6"
           )}>
-            <p className={cn("font-display leading-relaxed text-muted-foreground text-center italic", isHalf ? "text-[10px]" : "text-sm")}>
+            <p className={cn("font-display leading-relaxed text-muted-foreground text-center italic", isHalf ? "text-xs" : "text-sm")}>
               Text will appear here after generation...
             </p>
           </div>

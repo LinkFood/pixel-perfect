@@ -13,11 +13,17 @@ const MOOD_TONE: Record<string, string> = {
   memorial: "Celebrate their life, not their death. Use warmth and gentle joy. Past tense is okay and natural. The tone should feel like a loving tribute that leaves the reader smiling through tears. End with comfort and peace.",
 };
 
-function buildSystemPrompt(petName: string, appearanceProfile: string | null, productType?: string, mood?: string | null) {
+function buildSystemPrompt(petName: string, appearanceProfile: string | null, productType?: string, mood?: string | null, characterProfiles?: Array<{ name: string; profile: string }> | null) {
   const product = productType || "storybook";
-  const characterBlock = appearanceProfile
-    ? `\n\nCHARACTER APPEARANCE (use in EVERY illustration_prompt):\n${appearanceProfile}\n\nCRITICAL: Every illustration_prompt you write MUST include ${petName}'s full physical description so the illustrator draws them consistently on every single page. Copy the key details into each illustration_prompt.`
-    : "";
+  
+  // Build character block — multi-character aware
+  let characterBlock = "";
+  if (characterProfiles && characterProfiles.length > 1) {
+    const profileLines = characterProfiles.map((c, i) => `CHARACTER ${i + 1} — ${c.name.toUpperCase()}:\n${c.profile}`).join("\n\n");
+    characterBlock = `\n\nCHARACTER APPEARANCES (use ALL characters in EVERY illustration_prompt):\n${profileLines}\n\nCRITICAL: This book has ${characterProfiles.length} characters. Every illustration_prompt MUST include the full physical description of ALL characters so the illustrator draws them all consistently on every single page. Never leave a character out.`;
+  } else if (appearanceProfile) {
+    characterBlock = `\n\nCHARACTER APPEARANCE (use in EVERY illustration_prompt):\n${appearanceProfile}\n\nCRITICAL: Every illustration_prompt you write MUST include ${petName}'s full physical description so the illustrator draws them consistently on every single page. Copy the key details into each illustration_prompt.`;
+  }
 
   // Handle custom moods: "custom: roast my friend" → dynamic tone guidance
   let moodGuidance = "";
@@ -73,17 +79,17 @@ WRITING RULES — follow these exactly:
 4. Each page should have ONE clear moment or image, not a summary of multiple events
 5. Use sensory language: sounds, textures, smells — not just visuals
 6. The subject's personality should shine through every page — mischievous subjects get playful language, gentle ones get softer rhythms
-7. 2-4 sentences per page. No more.
+7. 1-2 sentences per page. Maximum. No exceptions. Each sentence should be short enough for a 5-year-old to follow. Think Dr. Seuss: rhythm, repetition, warmth.
 8. If the subject has passed, celebrate their life — don't dwell on loss
 
 QUALITY EXAMPLE:
 BAD: "Everyone loved being around ${petName}. They were always so happy."
-GOOD: "${petName} would burst through the back door every morning like the yard had been waiting just for him — nose to the ground, tail a blur, checking every corner for overnight news."
+GOOD: "${petName} burst through the back door like the yard had been waiting just for him. Nose down, tail a blur — checking every corner for overnight news."
 
 The BAD example is generic and tells. The GOOD example is specific and shows. Write like the GOOD example.
 
 For each page, provide:
-- text_content: The story text (2-4 sentences, read-aloud quality)
+- text_content: The story text (1-2 sentences MAXIMUM, read-aloud quality, short and rhythmic)
 - illustration_prompt: Detailed prompt for the illustrator — composition, colors, mood, specific visual details${appearanceProfile ? `. ALWAYS include ${petName}'s full physical description.` : ""}
 - scene_description: Brief scene summary
 - mood: The emotional tone of this page (one of: "playful", "tender", "adventurous", "reflective", "joyful", "bittersweet")
@@ -152,7 +158,7 @@ serve(async (req) => {
       metadata: { model: "openai/gpt-5.2", interview_messages: interviewCount, photos: photoCount },
     });
 
-    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, effectiveProductType, project.mood);
+    const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, effectiveProductType, project.mood, project.character_profiles as Array<{ name: string; profile: string }> | null);
 
     const petDesc = project.pet_type && project.pet_type !== "unknown" && project.pet_type !== "general"
       ? `, a ${project.pet_breed || ""} ${project.pet_type}`

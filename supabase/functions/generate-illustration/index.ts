@@ -173,15 +173,16 @@ serve(async (req) => {
       .single();
     if (pageErr || !page) throw new Error("Page not found");
 
-    // Get project including appearance profile
+    // Get project including appearance profile and character_profiles
     const { data: project, error: projErr } = await supabase
       .from("projects")
-      .select("pet_name, pet_type, pet_breed, pet_appearance_profile")
+      .select("pet_name, pet_type, pet_breed, pet_appearance_profile, character_profiles")
       .eq("id", projectId)
       .single();
     if (projErr || !project) throw new Error("Project not found");
 
     const scenePrompt = page.illustration_prompt || page.scene_description || "A cute pet illustration";
+    const characterProfiles = (project.character_profiles || []) as Array<{ name: string; profile: string }>;
     const appearanceProfile = project.pet_appearance_profile || "";
     const breed = project.pet_breed || (project.pet_type !== "unknown" && project.pet_type !== "general" ? project.pet_type : "");
 
@@ -208,12 +209,29 @@ serve(async (req) => {
     const breedUpper = breed.toUpperCase();
     const petNameUpper = project.pet_name.toUpperCase();
 
-    // Build the text portion of the prompt
-    const textPrompt = appearanceProfile
-      ? `CRITICAL CHARACTER REQUIREMENT — READ THIS FIRST:
+    // Build the text portion of the prompt — multi-character aware
+    let characterRequirement: string;
+    if (characterProfiles.length > 1) {
+      const charDescs = characterProfiles.map((c, i) => `CHARACTER ${i + 1} — ${c.name.toUpperCase()}:\n${c.profile}`).join("\n\n");
+      characterRequirement = `CRITICAL — MULTIPLE CHARACTERS. ALL must appear in this illustration:
+The reference photos above show the REAL subjects. Study them carefully.
+
+${charDescs}
+
+The illustration MUST include ALL ${characterProfiles.length} characters. Each one must look exactly as described — match their exact coloring, markings, proportions, and features from the reference photos. Do NOT omit any character.`;
+    } else if (appearanceProfile) {
+      characterRequirement = `CRITICAL CHARACTER REQUIREMENT — READ THIS FIRST:
 The reference photos above show the REAL ${petNameUpper}. Study them carefully.
 ${breedUpper ? `They are a ${breedUpper}. ` : ""}${appearanceProfile}
-The illustration MUST look like THIS specific subject — not a generic version. Match their exact coloring, markings, proportions, and features from the reference photos.
+The illustration MUST look like THIS specific subject — not a generic version. Match their exact coloring, markings, proportions, and features from the reference photos.`;
+    } else {
+      characterRequirement = refImageUrls.length > 0
+        ? "Use the reference photos above as the basis for the subject's appearance. The illustration should look like THIS specific subject."
+        : "";
+    }
+
+    const textPrompt = characterRequirement
+      ? `${characterRequirement}
 
 ---
 
@@ -230,7 +248,9 @@ STYLE RULES:
 ---
 
 REMINDER — MATCH THE REFERENCE PHOTOS:
-${petNameUpper} in this image MUST look like the subject in the reference photos above. ${appearanceProfile.split('.').slice(0, 3).join('.')}. NEVER deviate from their real appearance.`
+${characterProfiles.length > 1
+  ? `ALL ${characterProfiles.length} characters (${characterProfiles.map(c => c.name).join(" & ")}) MUST appear. Match each one's exact appearance from the descriptions above.`
+  : `${petNameUpper} in this image MUST look like the subject in the reference photos above. ${appearanceProfile.split('.').slice(0, 3).join('.')}. NEVER deviate from their real appearance.`}`
       : `Create a children's book illustration in warm watercolor style.
 ${refImageUrls.length > 0 ? "Use the reference photos above as the basis for the subject's appearance. The illustration should look like THIS specific subject." : ""}
 

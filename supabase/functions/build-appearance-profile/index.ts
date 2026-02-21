@@ -86,7 +86,7 @@ serve(async (req) => {
       project_id: projectId,
       phase: "appearance",
       level: "milestone",
-      message: `Studying ${photos.length} photos to learn ${project.pet_name}'s appearance...`,
+      message: `Studying ${photos.length} photos to learn everyone's appearance...`,
       technical_message: `Analyzing ${photos.length} photos | Model: google/gemini-2.5-flash`,
       metadata: { photos_analyzed: photos.length, model: "google/gemini-2.5-flash" },
     });
@@ -95,22 +95,23 @@ serve(async (req) => {
     const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
       {
         type: "text",
-        text: `Create a visual character reference for a children's book illustrator. Analyze these ${photos.length} photos of a subject named ${project.pet_name}.${project.pet_type && project.pet_type !== "unknown" && project.pet_type !== "general" ? ` They are a ${project.pet_breed || ""} ${project.pet_type}.` : " Determine what the subject is from the photos."}
+        text: `Analyze these ${photos.length} photos and identify EVERY distinct subject (person, pet, animal) that appears. Create a separate visual character reference for each one.
+
+${project.pet_type && project.pet_type !== "unknown" && project.pet_type !== "general" ? `The main subject may be a ${project.pet_breed || ""} ${project.pet_type}.` : "Determine what the subjects are from the photos."}
 
 ${analyses ? `Photo analyses:\n${analyses}` : captions ? `Photo descriptions: ${captions}` : ""}
 ${physicalMentions ? `Owner's description: ${physicalMentions.slice(0, 2000)}` : ""}
 
-Focus ONLY on physical appearance synthesis — do not re-describe scenes or activities.
+IMPORTANT: Count how many DISTINCT subjects appear across ALL photos. If there are two babies, two dogs, a person and a pet, etc. — each one gets their own profile.
 
-Describe this subject's exact appearance in a single detailed paragraph starting with "${project.pet_name} is a..." Include:
-- What they are (breed, species, age range, etc.)
-- Size and build
-- Colors, patterns, and textures (coat, hair, skin, clothing)
-- Face shape, eye color, distinguishing features
-- Distinctive markings or accessories
-- Any unique physical features
+Return a JSON array with one entry per subject. Each entry has:
+- "name": a descriptive label (e.g. "baby in red hat", "golden retriever", "toddler with curly hair"). Use "${project.pet_name}" as the name if there's only one subject.
+- "profile": a detailed physical appearance paragraph starting with the name. Include: what they are (breed, species, age range), size and build, colors/patterns/textures, face shape, eye color, distinguishing features, distinctive markings or accessories.
 
-Be extremely specific — an illustrator should be able to draw this subject identically on every page of a book from your description alone.`,
+Be extremely specific — an illustrator should be able to draw each subject identically on every page from your description alone.
+
+Return ONLY the JSON array, no other text. Example format:
+[{"name": "Luna", "profile": "Luna is a small calico cat with..."}, {"name": "Max", "profile": "Max is a toddler with sandy blonde hair..."}]`,
       },
     ];
 
@@ -136,7 +137,7 @@ Be extremely specific — an illustrator should be able to draw this subject ide
             content: contentParts,
           },
         ],
-        max_completion_tokens: 500,
+        max_completion_tokens: 800,
         temperature: 0.3,
       }),
     });
@@ -158,20 +159,40 @@ Be extremely specific — an illustrator should be able to draw this subject ide
     }
 
     const result = await response.json();
-    const profile = result.choices?.[0]?.message?.content?.trim();
+    const rawContent = result.choices?.[0]?.message?.content?.trim();
 
-    if (!profile) throw new Error("No profile generated");
+    if (!rawContent) throw new Error("No profile generated");
 
-    console.log(`Appearance profile for ${project.pet_name}: ${profile.slice(0, 100)}...`);
+    // Parse the JSON array response
+    let characterProfiles: Array<{ name: string; profile: string }> = [];
+    try {
+      // Strip markdown code fences if present
+      const cleaned = rawContent.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+      characterProfiles = JSON.parse(cleaned);
+      if (!Array.isArray(characterProfiles)) {
+        // Single object returned — wrap it
+        characterProfiles = [characterProfiles];
+      }
+    } catch {
+      // Fallback: treat the whole response as a single profile (backward compat)
+      console.warn("Could not parse character_profiles JSON, falling back to single profile");
+      characterProfiles = [{ name: project.pet_name, profile: rawContent }];
+    }
+
+    // Build combined profile for backward compatibility
+    const combinedProfile = characterProfiles.map(c => c.profile).join("\n\n");
+
+    console.log(`Detected ${characterProfiles.length} character(s): ${characterProfiles.map(c => c.name).join(", ")}`);
+    console.log(`Combined appearance profile: ${combinedProfile.slice(0, 100)}...`);
 
     // Build log: appearance profile complete
     await supabase.from("build_log").insert({
       project_id: projectId,
       phase: "appearance",
       level: "milestone",
-      message: `Got it! I know exactly what ${project.pet_name} looks like now.`,
-      technical_message: `Profile: ${profile.slice(0, 120)}...`,
-      metadata: { photos_analyzed: photos.length, model: "google/gemini-2.5-flash", profile_length: profile.length },
+      message: `Got it! Found ${characterProfiles.length} character${characterProfiles.length !== 1 ? "s" : ""}: ${characterProfiles.map(c => c.name).join(" & ")}.`,
+      technical_message: `Profile: ${combinedProfile.slice(0, 120)}...`,
+      metadata: { photos_analyzed: photos.length, model: "google/gemini-2.5-flash", profile_length: combinedProfile.length, character_count: characterProfiles.length },
     });
 
     // Compile photo_context_brief from all ai_analysis data (no extra API call)
@@ -191,11 +212,12 @@ Be extremely specific — an illustrator should be able to draw this subject ide
     });
     const photoContextBrief = briefParts.length > 0 ? briefParts.join("\n\n") : null;
 
-    // Save profile and context brief to projects table
+    // Save profile, character_profiles, and context brief to projects table
     const { error: updateErr } = await supabase
       .from("projects")
       .update({
-        pet_appearance_profile: profile,
+        pet_appearance_profile: combinedProfile,
+        character_profiles: characterProfiles,
         ...(photoContextBrief ? { photo_context_brief: photoContextBrief } : {}),
       })
       .eq("id", projectId);
@@ -208,9 +230,9 @@ Be extremely specific — an illustrator should be able to draw this subject ide
       });
     }
 
-    console.log(`Appearance profile saved for ${project.pet_name}${photoContextBrief ? " (with photo context brief)" : ""}`);
+    console.log(`Appearance profile saved: ${characterProfiles.length} character(s)${photoContextBrief ? " (with photo context brief)" : ""}`);
 
-    return new Response(JSON.stringify({ success: true, profile, photoContextBrief }), {
+    return new Response(JSON.stringify({ success: true, profile: combinedProfile, characterProfiles, photoContextBrief }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
