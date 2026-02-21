@@ -929,7 +929,13 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       if (done > 0) {
         setChatMessages(prev => {
           // Update the last captioning message instead of adding a new one
-          const lastIdx = prev.findLastIndex(m => m.role === "rabbit" && m.content.includes("Studying"));
+          let lastIdx = -1;
+          for (let i = prev.length - 1; i >= 0; i--) {
+            if (prev[i].role === "rabbit" && prev[i].content.includes("Studying")) {
+              lastIdx = i;
+              break;
+            }
+          }
           if (lastIdx >= 0) {
             const updated = [...prev];
             updated[lastIdx] = { ...updated[lastIdx], content: `Studying your photos... (${count} left)` };

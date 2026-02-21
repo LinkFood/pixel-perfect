@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, forwardRef } from "react";
 import { motion } from "framer-motion";
 import { Paperclip, PawPrint } from "lucide-react";
 
@@ -16,7 +16,7 @@ const MAX_ROWS = 4;
 const LINE_HEIGHT = 22; // px per line of text
 const BASE_HEIGHT = LINE_HEIGHT; // start at 1 line
 
-const ChatInput = ({
+const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(({
   value,
   onChange,
   onSend,
@@ -24,7 +24,7 @@ const ChatInput = ({
   disabled = false,
   placeholder = "Tell Rabbit what you're making...",
   showPhotoButton = true,
-}: ChatInputProps) => {
+}, ref) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isSendingRef = useRef(false);
@@ -61,7 +61,7 @@ const ChatInput = ({
   };
 
   return (
-    <div className="px-4 pb-4">
+    <div ref={ref} className="px-4 pb-4">
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -119,6 +119,8 @@ const ChatInput = ({
       </form>
     </div>
   );
-};
+});
+
+ChatInput.displayName = "ChatInput";
 
 export default ChatInput;
