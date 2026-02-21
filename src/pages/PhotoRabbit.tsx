@@ -314,6 +314,9 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     setIsFinishing(false);
     setShowCreditGate(false);
     prevCanFinish.current = false;
+    previewTriggeredRef.current = null;
+    suppressMoodPickerRef.current = false;
+    projectCreatedRef.current = false;
   }, []);
 
   const handleNewProject = async () => {
