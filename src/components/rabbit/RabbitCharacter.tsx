@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import { motion, useAnimation, useReducedMotion, type Variants } from "framer-motion";
 
 export type RabbitState =
@@ -304,8 +304,8 @@ const breathingVariants: Variants = {
 };
 
 // ─── ZZZ for sleeping ───────────────────────────────────────
-const SleepZzz = () => (
-  <g>
+const SleepZzz = forwardRef<SVGGElement>((_, ref) => (
+  <g ref={ref}>
     {[0, 1, 2].map(i => (
       <motion.text
         key={i}
@@ -323,7 +323,8 @@ const SleepZzz = () => (
       </motion.text>
     ))}
   </g>
-);
+));
+SleepZzz.displayName = "SleepZzz";
 
 // ─── Main Component ─────────────────────────────────────────
 const RabbitCharacter = ({ state = "idle", size = 200, className, eyeOffset, mood }: RabbitCharacterProps) => {

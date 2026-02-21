@@ -1,12 +1,12 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, Upload, X, Star, Sparkles } from "lucide-react";
 import { type ProjectPhoto, getPhotoUrl } from "@/hooks/usePhotos";
 
-const PhotoThumb = ({ storagePath, alt }: { storagePath: string; alt: string }) => {
+const PhotoThumb = forwardRef<HTMLDivElement, { storagePath: string; alt: string }>(({ storagePath, alt }, ref) => {
   const [loaded, setLoaded] = useState(false);
   return (
-    <>
+    <div ref={ref} className="absolute inset-0">
       {!loaded && <div className="absolute inset-0 animate-pulse rounded-xl bg-muted" />}
       <img
         src={getPhotoUrl(storagePath)}
@@ -16,9 +16,10 @@ const PhotoThumb = ({ storagePath, alt }: { storagePath: string; alt: string }) 
         onLoad={() => setLoaded(true)}
         onError={() => setLoaded(true)}
       />
-    </>
+    </div>
   );
-};
+});
+PhotoThumb.displayName = "PhotoThumb";
 
 interface PhotoUploadInlineProps {
   photos: ProjectPhoto[];
