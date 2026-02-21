@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, MessageCircle, BookOpen, Palette } from "lucide-react";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
@@ -57,7 +57,7 @@ const steps = [
   { icon: BookOpen, label: "Get your book", detail: "Illustrated, shareable, yours to keep" },
 ];
 
-const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
+const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop }, fwdRef) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -148,7 +148,11 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
 
   return (
     <div
-      ref={heroRef}
+      ref={(node) => {
+        (heroRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        if (typeof fwdRef === "function") fwdRef(node);
+        else if (fwdRef) (fwdRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      }}
       className={`flex-1 overflow-y-auto transition-colors duration-300 ${isDragOver ? "bg-primary/[0.03]" : ""}`}
       onMouseMove={handleMouseMove}
       onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
@@ -358,6 +362,8 @@ const HeroLanding = ({ onPhotoDrop }: HeroLandingProps) => {
       </div>
     </div>
   );
-};
+});
+
+HeroLanding.displayName = "HeroLanding";
 
 export default HeroLanding;
