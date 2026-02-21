@@ -16,6 +16,7 @@ import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearI
 import { isDevMode, enableDevMode } from "@/lib/devMode";
 import { useChainLogSafe } from "@/hooks/useChainLog";
 import { getQuickReplies } from "@/lib/quickReplies";
+import { buildPhotoSummary } from "@/lib/photoSummary";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useCredits, TOKEN_COSTS } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -132,6 +133,9 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const speedChoiceShownRef = useRef(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: "rabbit" | "user"; content: string; photos?: string[]; moodPicker?: boolean; projectId?: string }>>([]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
+  const [decisionBubbles, setDecisionBubbles] = useState<Array<{ label: string; value: string; emoji?: string }>>([]);
+  const [decisionTier, setDecisionTier] = useState<"format" | "mood" | "length" | "context" | null>(null);
+  const [pageTarget, setPageTarget] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectCreatedRef = useRef(false);
   const pendingFilesRef = useRef<File[]>([]);
@@ -542,13 +546,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if (!activeProjectId) return;
     if (updateStatus.isPending) return;
     if (isFinishing) return;
-    // Default mood = heartfelt. The LLM will detect and shift mood during conversation.
-    const moodToUse = project?.mood || "heartfelt";
-    if (!project?.mood) {
-      // Auto-set mood so phase transitions cleanly
-      suppressMoodPickerRef.current = true;
-      updateProject.mutate({ id: activeProjectId, mood: moodToUse });
-    }
+    // Instead of jumping to interview, show the decision bubble tree
     // Auto-extract name from photo analysis if still default
     if (!project?.pet_name || project.pet_name === "New Project") {
       const captioned = photos.filter(p => p.ai_analysis || p.caption);
@@ -560,11 +558,16 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         }
       }
     }
-    if (isDevMode()) { chainAddEvent({ phase: "appearance-profile", step: "build-appearance-profile", status: "running", model: "Gemini 2.5 Flash", input: JSON.stringify({ projectId: activeProjectId }).slice(0, 500) }); }
-    appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
-      body: { projectId: activeProjectId },
-    });
-    startInterview(moodToUse);
+    // If bubbles aren't already showing, surface photo analysis + format choices
+    if (decisionTier === null) {
+      const captioned = photos.filter(p => p.ai_analysis);
+      const analyses = captioned.map(p => p.ai_analysis as Record<string, unknown>);
+      const summary = buildPhotoSummary(analyses);
+      setChatMessages(prev => [...prev, { role: "rabbit", content: summary }]);
+      showFormatBubbles();
+      setShowSpeedChoice(false);
+      scrollToBottom();
+    }
   };
 
   const handleMoodSelect = async (mood: string, name: string) => {
@@ -803,6 +806,135 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
   };
 
+  // ─── Decision bubble flow ──────────────────────────────────
+  const FORMAT_BUBBLES = [
+    { label: "One stunning illustration", value: "single_illustration", emoji: "🎨" },
+    { label: "A short story", value: "short_story", emoji: "📖" },
+    { label: "A full picture book", value: "picture_book", emoji: "📚" },
+  ];
+  const MOOD_BUBBLES = [
+    { label: "Make it funny", value: "funny", emoji: "😂" },
+    { label: "Make it heartfelt", value: "heartfelt", emoji: "💛" },
+    { label: "Tell an adventure", value: "adventure", emoji: "🗺️" },
+    { label: "Honor their memory", value: "memorial", emoji: "🕊️" },
+  ];
+  const LENGTH_BUBBLES = [
+    { label: "Short and sweet (4 pages)", value: "4", emoji: "✨" },
+    { label: "Just right (8 pages)", value: "8", emoji: "📖" },
+    { label: "The full thing (12+ pages)", value: "12", emoji: "📚" },
+  ];
+  const CONTEXT_BUBBLES = [
+    { label: "Skip — you've got this", value: "skip", emoji: "🚀" },
+    { label: "Let me add some context", value: "context", emoji: "✍️" },
+  ];
+
+  const showFormatBubbles = () => {
+    setDecisionTier("format");
+    setDecisionBubbles(FORMAT_BUBBLES);
+  };
+
+  const handleDecisionBubbleTap = async (value: string) => {
+    const bubble = decisionBubbles.find(b => b.value === value);
+    if (!bubble) return;
+
+    // Add user's choice as a chat message
+    setChatMessages(prev => [...prev, { role: "user", content: `${bubble.emoji || ""} ${bubble.label}`.trim() }]);
+    setDecisionBubbles([]);
+    scrollToBottom();
+
+    if (decisionTier === "format") {
+      // Save product type
+      if (activeProjectId) {
+        updateProject.mutate({ id: activeProjectId, product_type: value });
+      }
+      // Kick off appearance profile in background
+      if (activeProjectId) {
+        if (isDevMode()) { chainAddEvent({ phase: "appearance-profile", step: "build-appearance-profile", status: "running", model: "Gemini 2.5 Flash", input: JSON.stringify({ projectId: activeProjectId }).slice(0, 500) }); }
+        appearanceProfilePromise.current = supabase.functions.invoke("build-appearance-profile", {
+          body: { projectId: activeProjectId },
+        });
+      }
+      // Show mood bubbles
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { role: "rabbit", content: "Nice. What's the vibe?" }]);
+        setDecisionTier("mood");
+        setDecisionBubbles(MOOD_BUBBLES);
+        scrollToBottom();
+      }, 400);
+
+    } else if (decisionTier === "mood") {
+      // Save mood
+      if (activeProjectId) {
+        suppressMoodPickerRef.current = true;
+        updateProject.mutate({ id: activeProjectId, mood: value });
+      }
+      // If picture_book based on format choice, ask length; otherwise skip to context
+      const formatChoice = chatMessages.find(m => m.role === "user" && FORMAT_BUBBLES.some(b => m.content.includes(b.label)));
+      const chosenFormat = formatChoice ? FORMAT_BUBBLES.find(b => formatChoice.content.includes(b.label))?.value : productType;
+      
+      if (chosenFormat === "picture_book") {
+        setTimeout(() => {
+          setChatMessages(prev => [...prev, { role: "rabbit", content: "How big should we go?" }]);
+          setDecisionTier("length");
+          setDecisionBubbles(LENGTH_BUBBLES);
+          scrollToBottom();
+        }, 400);
+      } else {
+        setTimeout(() => {
+          setChatMessages(prev => [...prev, { role: "rabbit", content: "Any names or details I should know? (skip is fine)" }]);
+          setDecisionTier("context");
+          setDecisionBubbles(CONTEXT_BUBBLES);
+          scrollToBottom();
+        }, 400);
+      }
+
+    } else if (decisionTier === "length") {
+      setPageTarget(parseInt(value, 10));
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { role: "rabbit", content: "Any names or details I should know? (skip is fine)" }]);
+        setDecisionTier("context");
+        setDecisionBubbles(CONTEXT_BUBBLES);
+        scrollToBottom();
+      }, 400);
+
+    } else if (decisionTier === "context") {
+      setDecisionTier(null);
+      if (value === "skip") {
+        // Auto-extract name from analysis if available
+        const captioned = photos.filter(p => p.ai_analysis);
+        if (captioned.length > 0) {
+          const analysis = captioned[0].ai_analysis as Record<string, string[]> | undefined;
+          const extractedName = analysis?.people_present?.[0] || analysis?.subject_name?.[0];
+          if (extractedName && activeProjectId && (!project?.pet_name || project.pet_name === "New Project")) {
+            updateProject.mutate({ id: activeProjectId, pet_name: extractedName });
+          }
+        }
+        // Auto-trigger generation
+        setTimeout(() => {
+          setChatMessages(prev => [...prev, { role: "rabbit", content: "On it! Watch the magic happen ✨" }]);
+          scrollToBottom();
+          if (activeProjectId && project?.status === "upload") {
+            updateStatus.mutateAsync({ id: activeProjectId, status: "interview" }).then(() => {
+              setTimeout(() => handleFinishInterview(true), 600);
+            });
+          } else {
+            handleFinishInterview(true);
+          }
+        }, 400);
+      } else {
+        // "Let me add some context" — clear bubbles, focus input
+        setTimeout(() => {
+          setChatMessages(prev => [...prev, { role: "rabbit", content: "Go ahead — tell me anything. Names, details, inside jokes... whatever makes this yours." }]);
+          scrollToBottom();
+          setTimeout(() => {
+            const inputEl = document.querySelector<HTMLTextAreaElement>('[aria-label="Type a message"]');
+            inputEl?.focus();
+          }, 100);
+        }, 400);
+      }
+    }
+  };
+
   const userInterviewCount = interviewMessages.filter(m => m.role === "user").length;
   const localUserCount = chatMessages.filter(m => m.role === "user").length;
   const displayCount = Math.max(userInterviewCount, localUserCount);
@@ -928,11 +1060,15 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       }]);
       scrollToBottom();
     } else if (count === 0 && prevCaptioningCountRef.current > 0) {
-      // Captioning finished
+      // Captioning finished — surface photo analysis as conversational opener + show format bubbles
+      const captioned = photos.filter(p => p.ai_analysis);
+      const analyses = captioned.map(p => p.ai_analysis as Record<string, unknown>);
+      const summary = buildPhotoSummary(analyses);
       setChatMessages(prev => [...prev, {
         role: "rabbit" as const,
-        content: "Done studying! I know them well now.",
+        content: summary,
       }]);
+      showFormatBubbles();
       scrollToBottom();
     } else if (count > 0 && count !== prevCaptioningCountRef.current) {
       // Update count
@@ -1254,7 +1390,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
 
       {/* Speed-choice sticky bar — visible in upload OR interview phase as soon as user has photos */}
       <AnimatePresence>
-        {showSpeedChoice && (phase === "interview" || phase === "upload") && (
+        {showSpeedChoice && decisionBubbles.length === 0 && (phase === "interview" || phase === "upload") && (
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1278,7 +1414,34 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         )}
       </AnimatePresence>
 
-      {/* Quick-reply chips — pinned above input during interview, hidden while streaming or typing */}
+      {/* Decision bubbles — tap-through choices for format, mood, length, context */}
+      <AnimatePresence>
+        {decisionBubbles.length > 0 && (
+          <motion.div
+            key="decision-bubbles"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.25 }}
+            className="flex flex-wrap gap-2.5 px-4 py-3 shrink-0"
+          >
+            {decisionBubbles.map((bubble) => (
+              <motion.button
+                key={bubble.value}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleDecisionBubbleTap(bubble.value)}
+                className="px-4 py-2.5 rounded-2xl text-sm font-body font-semibold bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all border border-primary/25 hover:border-primary shadow-sm"
+              >
+                {bubble.emoji && <span className="mr-1.5">{bubble.emoji}</span>}
+                {bubble.label}
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
       <AnimatePresence>
         {phase === "interview" && quickReplies.length > 0 && !isStreaming && input.length === 0 && (
           <motion.div
