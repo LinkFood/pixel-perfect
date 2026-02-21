@@ -328,7 +328,9 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       level: "info",
       message,
       metadata: (meta || {}) as unknown as import("@/integrations/supabase/types").Json,
-    }]);
+    }]).then(({ error }) => {
+      if (error) console.warn("build_log insert failed:", error.message);
+    });
   }, [activeProjectId]);
 
   // ─── Phase transition logging ──────────────────────────────

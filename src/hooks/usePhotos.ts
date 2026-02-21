@@ -167,7 +167,9 @@ export const useUploadPhoto = () => {
         level: "info",
         message: `Uploading ${total} photo${total !== 1 ? "s" : ""}`,
         metadata: { total } as unknown as import("@/integrations/supabase/types").Json,
-      }]);
+      }]).then(({ error }) => {
+        if (error) console.warn("build_log insert failed:", error.message);
+      });
 
       const { count: existingCount } = await supabase
         .from("project_photos")
@@ -250,7 +252,9 @@ export const useUploadPhoto = () => {
           ? `Upload done: ${batchCompleted} succeeded, ${batchFailed} failed`
           : `All ${total} photos uploaded`,
         metadata: { total, succeeded: batchCompleted, failed: batchFailed } as unknown as import("@/integrations/supabase/types").Json,
-      }]);
+      }]).then(({ error }) => {
+        if (error) console.warn("build_log insert failed:", error.message);
+      });
 
       if (batchFailed > 0) {
         toast.error(`${batchFailed} of ${total} photos failed to upload`);
