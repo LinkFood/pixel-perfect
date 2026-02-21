@@ -302,23 +302,33 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     }
   };
 
+  const resetProjectState = useCallback(() => {
+    setChatMessages([]);
+    setDecisionBubbles([]);
+    setDecisionTier(null);
+    setQuickReplies([]);
+    setPageTarget(null);
+    setShowSpeedChoice(false);
+    speedChoiceShownRef.current = false;
+    setRabbitState("idle");
+    setIsFinishing(false);
+    setShowCreditGate(false);
+    prevCanFinish.current = false;
+  }, []);
+
   const handleNewProject = async () => {
     try {
       const newProj = await createProject.mutateAsync();
+      resetProjectState();
       setActiveProjectId(newProj.id);
       navigate(`/project/${newProj.id}`);
-      setChatMessages([]);
-      setRabbitState("idle");
     } catch { /* handled */ }
   };
 
   const handleSelectProject = (id: string) => {
-    setChatMessages([]);
+    resetProjectState();
     setActiveProjectId(id);
     navigate(`/project/${id}`);
-    prevCanFinish.current = false;
-    setShowSpeedChoice(false);
-    speedChoiceShownRef.current = false;
   };
 
   const handleRenameProject = (id: string, newName: string) => {
@@ -328,7 +338,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const handleDeleteProject = (id: string) => {
     deleteProject.mutate(id);
     if (activeProjectId === id) {
-      setChatMessages([]);
+      resetProjectState();
       const remaining = projects.filter(p => p.id !== id);
       if (remaining.length > 0) {
         setActiveProjectId(remaining[0].id);
@@ -515,7 +525,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     if (isStreaming && streamingContent) scrollToBottom();
   }, [streamingContent]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Restore DB messages on fresh load
+  // Restore DB messages on fresh load (scoped to activeProjectId to prevent cross-project leaks)
   useEffect(() => {
     if (phase !== "interview" && phase !== "generating") return;
     if (interviewMessages.length === 0 || chatMessages.length > 0) return;
@@ -524,7 +534,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       content: m.content,
     }));
     setChatMessages(restored);
-  }, [phase, interviewMessages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase, interviewMessages.length, activeProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Adaptive greetings
   const shortGreetings: Record<string, string> = {
