@@ -7,6 +7,7 @@ import GenerationView from "./GenerationView";
 import BookReview from "@/components/project/BookReview";
 import DevStatusBar from "./DevStatusBar";
 import { isDevMode } from "@/lib/devMode";
+import { ChainLogProvider } from "@/hooks/useChainLog";
 import { type ProjectPhoto } from "@/hooks/usePhotos";
 import { supabase } from "@/integrations/supabase/client";
 import ConfettiBurst from "@/components/ConfettiBurst";
@@ -144,6 +145,7 @@ const WorkspaceSandbox = ({
   }, [showReveal]);
 
   return (
+    <ChainLogProvider>
     <div className="flex flex-col h-full overflow-y-auto">
       {isDevMode() && (
         <DevStatusBar
@@ -496,6 +498,7 @@ const WorkspaceSandbox = ({
 
       <ConfettiBurst trigger={showConfetti} onComplete={() => setShowConfetti(false)} />
     </div>
+    </ChainLogProvider>
   );
 };
 

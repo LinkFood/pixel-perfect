@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
+import { useChainLogSafe } from "@/hooks/useChainLog";
+import { isDevMode } from "@/lib/devMode";
 import { linkInterviewSeed } from "@/data/linkInterviewSeed";
 import { catInterviewSeed } from "@/data/catInterviewSeed";
 import { shortInterviewSeed } from "@/data/shortInterviewSeed";
@@ -132,6 +134,7 @@ export const useInterviewChat = (projectId: string | undefined) => {
   const [lastFinishedContent, setLastFinishedContent] = useState("");
   const [lastSuggestedReplies, setLastSuggestedReplies] = useState<string[]>([]);
   const [lastDetectedMood, setLastDetectedMood] = useState<string | null>(null);
+  const { addEvent, updateEvent } = useChainLogSafe();
 
   const sendMessage = useCallback(async (
     userMessage: string,
@@ -161,6 +164,19 @@ export const useInterviewChat = (projectId: string | undefined) => {
     allMessages.push({ role: "user", content: userMessage });
 
     const userMessageCount = allMessages.filter(m => m.role === "user").length;
+
+    let eventId = "";
+    const startTime = Date.now();
+    if (isDevMode()) {
+      eventId = addEvent({
+        phase: "interview",
+        step: `interview-chat turn ${userMessageCount}`,
+        status: "running",
+        input: JSON.stringify({ userMessage, messageCount: allMessages.length }).slice(0, 500),
+        model: "GPT-5.2",
+        metadata: { turnNumber: userMessageCount, projectId },
+      });
+    }
 
     try {
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/interview-chat`, {
@@ -230,8 +246,19 @@ export const useInterviewChat = (projectId: string | undefined) => {
       setLastFinishedContent(messageContent);
       setLastSuggestedReplies(suggestedReplies);
       if (detectedMood) setLastDetectedMood(detectedMood);
+
+      if (isDevMode() && eventId) {
+        updateEvent(eventId, {
+          status: "success",
+          output: messageContent.slice(0, 500),
+          durationMs: Date.now() - startTime,
+        });
+      }
     } catch (e) {
       console.error("Interview chat error:", e);
+      if (isDevMode() && eventId) {
+        updateEvent(eventId, { status: "error", errorMessage: (e as Error).message, durationMs: Date.now() - startTime });
+      }
       toast.error("Failed to get AI response");
     } finally {
       setIsStreaming(false);

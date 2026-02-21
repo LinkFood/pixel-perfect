@@ -9,6 +9,8 @@ import BuildLog from "./BuildLog";
 import { supabase } from "@/integrations/supabase/client";
 import { useUpdateProjectStatus } from "@/hooks/useProject";
 import { toast } from "sonner";
+import { useChainLogSafe } from "@/hooks/useChainLog";
+import { isDevMode } from "@/lib/devMode";
 
 type Phase = "loading" | "story" | "illustrations" | "done" | "failed";
 
@@ -271,6 +273,7 @@ const IllustrationReveal = ({ src, alt, className }: { src: string; alt: string;
 
 const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllustration, interviewHighlights = [], mood, tokenCost = 0, creditBalance = null }: GenerationViewProps) => {
   const updateStatus = useUpdateProjectStatus();
+  const { addEvent, updateEvent } = useChainLogSafe();
   const [phase, setPhase] = useState<Phase>("loading");
   const [rabbitState, setRabbitState] = useState<RabbitState>("thinking");
   const [rabbitMessages, setRabbitMessages] = useState<string[]>([]);
@@ -418,6 +421,13 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
   const fireVariantsInBackground = useCallback((variantPages: { id: string }[]) => {
     variantPages.forEach((page, i) => {
       setTimeout(() => {
+        if (isDevMode()) {
+          addEvent({
+            phase: "illustration", step: `generate-illustration-variant page ${i + 1}`,
+            status: "running", model: "Gemini 3 Pro",
+            input: JSON.stringify({ pageId: page.id, projectId, variant: true }).slice(0, 500),
+          });
+        }
         supabase.functions.invoke("generate-illustration", {
           body: { pageId: page.id, projectId, variant: true },
         }).catch(() => {});
@@ -509,7 +519,22 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
         addMessage(`Painting ${labels.join(", ")}...`);
       }
 
-      // Fire batch concurrently
+      // Fire batch concurrently with chain logging
+      const batchEventIds: string[] = [];
+      const batchStartTime = Date.now();
+      if (isDevMode()) {
+        batchItems.forEach(page => {
+          batchEventIds.push(addEvent({
+            phase: "illustration",
+            step: `generate-illustration page ${page.page_number}`,
+            status: "running",
+            input: JSON.stringify({ pageId: page.id, projectId }).slice(0, 500),
+            model: "Gemini 3 Pro",
+            metadata: { pageNumber: page.page_number, pageType: page.page_type },
+          }));
+        });
+      }
+
       const results = await Promise.allSettled(
         batchItems.map(page =>
           supabase.functions.invoke("generate-illustration", {
@@ -519,12 +544,24 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
       );
 
       let batchSuccesses = 0;
-      for (const result of results) {
+      for (let ri = 0; ri < results.length; ri++) {
+        const result = results[ri];
         if (result.status === "fulfilled" && !result.value.error) {
           batchSuccesses++;
           successes++;
+          if (isDevMode() && batchEventIds[ri]) {
+            updateEvent(batchEventIds[ri], {
+              status: "success",
+              output: JSON.stringify(result.value.data).slice(0, 500),
+              durationMs: Date.now() - batchStartTime,
+            });
+          }
         } else {
           failures++;
+          if (isDevMode() && batchEventIds[ri]) {
+            const errMsg = result.status === "rejected" ? result.reason?.message : result.value?.error?.message || "Unknown error";
+            updateEvent(batchEventIds[ri], { status: "error", errorMessage: errMsg, durationMs: Date.now() - batchStartTime });
+          }
         }
       }
 
@@ -593,15 +630,34 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
       setRabbitState("thinking");
       addMessage(`Let me read through everything you shared about ${petName}...`);
 
-      const { error: storyErr } = await supabase.functions.invoke("generate-story", {
+      let storyEventId = "";
+      const storyStart = Date.now();
+      if (isDevMode()) {
+        storyEventId = addEvent({
+          phase: "story", step: "generate-story", status: "running",
+          input: JSON.stringify({ projectId }).slice(0, 500), model: "GPT-5.2",
+        });
+      }
+
+      const { data: storyData, error: storyErr } = await supabase.functions.invoke("generate-story", {
         body: { projectId },
       });
 
       if (storyErr) {
+        if (isDevMode() && storyEventId) updateEvent(storyEventId, { status: "error", errorMessage: storyErr.message, durationMs: Date.now() - storyStart });
         setPhase("failed");
         setRabbitState("sympathetic");
         addMessage("Something went wrong with the story. Let me try again if you'd like.");
         return;
+      }
+
+      if (isDevMode() && storyEventId) {
+        updateEvent(storyEventId, {
+          status: "success",
+          output: JSON.stringify(storyData).slice(0, 500),
+          durationMs: Date.now() - storyStart,
+          tokenCount: storyData?.usage?.total_tokens,
+        });
       }
 
       addMessage(`The story is written! Now let me illustrate it...`);

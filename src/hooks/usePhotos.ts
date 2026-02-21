@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useState, useCallback, useRef } from "react";
+import { useChainLogSafe } from "@/hooks/useChainLog";
+import { isDevMode } from "@/lib/devMode";
 
 export type ProjectPhoto = {
   id: string;
@@ -41,8 +43,22 @@ export const useUploadPhoto = () => {
   const batchQueueRef = useRef<{ projectId: string; file: File }[]>([]);
   const batchActiveRef = useRef(false);
 
+  const { addEvent, updateEvent } = useChainLogSafe();
+
   const describePhoto = useCallback(async (photoId: string, projectId: string) => {
     setCaptioningIds(prev => new Set(prev).add(photoId));
+    let eventId = "";
+    const startTime = Date.now();
+    if (isDevMode()) {
+      eventId = addEvent({
+        phase: "photo-analysis",
+        step: "describe-photo",
+        status: "running",
+        input: JSON.stringify({ photoId, projectId }).slice(0, 500),
+        model: "Gemini 2.5 Flash",
+        metadata: { photoId, projectId },
+      });
+    }
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -55,6 +71,14 @@ export const useUploadPhoto = () => {
           body: JSON.stringify({ photoId, projectId }),
         });
         if (resp.ok) {
+          const result = await resp.json();
+          if (isDevMode() && eventId) {
+            updateEvent(eventId, {
+              status: "success",
+              output: JSON.stringify(result).slice(0, 500),
+              durationMs: Date.now() - startTime,
+            });
+          }
           queryClient.invalidateQueries({ queryKey: ["photos", projectId] });
           break;
         }
@@ -64,12 +88,18 @@ export const useUploadPhoto = () => {
         }
         console.error("describe-photo failed:", resp.status);
         if (attempt === MAX_RETRIES) {
+          if (isDevMode() && eventId) {
+            updateEvent(eventId, { status: "error", errorMessage: `HTTP ${resp.status}`, durationMs: Date.now() - startTime });
+          }
           toast.error("Couldn't caption a photo — story may miss some details");
         }
         break;
       } catch (e) {
         console.error("describe-photo error:", e);
         if (attempt === MAX_RETRIES) {
+          if (isDevMode() && eventId) {
+            updateEvent(eventId, { status: "error", errorMessage: (e as Error).message, durationMs: Date.now() - startTime });
+          }
           toast.error("Couldn't caption a photo — story may miss some details");
         } else {
           await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
@@ -81,7 +111,7 @@ export const useUploadPhoto = () => {
       next.delete(photoId);
       return next;
     });
-  }, [queryClient]);
+  }, [queryClient, addEvent, updateEvent]);
 
   // Upload a single file — returns the photo record or null on failure
   const uploadSingleFile = useCallback(async (projectId: string, file: File, sortOrder: number): Promise<ProjectPhoto | null> => {

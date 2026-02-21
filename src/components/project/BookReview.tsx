@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useChainLogSafe } from "@/hooks/useChainLog";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, CheckCircle, Eye, Download, ImageIcon, Loader2, ScanFace, Share2, Copy, Check, ArrowLeft, MoreHorizontal, Palette, Sparkles, ChevronDown } from "lucide-react";
 import RabbitCharacter from "@/components/rabbit/RabbitCharacter";
@@ -65,6 +66,7 @@ const WRAP_OPTIONS = [
 const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const id = projectId;
   const { data: project } = useProject(id);
+  const { addEvent, updateEvent } = useChainLogSafe();
   const { data: photos = [] } = usePhotos(id);
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(0);
@@ -235,11 +237,15 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
     if (!id || isGeneratingVariant) return;
     setIsGeneratingVariant(pageId);
     toast.info("Generating another variant...");
+    let eid = "";
+    const t0 = Date.now();
+    if (isDevMode()) { eid = addEvent({ phase: "illustration", step: "try-another-variant", status: "running", model: "Gemini 3 Pro", input: JSON.stringify({ pageId, projectId: id }).slice(0, 500) }); }
     try {
       const { error } = await supabase.functions.invoke("generate-illustration", {
         body: { pageId, projectId: id, variant: true },
       });
-      if (error) { toast.error("Failed to generate variant"); return; }
+      if (error) { if (isDevMode() && eid) updateEvent(eid, { status: "error", errorMessage: error.message, durationMs: Date.now() - t0 }); toast.error("Failed to generate variant"); return; }
+      if (isDevMode() && eid) updateEvent(eid, { status: "success", durationMs: Date.now() - t0 });
       queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
       queryClient.invalidateQueries({ queryKey: ["all-illustrations", id] });
       toast.success("New variant generated!");
@@ -324,11 +330,15 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const handleRegenerateText = async (pageId: string) => {
     if (isRegeneratingText) return;
     setIsRegeneratingText(pageId);
+    let eid = "";
+    const t0 = Date.now();
+    if (isDevMode()) { eid = addEvent({ phase: "story", step: "regenerate-page-text", status: "running", model: "GPT-5.2", input: JSON.stringify({ pageId, projectId: id }).slice(0, 500) }); }
     try {
       const { error } = await supabase.functions.invoke("regenerate-page", {
         body: { pageId, projectId: id },
       });
-      if (error) { toast.error("Failed to regenerate text"); return; }
+      if (error) { if (isDevMode() && eid) updateEvent(eid, { status: "error", errorMessage: error.message, durationMs: Date.now() - t0 }); toast.error("Failed to regenerate text"); return; }
+      if (isDevMode() && eid) updateEvent(eid, { status: "success", durationMs: Date.now() - t0 });
       queryClient.invalidateQueries({ queryKey: ["pages", id] });
       toast.success("Page text regenerated!");
     } finally {
@@ -339,11 +349,15 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const handleRegenerateIllustration = async (pageId: string) => {
     if (isRegeneratingIll) return;
     setIsRegeneratingIll(pageId);
+    let eid = "";
+    const t0 = Date.now();
+    if (isDevMode()) { eid = addEvent({ phase: "illustration", step: "regenerate-illustration", status: "running", model: "Gemini 3 Pro", input: JSON.stringify({ pageId, projectId: id }).slice(0, 500) }); }
     try {
       const { error } = await supabase.functions.invoke("generate-illustration", {
         body: { pageId, projectId: id, variant: true },
       });
-      if (error) { toast.error("Failed to regenerate illustration"); return; }
+      if (error) { if (isDevMode() && eid) updateEvent(eid, { status: "error", errorMessage: error.message, durationMs: Date.now() - t0 }); toast.error("Failed to regenerate illustration"); return; }
+      if (isDevMode() && eid) updateEvent(eid, { status: "success", durationMs: Date.now() - t0 });
       queryClient.invalidateQueries({ queryKey: ["illustrations", id] });
       toast.success("Illustration regenerated!");
     } finally {
@@ -367,6 +381,11 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
     const CONCURRENCY = 3;
     for (let i = 0; i < missingPages.length; i += CONCURRENCY) {
       const batch = missingPages.slice(i, i + CONCURRENCY);
+      const batchEids: string[] = [];
+      const t0 = Date.now();
+      if (isDevMode()) {
+        batch.forEach((p, bi) => { batchEids.push(addEvent({ phase: "illustration", step: `generate-missing page ${p.page_number}`, status: "running", model: "Gemini 3 Pro", input: JSON.stringify({ pageId: p.id, projectId: id }).slice(0, 500) })); });
+      }
       const results = await Promise.allSettled(
         batch.map(p =>
           supabase.functions.invoke("generate-illustration", {
@@ -379,6 +398,9 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
         if (result.status === "fulfilled" && !result.value.error) {
           successes++;
           succeededPageIds.push(batch[r].id);
+          if (isDevMode() && batchEids[r]) updateEvent(batchEids[r], { status: "success", durationMs: Date.now() - t0 });
+        } else {
+          if (isDevMode() && batchEids[r]) updateEvent(batchEids[r], { status: "error", errorMessage: "Generation failed", durationMs: Date.now() - t0 });
         }
       }
     }
@@ -492,14 +514,19 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const handleRebuildProfile = async () => {
     if (!id) return;
     setIsRebuildingProfile(true);
+    let eid = "";
+    const t0 = Date.now();
+    if (isDevMode()) { eid = addEvent({ phase: "appearance-profile", step: "rebuild-appearance-profile", status: "running", model: "Gemini 2.5 Flash", input: JSON.stringify({ projectId: id }).slice(0, 500) }); }
     try {
       const { error } = await supabase.functions.invoke("build-appearance-profile", {
         body: { projectId: id },
       });
-      if (error) { toast.error("Failed to rebuild appearance profile"); return; }
+      if (error) { if (isDevMode() && eid) updateEvent(eid, { status: "error", errorMessage: error.message, durationMs: Date.now() - t0 }); toast.error("Failed to rebuild appearance profile"); return; }
+      if (isDevMode() && eid) updateEvent(eid, { status: "success", durationMs: Date.now() - t0 });
       queryClient.invalidateQueries({ queryKey: ["project", id] });
       toast.success("Appearance profile rebuilt! Regenerate illustrations to see the effect.");
     } catch {
+      if (isDevMode() && eid) updateEvent(eid, { status: "error", errorMessage: "Exception", durationMs: Date.now() - t0 });
       toast.error("Failed to rebuild appearance profile");
     } finally {
       setIsRebuildingProfile(false);
