@@ -1,88 +1,40 @@
 
-# Two Problems, Two Fixes
 
-## Problem 1: Can't Get Back Into Dev Mode
+# Fix Build Errors + Bug Audit
 
-The `devMode.ts` file supports two activation methods:
-- Append `?dev=1` to the URL (sets localStorage then reads it)
-- Call `enableDevMode()` directly from code
+## Build Errors (2 errors, straightforward fix)
 
-But there is no button or link in the UI to re-enable it once the "Exit Dev" button has cleared it. The user has to know to type `/?dev=1` in the address bar.
+During the overhaul, `chatNamePending` and `chatMoodPending` were converted from `useState` hooks to plain constants (`false`) on lines 126-127. But two places still call the old setter functions that no longer exist:
 
-**Fix:** Add a small hidden "Dev" link in the footer of the hero landing page. It should be subtle (tiny, muted text at the very bottom of the `HeroLanding` component) so real users won't notice it, but it lets you click back into dev mode without needing to remember the URL param trick.
+1. **Line 620**: `setChatNamePending(true)` -- inside `handleFinishInterview` when the project has no name
+2. **Line 1035**: `setChatMoodPending(false)` -- inside the mood picker button click handler in the JSX
 
-When clicked, it calls `enableDevMode()` and then `window.location.reload()` — which triggers the existing `?dev=1`→localStorage→auto-sign-in flow.
+### Fix
 
-We'll add it as a tiny footer text at the bottom of `HeroLanding.tsx`.
+- **Line 620**: Remove `setChatNamePending(true);` -- since `chatNamePending` is always `false`, the name-pending flow is disabled. The code block around it (lines 619-627) asks for a name but will never display the inline name input since the flag is dead. We should keep the chat message prompt but remove the setter call.
 
----
+- **Line 1035**: Remove `setChatMoodPending(false);` -- the mood picker buttons in JSX (line 1019) are gated by `chatMoodPending` which is always `false`, so this code path is already unreachable. But removing the setter call fixes the build.
 
-## Problem 2: Books Not Showing Up
+## Additional Bug Found: Dead Mood Picker UI
 
-The database confirms:
-- Your 2 books ("baby jac", "Jac goes to the ball park") are stored under user `706b3f84` — which is an **anonymous** user account created Feb 15
-- When you exited dev mode, the app signed out and then auto-created a **brand new** anonymous session with a different user ID
-- RLS policies on the `projects` table enforce `auth.uid() = user_id` — so the new anonymous session has zero projects
+On line 1019, the mood picker buttons render only when `msg.moodPicker && chatMoodPending` is true. Since `chatMoodPending` is hardcoded to `false`, this entire branch is dead code -- it will never render. This is harmless (mood is now auto-set to "heartfelt" on line 941), but worth noting.
 
-This is the fundamental problem with anonymous sessions: they are disposable and don't carry over between sessions.
+## Additional Bug Found: Dead Name Prompt Logic
 
-The books are NOT lost — they are still in the database. They just belong to the old anonymous session which is now gone.
+On line 619, `handleFinishInterview` checks if the project has no name and tries to prompt the user. But since `setChatNamePending` doesn't exist, this crashes the build before it even runs. After removing the setter, the code will:
+- Add the "what's the name?" message to chat
+- Return early (line 626)
+- But `chatNamePending` is always `false`, so the user's next typed response won't be caught as a name answer
 
-**Fix Options:**
+This means the name prompt fires but the response isn't handled. The fix: since the overhaul removed the name-pending flow intentionally (replaced by organic discovery + auto-extraction from photos on line 542-548), we should remove the entire name-check block (lines 619-627) or replace `setChatNamePending(true)` with just letting the chat message appear without the early return, so the flow continues to generation with a fallback name.
 
-The cleanest fix for the dev workflow is to make the **dev mode account** (`dev@photorabbit.test`) be the one that has all the test books, instead of anonymous sessions. Since you're now re-entering dev mode and it signs into `dev@photorabbit.test`, all future test books will persist under that account.
+**Recommended approach**: Keep the name prompt message but don't block generation. If the name is still "New Project", use a sensible fallback derived from photo analysis or default to "Your Story".
 
-For your existing two books — we can migrate them from the old anonymous user ID to the dev account via a one-time SQL update. Since this is a dev environment, that's safe to do.
+## Summary of Changes
 
-For the broader product (real users), this is the standard argument for encouraging sign-up: anonymous sessions are ephemeral, and once the session cookie is gone, the data can't be recovered without linking to an email. This is a feature we'll want to address for real users eventually (e.g., "Sign up to save your book"), but for now the dev mode fix is the priority.
+### File: `src/pages/PhotoRabbit.tsx`
 
----
+1. **Line 620**: Remove `setChatNamePending(true);` and rework the name-check block so it doesn't block generation -- instead, auto-set a fallback name from photo analysis or "Your Story" and continue.
 
-## Technical Changes
+2. **Line 1035**: Remove `setChatMoodPending(false);` -- just delete that one line. The surrounding code is dead but harmless.
 
-### Change 1: `src/components/workspace/HeroLanding.tsx`
-Add a tiny "Dev" link at the very bottom of the component:
-
-```tsx
-{/* Hidden dev mode re-entry — small and subtle, invisible to real users */}
-<button
-  onClick={() => {
-    enableDevMode();
-    window.location.href = "/?dev=1";
-  }}
-  className="font-body text-[9px] text-muted-foreground/20 hover:text-muted-foreground/50 transition-colors mt-2"
->
-  dev
-</button>
-```
-
-This button is nearly invisible (`text-[9px]` + `opacity-20`) but clickable. Clicking it enables dev mode and navigates to `/?dev=1`, which triggers the existing auto-sign-in to `dev@photorabbit.test`.
-
-### Change 2: One-time SQL migration (run in database)
-Reassign the 2 existing books from the old anonymous user to the dev account:
-
-```sql
-UPDATE projects
-SET user_id = '9597962a-ba4e-46b5-9f26-9dcd4e982f4c'  -- dev@photorabbit.test
-WHERE user_id = '706b3f84-274e-4ffb-8aa8-67886497713f'  -- old anonymous session
-AND id IN (
-  'a66dbf42-1335-47d7-9d3a-1510eb2ec580',  -- baby jac
-  'a1fd6923-fa16-4948-9960-62830428908f'   -- Jac goes to the ball park
-);
-```
-
-This also needs to update the related child records (photos, pages, illustrations, interview). We'll do a cascade migration of all 5 tables.
-
-### No change to RLS or auth logic — the existing system is correct
-The anonymous sign-in behavior is working as designed. The dev mode account is the right place to keep test data. Going forward, all books made in dev mode will persist under `dev@photorabbit.test`.
-
----
-
-## Summary
-
-| Problem | Root Cause | Fix |
-|---|---|---|
-| Can't re-enter dev mode | No UI button to call `enableDevMode()` | Add hidden "dev" link to hero footer |
-| Books disappeared | Anonymous session changed, new session has different user ID; RLS blocks cross-user access | Migrate old books to dev account via SQL; dev mode always uses `dev@photorabbit.test` going forward |
-
-Both fixes are small and targeted. The dev mode link change is one file. The migration runs as a database operation.
