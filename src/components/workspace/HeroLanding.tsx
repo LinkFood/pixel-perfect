@@ -114,7 +114,7 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
       <input type="file" ref={fileInputRef} className="sr-only" accept="image/*" multiple onChange={handleFileSelect} />
 
       {/* ═══ TOP: Hero headline + Rabbit ═══ */}
-      <div className="shrink-0 flex flex-col items-center text-center gap-3 pt-8 pb-4 px-6">
+      <div className="shrink-0 flex flex-col items-center text-center gap-3 pt-8 lg:pt-14 pb-4 px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -124,10 +124,10 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
           <div className={`transition-transform duration-300 ${isDragOver ? "scale-110" : ""}`}>
             <RabbitCharacter state={isDragOver ? "excited" : "idle"} size={isMobile ? 56 : 72} eyeOffset={eyeOffset} />
           </div>
-          <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground leading-[1.1] tracking-tight">
+          <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-[1.1] tracking-tight">
             Drop a photo.<br />Get a storybook.
           </h1>
-          <p className="font-body text-base text-muted-foreground max-w-md">
+          <p className="font-body text-base lg:text-lg text-muted-foreground max-w-md lg:max-w-lg">
             No writing. No design. Just your photos and a few taps.
           </p>
         </motion.div>
@@ -141,6 +141,8 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
             <button
               key={s}
               onClick={() => setActiveSlide(s)}
+              aria-label={s === "walkthrough" ? "Show how it works" : "Show example books"}
+              aria-current={activeSlide === s}
               className={`w-2 h-2 rounded-full transition-all ${activeSlide === s ? "bg-primary scale-125" : "bg-border hover:bg-muted-foreground/40"}`}
             />
           ))}
@@ -154,10 +156,10 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.35 }}
-              className="flex gap-4 max-w-4xl w-full justify-center"
+              className="flex gap-2 sm:gap-4 max-w-4xl w-full justify-center px-1"
             >
               {/* Step 1 */}
-              <div className="glass-warm shadow-float rounded-2xl p-4 flex flex-col items-center gap-2 flex-1 max-w-[200px]">
+              <div className="glass-warm shadow-float rounded-2xl p-2.5 sm:p-4 flex flex-col items-center gap-2 flex-1 min-w-0 max-w-[200px]">
                 <div className="w-full aspect-[4/3] rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center relative overflow-hidden">
                   <div className="w-12 h-12 rounded-lg bg-amber-200/60 border-2 border-dashed border-amber-300 flex items-center justify-center">
                     <span className="text-xl">📷</span>
@@ -170,7 +172,7 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
               </div>
 
               {/* Step 2 */}
-              <div className="glass-warm shadow-float rounded-2xl p-4 flex flex-col items-center gap-2 flex-1 max-w-[200px]">
+              <div className="glass-warm shadow-float rounded-2xl p-2.5 sm:p-4 flex flex-col items-center gap-2 flex-1 min-w-0 max-w-[200px]">
                 <div className="w-full aspect-[4/3] rounded-xl bg-gradient-to-br from-rose-50 to-pink-50 flex flex-col items-center justify-center gap-2 p-3">
                   <div className="flex flex-wrap gap-1.5 justify-center">
                     {["Funny", "Heartfelt"].map(v => (
@@ -191,7 +193,7 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
               </div>
 
               {/* Step 3 */}
-              <div className="glass-warm shadow-float rounded-2xl p-4 flex flex-col items-center gap-2 flex-1 max-w-[200px]">
+              <div className="glass-warm shadow-float rounded-2xl p-2.5 sm:p-4 flex flex-col items-center gap-2 flex-1 min-w-0 max-w-[200px]">
                 <div className="w-full aspect-[4/3] rounded-xl overflow-hidden flex shadow-elevated">
                   <div className={`w-1/2 bg-gradient-to-br ${showcaseSpreads[0].gradient} book-page-texture flex items-center justify-center`}>
                     <Palette className="w-6 h-6 text-foreground/15" />
@@ -217,6 +219,7 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
                 <button
                   onClick={() => setCoverPage(p => Math.max(0, p - 1))}
                   disabled={coverPage === 0}
+                  aria-label="Previous books"
                   className="shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -226,7 +229,7 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
                 {bookCovers.slice(coverPage * coversPerView, coverPage * coversPerView + coversPerView).map((book, i) => (
                   <motion.div
                     key={book.title}
-                    className="w-40 h-52 rounded-2xl relative overflow-hidden book-page-texture shadow-float cursor-default shrink-0"
+                    className="w-32 h-44 sm:w-40 sm:h-52 rounded-2xl relative overflow-hidden book-page-texture shadow-float cursor-default shrink-0"
                     style={{ rotate: book.rotate }}
                     whileHover={{ scale: 1.03, rotate: "0deg" }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
@@ -243,6 +246,7 @@ const HeroLanding = forwardRef<HTMLDivElement, HeroLandingProps>(({ onPhotoDrop 
                 <button
                   onClick={() => setCoverPage(p => Math.min(maxCoverPage, p + 1))}
                   disabled={coverPage >= maxCoverPage}
+                  aria-label="More books"
                   className="shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
                 >
                   <ChevronRight className="w-4 h-4" />

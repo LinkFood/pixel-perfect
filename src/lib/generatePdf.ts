@@ -101,6 +101,18 @@ async function loadImageAsDataUrl(url: string): Promise<string | null> {
   }
 }
 
+/**
+ * jsPDF's `format` argument selects the decoder, so it must match the real bytes.
+ * Illustrations are stored as PNG *or* JPEG depending on what the model returned,
+ * and hardcoding one of them corrupted pages in the paid PDF.
+ */
+function imageFormatOf(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
+  const header = dataUrl.slice(0, 40).toLowerCase();
+  if (header.includes("image/png")) return "PNG";
+  if (header.includes("image/webp")) return "WEBP";
+  return "JPEG";
+}
+
 /** Pre-fetch all image URLs in parallel and return a lookup map */
 async function preloadImages(urls: (string | null)[]): Promise<Map<string, string>> {
   const unique = [...new Set(urls.filter(Boolean))] as string[];
@@ -164,6 +176,15 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
     registerFonts(doc),
   ]);
 
+  // Never ship a paid PDF with silently-blank pages. Count what failed to load
+  // so the caller can warn instead of handing over a broken keepsake.
+  const requestedUrls = [...new Set(allUrls.filter(Boolean))] as string[];
+  const missingImages = requestedUrls.filter((u) => !imageCache.has(u)).length;
+  if (missingImages > 0) {
+    console.error(`PDF export: ${missingImages}/${requestedUrls.length} images failed to load`);
+  }
+  const skippedGalleryPhotos = galleryPhotos.length - cappedGalleryPhotos.length;
+
   onProgress?.("Images loaded", 30);
 
   // Font helpers — fall back to helvetica if custom fonts failed to load
@@ -183,7 +204,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
     if (page.pageType === "cover") {
       // Cover: full illustration with overlays to hide AI-generated text artifacts
       if (imgData) {
-        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
+        doc.addImage(imgData, imageFormatOf(imgData), 0, 0, PAGE_SIZE, PAGE_SIZE);
         // Top overlay to hide garbled AI text in illustration
         doc.setGState(new GState({ opacity: 0.85 }));
         doc.setFillColor(255, 255, 255);
@@ -211,7 +232,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
     } else if (page.pageType === "dedication") {
       // Dedication: full-page soft overlay to hide AI text artifacts, centered text
       if (imgData) {
-        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
+        doc.addImage(imgData, imageFormatOf(imgData), 0, 0, PAGE_SIZE, PAGE_SIZE);
         // Full-page semi-transparent overlay so garbled AI text is hidden
         doc.setGState(new GState({ opacity: 0.88 }));
         doc.setFillColor(255, 252, 245);
@@ -234,7 +255,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
     } else if (page.pageType === "back_cover") {
       // Back cover: full illustration or solid color
       if (imgData) {
-        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
+        doc.addImage(imgData, imageFormatOf(imgData), 0, 0, PAGE_SIZE, PAGE_SIZE);
       } else {
         doc.setFillColor(255, 248, 235);
         doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
@@ -254,7 +275,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
       storyPageNumber++;
 
       if (imgData) {
-        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
+        doc.addImage(imgData, imageFormatOf(imgData), 0, 0, PAGE_SIZE, PAGE_SIZE);
       } else {
         doc.setFillColor(245, 240, 230);
         doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
@@ -332,7 +353,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
       if (heroImg) {
         const margin = 60;
         const size = PAGE_SIZE - 2 * margin;
-        doc.addImage(heroImg, "JPEG", margin, margin, size, size);
+        doc.addImage(heroImg, imageFormatOf(heroImg), margin, margin, size, size);
       }
       if (cappedGalleryPhotos[0].caption) {
         doc.setFont(bodyFont, "normal");
@@ -393,7 +414,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
           const drawH = ih * ratio;
           const drawX = x + (cellSize - drawW) / 2;
           const drawY = y + (cellSize - drawH) / 2;
-          doc.addImage(imgData, "JPEG", drawX, drawY, drawW, drawH);
+          doc.addImage(imgData, imageFormatOf(imgData), drawX, drawY, drawW, drawH);
         }
 
         // Caption below each photo
@@ -415,4 +436,6 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
   // Download
   const filename = `${petName.replace(/[^a-zA-Z0-9]/g, "_")}_Book.pdf`;
   doc.save(filename);
+
+  return { missingImages, skippedGalleryPhotos };
 }

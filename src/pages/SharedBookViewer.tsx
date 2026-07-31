@@ -8,6 +8,7 @@ import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCha
 import ConfettiBurst from "@/components/ConfettiBurst";
 import { supabase } from "@/integrations/supabase/client";
 import { bookTitle, displayPetName } from "@/lib/petName";
+import { getWrapTheme } from "@/lib/wrapStyles";
 
 type BookPage = {
   id: string;
@@ -29,13 +30,6 @@ type SharedBook = {
   galleryPhotos: GalleryPhoto[];
 };
 
-const WRAP_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  classic: { bg: "bg-background", text: "text-foreground", border: "border-border" },
-  gold: { bg: "bg-gradient-to-b from-amber-50 to-yellow-100", text: "text-amber-900", border: "border-amber-200" },
-  midnight: { bg: "bg-gradient-to-b from-indigo-950 to-slate-900", text: "text-white", border: "border-indigo-700" },
-  garden: { bg: "bg-gradient-to-b from-emerald-50 to-green-100", text: "text-emerald-900", border: "border-emerald-200" },
-};
-
 const SharedBookViewer = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
   const [book, setBook] = useState<SharedBook | null>(null);
@@ -49,7 +43,7 @@ const SharedBookViewer = () => {
   const hasSharedRef = useRef(false);
   const [searchParams] = useSearchParams();
   const wrapStyle = searchParams.get("wrap") || "classic";
-  const wrap = WRAP_STYLES[wrapStyle] || WRAP_STYLES.classic;
+  const wrap = getWrapTheme(wrapStyle);
 
   useEffect(() => {
     if (!shareToken) return;
@@ -135,6 +129,9 @@ const SharedBookViewer = () => {
   }, [spreadIdx, spreads.length]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Only navigation keys should interrupt the autoplay reveal — previously any
+    // keypress (including spacebar scroll) silently killed it.
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     setAutoPlaying(false);
     setProgress(0);
     if (e.key === "ArrowLeft" && spreadIdx > 0) {

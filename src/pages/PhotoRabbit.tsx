@@ -13,7 +13,7 @@ import HeroLanding from "@/components/workspace/HeroLanding";
 import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus, useUpdateProject, useDeleteProject } from "@/hooks/useProject";
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto } from "@/hooks/usePhotos";
 import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
-import { isDevMode, enableDevMode } from "@/lib/devMode";
+import { isDevMode, enableDevMode, getDevSecret } from "@/lib/devMode";
 import { useChainLogSafe } from "@/hooks/useChainLog";
 import { getQuickReplies } from "@/lib/quickReplies";
 import { buildPhotoSummary } from "@/lib/photoSummary";
@@ -25,9 +25,6 @@ import CreditGate from "@/components/workspace/CreditGate";
 import { toast } from "sonner";
 
 type Phase = "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
-
-const DEV_EMAIL = "dev@photorabbit.test";
-const DEV_PASSWORD = "devmode123";
 
 const PhotoRabbit = () => {
   const { id: paramId } = useParams<{ id: string }>();
@@ -41,17 +38,32 @@ const PhotoRabbit = () => {
     const autoSignIn = async () => {
       setDevSigningIn(true);
       try {
-        await fetch(
+        const devSecret = getDevSecret();
+        if (!devSecret) {
+          console.error(
+            "Dev mode requires a secret. Open the app once with ?dev=1&devkey=YOUR_SECRET"
+          );
+          return;
+        }
+        const res = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bootstrap-dev-user`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              "x-dev-secret": devSecret,
               Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             },
           }
         );
-        await supabase.auth.signInWithPassword({ email: DEV_EMAIL, password: DEV_PASSWORD });
+        if (!res.ok) {
+          console.error("Dev bootstrap rejected:", res.status);
+          return;
+        }
+        const { token_hash: tokenHash } = await res.json();
+        if (!tokenHash) return;
+        // Exchange the single-use token for a session. No password ever ships to the client.
+        await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "email" });
       } catch (e) {
         console.error("Dev auto-sign-in failed:", e);
       } finally {
@@ -146,6 +158,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const [mobileSandboxCollapsed, setMobileSandboxCollapsed] = useState(false);
   // Suppress spurious mood-picker auto-recovery when intent path already set a mood
   const suppressMoodPickerRef = useRef(false);
+  // Tracks the previously-rendered route project id so we can detect real navigation
+  const prevParamIdRef = useRef<string | undefined>(paramId);
 
   // Sync activeProjectId with URL params
   useEffect(() => {
@@ -332,6 +346,20 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     suppressMoodPickerRef.current = false;
     projectCreatedRef.current = false;
   }, []);
+
+  // ─── Hard state isolation on route-driven project switches ─────────────
+  // handleSelectProject/handleNewProject reset explicitly, but browser back/forward
+  // and hand-edited URLs bypass those handlers entirely and used to leak the previous
+  // project's chat into the new one. Reset whenever the route id actually changes to a
+  // DIFFERENT project. Skipped on the null -> id transition, which is our own
+  // "project just created" navigation and must keep the in-flight upload state.
+  useEffect(() => {
+    const prev = prevParamIdRef.current;
+    prevParamIdRef.current = paramId;
+    if (prev === paramId) return;
+    if (!prev) return; // fresh creation, nothing to clear
+    resetProjectState();
+  }, [paramId, resetProjectState]);
 
   // ─── Build log helper ─────────────────────────────────────
   const logEvent = useCallback((phase: string, message: string, meta?: Record<string, unknown>) => {

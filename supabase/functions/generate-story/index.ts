@@ -100,6 +100,16 @@ You MUST call the generate_pages function with all pages.`;
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // Populated once credits are actually taken, so the catch-all can hand them back.
+  // Without this, any downstream failure silently burned the user's credits.
+  let refund: {
+    // deno-lint-ignore no-explicit-any
+    client: any;
+    userId: string;
+    projectId: string;
+    cost: number;
+  } | null = null;
+
   try {
     const { projectId } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -227,6 +237,9 @@ serve(async (req) => {
         description: `Book generation (${effectiveProductType})`,
       });
       if (txErr) console.error("Failed to record credit transaction:", txErr);
+
+      // Arm the refund path now that money has actually moved.
+      refund = { client: supabase, userId: callerId, projectId, cost };
     } else {
       console.log(`Project ${projectId} already charged — skipping deduction (retry/regeneration)`);
     }
@@ -331,7 +344,17 @@ Generate all pages now using the generate_pages function.`;
     const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) throw new Error("No tool call in response");
 
-    const { pages } = JSON.parse(toolCall.function.arguments);
+    let pages: Array<Record<string, unknown>>;
+    try {
+      const parsed = JSON.parse(toolCall.function.arguments);
+      pages = parsed?.pages;
+    } catch (parseErr) {
+      console.error("Failed to parse tool arguments:", parseErr, toolCall.function.arguments?.slice(0, 500));
+      throw new Error("The story came back malformed. Please try generating again.");
+    }
+    if (!Array.isArray(pages) || pages.length === 0) {
+      throw new Error("The story came back empty. Please try generating again.");
+    }
     const elapsedMs = Date.now() - startTime;
     const usage = result.usage || null;
     console.log(`Generated ${pages.length} pages in ${elapsedMs}ms`, usage ? `| Tokens: ${usage.total_tokens}` : "");
@@ -350,6 +373,8 @@ Generate all pages now using the generate_pages function.`;
     await supabase.from("project_pages").delete().eq("project_id", projectId);
 
     // Insert pages one by one for realtime updates
+    let insertedCount = 0;
+    const failedPages: number[] = [];
     for (const page of pages) {
       const { error: insertErr } = await supabase.from("project_pages").insert({
         project_id: projectId,
@@ -359,7 +384,12 @@ Generate all pages now using the generate_pages function.`;
         illustration_prompt: page.illustration_prompt,
         scene_description: page.scene_description,
       });
-      if (insertErr) console.error(`Failed to insert page ${page.page_number}:`, insertErr);
+      if (insertErr) {
+        console.error(`Failed to insert page ${page.page_number}:`, insertErr);
+        failedPages.push(Number(page.page_number));
+        continue;
+      }
+      insertedCount++;
 
       // Build log per page
       await supabase.from("build_log").insert({
@@ -372,15 +402,69 @@ Generate all pages now using the generate_pages function.`;
       });
     }
 
+    // A book with no persisted pages is a total failure, not a success. Previously
+    // this returned success and the client sat on a spinner forever.
+    if (insertedCount === 0) {
+      throw new Error("The story was written but could not be saved. Please try again.");
+    }
+    if (failedPages.length > 0) {
+      await supabase.from("build_log").insert({
+        project_id: projectId,
+        phase: "story",
+        level: "warning",
+        message: `${failedPages.length} page(s) could not be saved and were skipped.`,
+        technical_message: `Failed page numbers: ${failedPages.join(", ")}`,
+        metadata: { failed_pages: failedPages },
+      });
+    }
+
     // NOTE: Do NOT update project status here. The client (GenerationView) owns
     // status transitions — it sets "review" after illustrations complete.
     // Setting it here caused a race condition where users saw BookReview with no images.
 
-    return new Response(JSON.stringify({ success: true, pagesGenerated: pages.length, usage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Made it to the end — the charge stands.
+    refund = null;
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        pagesGenerated: insertedCount,
+        pagesFailed: failedPages.length,
+        usage,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (e) {
     console.error("generate-story error:", e);
+
+    // Hand the credits back. The user must never pay for a book they didn't get.
+    if (refund) {
+      try {
+        const { data: row } = await refund.client
+          .from("user_credits")
+          .select("balance")
+          .eq("user_id", refund.userId)
+          .maybeSingle();
+        if (typeof row?.balance === "number") {
+          await refund.client
+            .from("user_credits")
+            .update({ balance: row.balance + refund.cost })
+            .eq("user_id", refund.userId);
+        }
+        // Remove the charge row so the idempotency check doesn't treat the next
+        // attempt as an already-paid retry.
+        await refund.client
+          .from("credit_transactions")
+          .delete()
+          .eq("user_id", refund.userId)
+          .eq("project_id", refund.projectId)
+          .lt("amount", 0);
+        console.log(`Refunded ${refund.cost} credits to ${refund.userId} after failure`);
+      } catch (refundErr) {
+        console.error("CRITICAL: refund failed after generation error:", refundErr);
+      }
+    }
+
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error", retryable: true }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

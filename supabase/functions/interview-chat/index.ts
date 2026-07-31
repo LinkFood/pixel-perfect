@@ -190,11 +190,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, petName, petType, userMessageCount = 0, photoCaptions, photoContextBrief, productType, mood } = await req.json();
+    const { projectId, messages, petName, petType, userMessageCount = 0, photoCaptions, photoContextBrief, productType, mood } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Validate caller JWT (stateless function — no project ownership check needed)
+    // Validate caller JWT
     const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     if (!jwt) {
       return new Response(JSON.stringify({ error: "Missing authorization" }), {
@@ -206,6 +206,40 @@ serve(async (req) => {
     if (authError || !authData?.user) {
       return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Tie every turn to a project the caller actually owns. Without this the
+    // endpoint is an unmetered LLM proxy for anyone who can sign in anonymously.
+    if (!projectId) {
+      return new Response(JSON.stringify({ error: "projectId is required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    const { data: ownedProject } = await admin
+      .from("projects")
+      .select("id, user_id")
+      .eq("id", projectId)
+      .maybeSingle();
+    if (!ownedProject) {
+      return new Response(JSON.stringify({ error: "Project not found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (ownedProject.user_id !== authData.user.id) {
+      return new Response(JSON.stringify({ error: "Not authorized" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Cheap abuse ceiling: cap the number of interview turns per project.
+    if (userMessageCount > 60) {
+      return new Response(JSON.stringify({ error: "Interview turn limit reached for this project" }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
