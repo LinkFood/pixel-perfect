@@ -135,6 +135,9 @@ const SharedBookViewer = () => {
   }, [spreadIdx, spreads.length]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Only navigation keys should interrupt the autoplay reveal — previously any
+    // keypress (including spacebar scroll) silently killed it.
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     setAutoPlaying(false);
     setProgress(0);
     if (e.key === "ArrowLeft" && spreadIdx > 0) {
