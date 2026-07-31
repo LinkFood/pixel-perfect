@@ -14,6 +14,7 @@ import { useProject } from "@/hooks/useProject";
 import { usePhotos, getPhotoUrl } from "@/hooks/usePhotos";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { WRAP_THEMES } from "@/lib/wrapStyles";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { isDevMode } from "@/lib/devMode";
