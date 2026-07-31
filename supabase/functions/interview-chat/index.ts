@@ -207,13 +207,14 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.2",
+        model: "openai/gpt-5.6-terra",
         messages: [
           { role: "system", content: systemContent },
           ...windowedMessages,
         ],
         stream: true,
-        temperature: 0.8,
+        reasoning_effort: "none",
+        service_tier: "priority",
         max_completion_tokens: 1200,
       }),
     });
