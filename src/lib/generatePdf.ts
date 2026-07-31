@@ -101,6 +101,18 @@ async function loadImageAsDataUrl(url: string): Promise<string | null> {
   }
 }
 
+/**
+ * jsPDF's `format` argument selects the decoder, so it must match the real bytes.
+ * Illustrations are stored as PNG *or* JPEG depending on what the model returned,
+ * and hardcoding one of them corrupted pages in the paid PDF.
+ */
+function imageFormatOf(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
+  const header = dataUrl.slice(0, 40).toLowerCase();
+  if (header.includes("image/png")) return "PNG";
+  if (header.includes("image/webp")) return "WEBP";
+  return "JPEG";
+}
+
 /** Pre-fetch all image URLs in parallel and return a lookup map */
 async function preloadImages(urls: (string | null)[]): Promise<Map<string, string>> {
   const unique = [...new Set(urls.filter(Boolean))] as string[];
