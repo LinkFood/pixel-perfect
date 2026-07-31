@@ -176,6 +176,15 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
     registerFonts(doc),
   ]);
 
+  // Never ship a paid PDF with silently-blank pages. Count what failed to load
+  // so the caller can warn instead of handing over a broken keepsake.
+  const requestedUrls = [...new Set(allUrls.filter(Boolean))] as string[];
+  const missingImages = requestedUrls.filter((u) => !imageCache.has(u)).length;
+  if (missingImages > 0) {
+    console.error(`PDF export: ${missingImages}/${requestedUrls.length} images failed to load`);
+  }
+  const skippedGalleryPhotos = galleryPhotos.length - cappedGalleryPhotos.length;
+
   onProgress?.("Images loaded", 30);
 
   // Font helpers — fall back to helvetica if custom fonts failed to load
@@ -427,4 +436,6 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
   // Download
   const filename = `${petName.replace(/[^a-zA-Z0-9]/g, "_")}_Book.pdf`;
   doc.save(filename);
+
+  return { missingImages, skippedGalleryPhotos };
 }
