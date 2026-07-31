@@ -87,8 +87,8 @@ serve(async (req) => {
       phase: "appearance",
       level: "milestone",
       message: `Studying ${photos.length} photos to learn everyone's appearance...`,
-      technical_message: `Analyzing ${photos.length} photos | Model: google/gemini-2.5-flash`,
-      metadata: { photos_analyzed: photos.length, model: "google/gemini-2.5-flash" },
+      technical_message: `Analyzing ${photos.length} photos | Model: google/gemini-3.6-flash`,
+      metadata: { photos_analyzed: photos.length, model: "google/gemini-3.6-flash" },
     });
 
     // Build multi-image content array for Gemini vision
@@ -130,7 +130,7 @@ Return ONLY the JSON array, no other text. Example format:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3.6-flash",
         messages: [
           {
             role: "user",
@@ -138,7 +138,7 @@ Return ONLY the JSON array, no other text. Example format:
           },
         ],
         max_completion_tokens: 800,
-        temperature: 0.3,
+        temperature: 1,
       }),
     });
 
@@ -192,7 +192,7 @@ Return ONLY the JSON array, no other text. Example format:
       level: "milestone",
       message: `Got it! Found ${characterProfiles.length} character${characterProfiles.length !== 1 ? "s" : ""}: ${characterProfiles.map(c => c.name).join(" & ")}.`,
       technical_message: `Profile: ${combinedProfile.slice(0, 120)}...`,
-      metadata: { photos_analyzed: photos.length, model: "google/gemini-2.5-flash", profile_length: combinedProfile.length, character_count: characterProfiles.length },
+      metadata: { photos_analyzed: photos.length, model: "google/gemini-3.6-flash", profile_length: combinedProfile.length, character_count: characterProfiles.length },
     });
 
     // Compile photo_context_brief from all ai_analysis data (no extra API call)

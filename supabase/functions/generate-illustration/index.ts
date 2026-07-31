@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PRIMARY_MODEL = "google/gemini-3-pro-image-preview";
+const PRIMARY_MODEL = "google/gemini-3-pro-image";
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));

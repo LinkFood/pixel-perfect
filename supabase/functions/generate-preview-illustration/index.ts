@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const MODEL = "google/gemini-3-pro-image-preview";
+const MODEL = "google/gemini-3.1-flash-image";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractImageData(message: any): { base64: string | null; contentType: string } {
@@ -153,7 +153,7 @@ STYLE:
         model: MODEL,
         modalities: ["text", "image"],
         messages: [{ role: "user", content: finalContent }],
-        temperature: 0.85,
+        temperature: 1,
       }),
     });
 

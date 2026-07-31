@@ -55,7 +55,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3.6-flash",
         messages: [
           {
             role: "user",
@@ -85,7 +85,7 @@ Return ONLY valid JSON, no markdown fences.`,
           },
         ],
         max_completion_tokens: 800,
-        temperature: 0.3,
+        temperature: 1,
       }),
     });
 
@@ -141,8 +141,8 @@ Return ONLY valid JSON, no markdown fences.`,
       phase: "caption",
       level: "milestone",
       message: `Photo analyzed: ${caption.slice(0, 80)}${caption.length > 80 ? "..." : ""}`,
-      technical_message: `Photo ${photoId} | Model: google/gemini-2.5-flash`,
-      metadata: { photo_id: photoId, model: "google/gemini-2.5-flash" },
+      technical_message: `Photo ${photoId} | Model: google/gemini-3.6-flash`,
+      metadata: { photo_id: photoId, model: "google/gemini-3.6-flash" },
     });
 
     // Save both caption (backward compat) and structured ai_analysis
