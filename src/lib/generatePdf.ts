@@ -195,7 +195,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
     if (page.pageType === "cover") {
       // Cover: full illustration with overlays to hide AI-generated text artifacts
       if (imgData) {
-        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
+        doc.addImage(imgData, imageFormatOf(imgData), 0, 0, PAGE_SIZE, PAGE_SIZE);
         // Top overlay to hide garbled AI text in illustration
         doc.setGState(new GState({ opacity: 0.85 }));
         doc.setFillColor(255, 255, 255);
@@ -223,7 +223,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
     } else if (page.pageType === "dedication") {
       // Dedication: full-page soft overlay to hide AI text artifacts, centered text
       if (imgData) {
-        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
+        doc.addImage(imgData, imageFormatOf(imgData), 0, 0, PAGE_SIZE, PAGE_SIZE);
         // Full-page semi-transparent overlay so garbled AI text is hidden
         doc.setGState(new GState({ opacity: 0.88 }));
         doc.setFillColor(255, 252, 245);
@@ -246,7 +246,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
     } else if (page.pageType === "back_cover") {
       // Back cover: full illustration or solid color
       if (imgData) {
-        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
+        doc.addImage(imgData, imageFormatOf(imgData), 0, 0, PAGE_SIZE, PAGE_SIZE);
       } else {
         doc.setFillColor(255, 248, 235);
         doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
@@ -266,7 +266,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
       storyPageNumber++;
 
       if (imgData) {
-        doc.addImage(imgData, "PNG", 0, 0, PAGE_SIZE, PAGE_SIZE);
+        doc.addImage(imgData, imageFormatOf(imgData), 0, 0, PAGE_SIZE, PAGE_SIZE);
       } else {
         doc.setFillColor(245, 240, 230);
         doc.rect(0, 0, PAGE_SIZE, PAGE_SIZE, "F");
@@ -344,7 +344,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
       if (heroImg) {
         const margin = 60;
         const size = PAGE_SIZE - 2 * margin;
-        doc.addImage(heroImg, "JPEG", margin, margin, size, size);
+        doc.addImage(heroImg, imageFormatOf(heroImg), margin, margin, size, size);
       }
       if (cappedGalleryPhotos[0].caption) {
         doc.setFont(bodyFont, "normal");
@@ -405,7 +405,7 @@ export async function generatePdf({ petName, storyPages, galleryPhotos, onProgre
           const drawH = ih * ratio;
           const drawX = x + (cellSize - drawW) / 2;
           const drawY = y + (cellSize - drawH) / 2;
-          doc.addImage(imgData, "JPEG", drawX, drawY, drawW, drawH);
+          doc.addImage(imgData, imageFormatOf(imgData), drawX, drawY, drawW, drawH);
         }
 
         // Caption below each photo
