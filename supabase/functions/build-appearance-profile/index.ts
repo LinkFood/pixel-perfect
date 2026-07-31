@@ -137,7 +137,7 @@ Return ONLY the JSON array, no other text. Example format:
             content: contentParts,
           },
         ],
-        max_completion_tokens: 800,
+        max_completion_tokens: 3000,
         temperature: 1,
       }),
     });
