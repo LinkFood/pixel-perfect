@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.create-share-link]
 verify_jwt = false
+
+[functions.bootstrap-dev-user]
+verify_jwt = false

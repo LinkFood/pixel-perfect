@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
 
 serve(async (req) => {
   try {
@@ -13,7 +13,13 @@ serve(async (req) => {
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const APP_URL = Deno.env.get("SITE_URL") || "https://2a7b3a81-afa0-4972-8146-b221f4dcb6aa.lovable.app";
+    // SITE_URL MUST be set as a function secret — it is the only base URL for
+    // share links / OG meta. There is intentionally no fallback domain.
+    const APP_URL = Deno.env.get("SITE_URL");
+    if (!APP_URL) {
+      console.error("SITE_URL is not configured");
+      return new Response("Server misconfigured: SITE_URL not set", { status: 500 });
+    }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 

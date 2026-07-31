@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -108,15 +108,36 @@ serve(async (req) => {
 
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
+    // Validate caller JWT
+    const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+    if (!jwt) {
+      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const anonClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const { data: authData, error: authError } = await anonClient.auth.getUser(jwt);
+    if (authError || !authData?.user) {
+      return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const callerId = authData.user.id;
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get project details including appearance profile
+    // Get project details including appearance profile + verify ownership
     const { data: project, error: projErr } = await supabase
       .from("projects")
       .select("*")
       .eq("id", projectId)
       .single();
     if (projErr || !project) throw new Error("Project not found");
+    if (project.user_id !== callerId) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Get interview transcript
     const { data: interview } = await supabase
@@ -144,6 +165,71 @@ serve(async (req) => {
     // Derive product_type from DB first, fall back to photo-count heuristic
     const effectiveProductType = project.product_type
       || (photoCount <= 1 ? "single_illustration" : photoCount <= 5 ? "short_story" : "picture_book");
+
+    // --- Server-side credit enforcement (this is the pipeline entry point) ---
+    // Mirrors the client's TOKEN_COSTS; anything unknown (e.g. legacy "storybook") costs 5.
+    const TOKEN_COSTS: Record<string, number> = {
+      single_illustration: 1,
+      short_story: 3,
+      picture_book: 5,
+    };
+    const cost = TOKEN_COSTS[effectiveProductType] ?? 5;
+
+    // Idempotency: credit_transactions has a project_id column — if this project
+    // already has a deduction row, this is a retry/regeneration; don't double-charge.
+    const { data: priorCharge, error: priorErr } = await supabase
+      .from("credit_transactions")
+      .select("id")
+      .eq("user_id", callerId)
+      .eq("project_id", projectId)
+      .lt("amount", 0)
+      .limit(1);
+    if (priorErr) throw new Error("Failed to check credit history");
+
+    if (!priorCharge || priorCharge.length === 0) {
+      // Atomic deduction via conditional PostgREST UPDATE. PostgREST can't express
+      // `balance = balance - cost`, so we compare-and-swap: read the balance, then
+      // UPDATE filtered on that exact balance (and balance >= cost). 0 rows updated
+      // means insufficient funds or a concurrent change — retry the CAS, never charge twice.
+      let deducted = false;
+      for (let attempt = 0; attempt < 3 && !deducted; attempt++) {
+        const { data: creditRow } = await supabase
+          .from("user_credits")
+          .select("balance")
+          .eq("user_id", callerId)
+          .maybeSingle();
+        const balance = creditRow?.balance;
+        if (typeof balance !== "number" || balance < cost) {
+          return new Response(JSON.stringify({ error: "insufficient_credits", required: cost }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const { data: updated, error: updErr } = await supabase
+          .from("user_credits")
+          .update({ balance: balance - cost })
+          .eq("user_id", callerId)
+          .eq("balance", balance)
+          .gte("balance", cost)
+          .select("balance");
+        if (updErr) throw new Error("Failed to deduct credits");
+        if (updated && updated.length > 0) deducted = true;
+      }
+      if (!deducted) {
+        return new Response(JSON.stringify({ error: "insufficient_credits", required: cost }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: txErr } = await supabase.from("credit_transactions").insert({
+        user_id: callerId,
+        project_id: projectId,
+        amount: -cost,
+        description: `Book generation (${effectiveProductType})`,
+      });
+      if (txErr) console.error("Failed to record credit transaction:", txErr);
+    } else {
+      console.log(`Project ${projectId} already charged — skipping deduction (retry/regeneration)`);
+    }
 
     console.log(`Generating ${effectiveProductType} for ${project.pet_name}, mood=${project.mood || "none"}, ${interviewCount} interview messages, ${photoCount} captioned photos, appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`);
 
