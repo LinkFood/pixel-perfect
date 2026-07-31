@@ -57,12 +57,8 @@ interface BookReviewProps {
   onBack: () => void;
 }
 
-const WRAP_OPTIONS = [
-  { id: "classic", label: "Classic", color: "bg-orange-100 border-orange-300" },
-  { id: "gold", label: "Gold", color: "bg-amber-200 border-amber-400" },
-  { id: "midnight", label: "Midnight", color: "bg-indigo-900 border-indigo-600" },
-  { id: "garden", label: "Garden", color: "bg-emerald-200 border-emerald-400" },
-];
+// Shared with SharedBookViewer so the picker and the reveal can never drift apart.
+const WRAP_OPTIONS = WRAP_THEMES.map((t) => ({ id: t.id, label: t.label, color: t.swatch }));
 
 const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   const id = projectId;
