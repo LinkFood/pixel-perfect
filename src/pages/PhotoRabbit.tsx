@@ -13,7 +13,7 @@ import HeroLanding from "@/components/workspace/HeroLanding";
 import { useProject, useProjects, useCreateMinimalProject, useUpdateProjectStatus, useUpdateProject, useDeleteProject } from "@/hooks/useProject";
 import { usePhotos, useUploadPhoto, useUpdatePhoto, useDeletePhoto } from "@/hooks/usePhotos";
 import { useInterviewMessages, useInterviewChat, useAutoFillInterview, useClearInterview, type SeedOption } from "@/hooks/useInterview";
-import { isDevMode, enableDevMode } from "@/lib/devMode";
+import { isDevMode, enableDevMode, getDevSecret } from "@/lib/devMode";
 import { useChainLogSafe } from "@/hooks/useChainLog";
 import { getQuickReplies } from "@/lib/quickReplies";
 import { buildPhotoSummary } from "@/lib/photoSummary";
@@ -25,9 +25,6 @@ import CreditGate from "@/components/workspace/CreditGate";
 import { toast } from "sonner";
 
 type Phase = "home" | "upload" | "mood-picker" | "interview" | "generating" | "review";
-
-const DEV_EMAIL = "dev@photorabbit.test";
-const DEV_PASSWORD = "devmode123";
 
 const PhotoRabbit = () => {
   const { id: paramId } = useParams<{ id: string }>();
@@ -41,17 +38,32 @@ const PhotoRabbit = () => {
     const autoSignIn = async () => {
       setDevSigningIn(true);
       try {
-        await fetch(
+        const devSecret = getDevSecret();
+        if (!devSecret) {
+          console.error(
+            "Dev mode requires a secret. Open the app once with ?dev=1&devkey=YOUR_SECRET"
+          );
+          return;
+        }
+        const res = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bootstrap-dev-user`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              "x-dev-secret": devSecret,
               Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             },
           }
         );
-        await supabase.auth.signInWithPassword({ email: DEV_EMAIL, password: DEV_PASSWORD });
+        if (!res.ok) {
+          console.error("Dev bootstrap rejected:", res.status);
+          return;
+        }
+        const { token_hash: tokenHash } = await res.json();
+        if (!tokenHash) return;
+        // Exchange the single-use token for a session. No password ever ships to the client.
+        await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "email" });
       } catch (e) {
         console.error("Dev auto-sign-in failed:", e);
       } finally {
