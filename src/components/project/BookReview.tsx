@@ -324,13 +324,19 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       .eq("project_id", id);
     if (error) { toast.error("Failed to approve all"); return; }
     queryClient.invalidateQueries({ queryKey: ["pages", id] });
-    // Show celebration overlay
+    // Show celebration overlay. Create the share link FIRST so we never fire
+    // confetti and an error toast at the same time.
     if (!doneOverlayShownRef.current) {
       doneOverlayShownRef.current = true;
+      if (!shareUrl) {
+        try {
+          await handleShare();
+        } catch {
+          /* handleShare surfaces its own error; the overlay still works without a link */
+        }
+      }
       setShowDoneOverlay(true);
       setShowDoneConfetti(true);
-      // Auto-generate share link for the overlay
-      if (!shareUrl) handleShare();
     }
   };
 
@@ -446,7 +452,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       }));
 
       const { generatePdf } = await import("@/lib/generatePdf");
-      await generatePdf({
+      const result = await generatePdf({
         petName: petDisplay,
         storyPages: storyPagesData,
         galleryPhotos: galleryData,
@@ -454,7 +460,18 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       });
 
       setPdfProgress(null);
-      toast.success("PDF downloaded!");
+      // Be honest when the file isn't complete — this is the paid deliverable.
+      if (result?.missingImages) {
+        toast.warning(
+          `PDF downloaded, but ${result.missingImages} image${result.missingImages > 1 ? "s" : ""} couldn't be loaded and those pages are blank. Try again in a moment.`
+        );
+      } else if (result?.skippedGalleryPhotos) {
+        toast.success(
+          `PDF downloaded! (${result.skippedGalleryPhotos} extra gallery photo${result.skippedGalleryPhotos > 1 ? "s were" : " was"} left out to keep the file manageable.)`
+        );
+      } else {
+        toast.success("PDF downloaded!");
+      }
     } catch (e) {
       console.error("PDF generation failed:", e);
       toast.error("Failed to generate PDF");
