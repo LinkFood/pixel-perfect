@@ -179,13 +179,26 @@ export const useInterviewChat = (projectId: string | undefined) => {
     }
 
     try {
+      // Use the caller's real session token. Previously this sent the publishable
+      // anon key, which is not a user JWT — the server could not identify or meter
+      // the caller, and ownership of the project could not be verified.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        toast.error("Your session expired — please refresh and try again");
+        setIsStreaming(false);
+        return;
+      }
+
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/interview-chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          "Authorization": `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
+          projectId,
           messages: allMessages,
           petName,
           petType,
