@@ -460,7 +460,7 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
       // The story step reported success but nothing was persisted. Surface it
       // instead of leaving the user on an eternal spinner.
       console.error("No pages found for project — aborting illustration step", projectId);
-      setPhase("error");
+      setPhase("failed");
       addMessage(
         "Something went wrong saving the story — no pages came through. Your credits have been returned. Want to try again?"
       );
