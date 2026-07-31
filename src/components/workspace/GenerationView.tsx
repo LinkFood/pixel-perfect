@@ -430,10 +430,23 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
         }
         supabase.functions.invoke("generate-illustration", {
           body: { pageId: page.id, projectId, variant: true },
-        }).catch(() => {});
+        }).then(({ error }) => {
+          if (error) {
+            console.error(`Variant illustration failed for page ${page.id}:`, error);
+            if (isDevMode()) {
+              addEvent({
+                phase: "illustration", step: `generate-illustration-variant page ${i + 1}`,
+                status: "error", model: "Gemini 3 Pro",
+                output: String(error.message || error).slice(0, 500),
+              });
+            }
+          }
+        }).catch((err) => {
+          console.error(`Variant illustration threw for page ${page.id}:`, err);
+        });
       }, i * 2500); // stagger to avoid rate limits
     });
-  }, [projectId]);
+  }, [projectId, addEvent]);
 
   // Generate illustrations — parallel batches of 3, variants deferred to background
   const generateIllustrations = useCallback(async () => {
@@ -443,7 +456,17 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
       .eq("project_id", projectId)
       .order("page_number");
 
-    if (!pages || pages.length === 0) return;
+    if (!pages || pages.length === 0) {
+      // The story step reported success but nothing was persisted. Surface it
+      // instead of leaving the user on an eternal spinner.
+      console.error("No pages found for project — aborting illustration step", projectId);
+      setPhase("error");
+      addMessage(
+        "Something went wrong saving the story — no pages came through. Your credits have been returned. Want to try again?"
+      );
+      setRabbitState("idle");
+      return;
+    }
 
     // Count existing illustrations per page
     const { data: allExisting } = await supabase
