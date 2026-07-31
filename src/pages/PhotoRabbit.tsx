@@ -347,6 +347,20 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     projectCreatedRef.current = false;
   }, []);
 
+  // ─── Hard state isolation on route-driven project switches ─────────────
+  // handleSelectProject/handleNewProject reset explicitly, but browser back/forward
+  // and hand-edited URLs bypass those handlers entirely and used to leak the previous
+  // project's chat into the new one. Reset whenever the route id actually changes to a
+  // DIFFERENT project. Skipped on the null -> id transition, which is our own
+  // "project just created" navigation and must keep the in-flight upload state.
+  useEffect(() => {
+    const prev = prevParamIdRef.current;
+    prevParamIdRef.current = paramId;
+    if (prev === paramId) return;
+    if (!prev) return; // fresh creation, nothing to clear
+    resetProjectState();
+  }, [paramId, resetProjectState]);
+
   // ─── Build log helper ─────────────────────────────────────
   const logEvent = useCallback((phase: string, message: string, meta?: Record<string, unknown>) => {
     if (!activeProjectId) return;
