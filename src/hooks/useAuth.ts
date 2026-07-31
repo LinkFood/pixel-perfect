@@ -91,28 +91,10 @@ export const useCredits = () => {
     }
   };
 
-  const deduct = async (projectId: string, description: string = "Book generation", amount: number = 1): Promise<boolean> => {
-    if (!user) return false;
-    try {
-      const { error } = await supabase.rpc("deduct_credit", {
-        p_user_id: user.id,
-        p_project_id: projectId,
-        p_description: description,
-        p_amount: amount,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any);
-      if (error) return false;
-      await fetchBalance();
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   // Fetch on mount when user available
   useEffect(() => {
     if (user) fetchBalance();
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { balance, fetchBalance, deduct, isLoading };
+  return { balance, fetchBalance, isLoading };
 };

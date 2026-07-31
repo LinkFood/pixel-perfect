@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { isDevMode } from "@/lib/devMode";
+import { bookTitle, displayPetName } from "@/lib/petName";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 type Page = {
@@ -174,6 +175,12 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
   });
   const [devReportOpen, setDevReportOpen] = useState(false);
 
+  // Book title: prefer the cover page's text (the real title the story wrote);
+  // fall back to a sanitized pet_name (older projects hold whole sentences)
+  const coverText = pages.find(p => p.page_type === "cover")?.text_content;
+  const title = bookTitle(coverText, project?.pet_name);
+  const petDisplay = displayPetName(project?.pet_name);
+
   const illustratedPageIds = new Set(illustrations.map(i => i.page_id));
   const missingCount = pages.filter(p => !illustratedPageIds.has(p.id) || brokenImagePageIds.has(p.id)).length;
 
@@ -279,7 +286,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
     ...pages.map(p => ({ type: "story" as const, page: p })),
     ...(galleryPhotos.length > 0 ? [
       // Skip gallery title page for 1-2 photos — just show photos inline
-      ...(galleryPhotos.length > 2 ? [{ type: "photo_gallery_title" as const, petName: project?.pet_name || "Your Story" }] : []),
+      ...(galleryPhotos.length > 2 ? [{ type: "photo_gallery_title" as const, petName: petDisplay }] : []),
       ...galleryGridPages.map(photos => ({
         type: "photo_gallery_grid" as const,
         photos,
@@ -440,7 +447,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
 
       const { generatePdf } = await import("@/lib/generatePdf");
       await generatePdf({
-        petName: project.pet_name,
+        petName: petDisplay,
         storyPages: storyPagesData,
         galleryPhotos: galleryData,
         onProgress: (stage) => setPdfProgress(stage),
@@ -472,7 +479,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       if (navigator.share) {
         try {
           await navigator.share({
-            title: `${project?.pet_name}'s Book`,
+            title,
             text: "Check out this book I made!",
             url,
           });
@@ -546,7 +553,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
       ...(galleryPhotos.length > 2 ? [{
         pageNumber: pages.length + 1,
         pageType: "photo_gallery_title",
-        textContent: `The Real ${project?.pet_name || ""}`,
+        textContent: `The Real ${petDisplay}`,
         illustrationUrl: null,
         galleryPhotos: undefined as GalleryGridPhoto[] | undefined,
       }] : []),
@@ -592,7 +599,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
                   Your book is done! 🎉
                 </h1>
                 <p className="font-body text-sm text-background/70 mt-2">
-                  {project?.pet_name}'s story is ready to share with the world.
+                  {petDisplay}'s story is ready to share with the world.
                 </p>
               </motion.div>
 
@@ -749,7 +756,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
               </Button>
               <div>
                 <h1 className="font-display text-2xl font-bold text-foreground">
-                  {project?.pet_name}'s Book
+                  {title}
                 </h1>
                 <p className="font-body text-sm text-muted-foreground">Review and edit each page</p>
               </div>
@@ -1079,7 +1086,7 @@ const BookReview = ({ projectId, onBack }: BookReviewProps) => {
         </div>
       )}
 
-      <BookPreview open={previewOpen} onOpenChange={setPreviewOpen} pages={previewPages} petName={project?.pet_name || ""} />
+      <BookPreview open={previewOpen} onOpenChange={setPreviewOpen} pages={previewPages} petName={petDisplay} />
     </div>
   );
 };

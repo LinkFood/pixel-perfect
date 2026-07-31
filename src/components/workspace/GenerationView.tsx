@@ -645,6 +645,35 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
 
       if (storyErr) {
         if (isDevMode() && storyEventId) updateEvent(storyEventId, { status: "error", errorMessage: storyErr.message, durationMs: Date.now() - storyStart });
+
+        // Server-side credit enforcement: generate-story returns 402
+        // { error: "insufficient_credits", required: N } when short
+        let insufficientCredits = false;
+        let required = 0;
+        const ctx = (storyErr as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          try {
+            const body = await ctx.clone().json();
+            if (ctx.status === 402 || body?.error === "insufficient_credits") {
+              insufficientCredits = true;
+              required = typeof body?.required === "number" ? body.required : 0;
+            }
+          } catch { /* non-JSON error body */ }
+        } else if (ctx?.status === 402) {
+          insufficientCredits = true;
+        }
+
+        if (insufficientCredits) {
+          toast.error(
+            required > 0
+              ? `Not enough tokens — this book needs ${required}. Nothing was charged.`
+              : "Not enough tokens to make this book. Nothing was charged."
+          );
+          // Bounce back to the interview so the credit gate can take over
+          updateStatus.mutate({ id: projectId, status: "interview" });
+          return;
+        }
+
         setPhase("failed");
         setRabbitState("sympathetic");
         addMessage("Something went wrong with the story. Let me try again if you'd like.");
@@ -800,8 +829,10 @@ const GenerationView = ({ projectId, petName, onComplete, hideRabbit, onNewIllus
               </div>
             )}
             {creditBalance !== null && (
+              // Server deducts during generation; the parent refreshes this
+              // balance from the server — no local subtraction
               <span className="font-body text-xs text-muted-foreground">
-                <span className="text-foreground font-medium">{Math.max(0, (creditBalance ?? 0) - tokenCost)}</span> left
+                <span className="text-foreground font-medium">{Math.max(0, creditBalance ?? 0)}</span> left
               </span>
             )}
           </div>

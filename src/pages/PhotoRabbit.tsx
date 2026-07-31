@@ -18,6 +18,7 @@ import { useChainLogSafe } from "@/hooks/useChainLog";
 import { getQuickReplies } from "@/lib/quickReplies";
 import { buildPhotoSummary } from "@/lib/photoSummary";
 import { supabase } from "@/integrations/supabase/client";
+import { extractPetName, displayPetName } from "@/lib/petName";
 import { useAuth, useCredits, TOKEN_COSTS } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import CreditGate from "@/components/workspace/CreditGate";
@@ -116,7 +117,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const { uploadBatch, uploadProgress, isBatchUploading, captioningIds } = useUploadPhoto();
   const updatePhoto = useUpdatePhoto();
   const deletePhoto = useDeletePhoto();
-  const { balance, deduct, fetchBalance } = useCredits();
+  const { balance, fetchBalance } = useCredits();
   const [showCreditGate, setShowCreditGate] = useState(false);
 
   const [input, setInput] = useState("");
@@ -346,6 +347,33 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     });
   }, [activeProjectId]);
 
+  // ─── Server-side credits: keep displayed balance in sync ───
+  // generate-story deducts server-side, so refresh from the server while
+  // generating (and after) instead of subtracting locally. If generation
+  // bounces back to interview (402 insufficient_credits), surface the gate.
+  const prevPhaseForCreditsRef = useRef<Phase>(phase);
+  useEffect(() => {
+    const prevPhase = prevPhaseForCreditsRef.current;
+    prevPhaseForCreditsRef.current = phase;
+
+    if (phase === "generating") {
+      // generate-story returns (and deducts) within the first several seconds
+      const t1 = window.setTimeout(() => fetchBalance(), 8000);
+      const t2 = window.setInterval(() => fetchBalance(), 30000);
+      return () => { clearTimeout(t1); clearInterval(t2); };
+    }
+    if (prevPhase === "generating" && phase === "interview") {
+      // Bounced back mid-generation — re-check server balance; if short, it
+      // was a 402 from generate-story, so show the credit gate inline
+      fetchBalance().then(bal => {
+        if (bal < (TOKEN_COSTS[productType] || 5)) setShowCreditGate(true);
+      });
+    }
+    if (prevPhase === "generating" && phase === "review") {
+      fetchBalance();
+    }
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ─── Phase transition logging ──────────────────────────────
   const prevPhaseRef = useRef<Phase | null>(null);
   useEffect(() => {
@@ -403,12 +431,23 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       setInput("");
       scrollToBottom();
 
+      // Extract just the name(s) — strip lead-ins ("his name is..."), cut at first
+      // sentence boundary, cap length. "Link. He's a goofy dog..." → "Link"
+      const cleanedNames = extractPetName(trimmed);
       // Parse names: split on "and", comma, or treat as single
-      const nameParts = trimmed.split(/\s+and\s+|,\s*/i).map(n => n.trim()).filter(Boolean);
-      const primaryName = nameParts[0] || trimmed;
+      const nameParts = cleanedNames.split(/\s+and\s+|,\s*/i).map(n => n.trim()).filter(Boolean);
+      const primaryName = nameParts[0] || cleanedNames;
 
-      // Update pet_name with primary name
+      // Update pet_name with primary name only
       await updateProject.mutateAsync({ id: activeProjectId, pet_name: primaryName });
+
+      // Persist the FULL original message to the interview transcript so the
+      // story model still sees the whole story, not just the extracted name
+      await supabase.from("project_interview").insert({
+        project_id: activeProjectId,
+        role: "user",
+        content: trimmed,
+      });
 
       // Update character_profiles with real names if they exist
       if (project) {
@@ -583,7 +622,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         if (lastSuggestedReplies.length > 0) {
           setQuickReplies(lastSuggestedReplies);
         } else {
-          const replies = getQuickReplies(lastFinishedContent, project?.pet_name || "them", project?.mood);
+          const replies = getQuickReplies(lastFinishedContent, project?.pet_name ? displayPetName(project.pet_name) : "them", project?.mood);
           setQuickReplies(replies);
         }
       }
@@ -625,18 +664,23 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     setChatMessages(restored);
   }, [phase, interviewMessages.length, activeProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Display-safe name — existing bad data may hold a whole sentence in pet_name
+  const petDisplay = project?.pet_name && project.pet_name !== "New Project"
+    ? displayPetName(project.pet_name)
+    : null;
+
   // Adaptive greetings
   const shortGreetings: Record<string, string> = {
-    funny: `Alright, tell me — what's the most ridiculous thing about ${project?.pet_name || "them"}?`,
+    funny: `Alright, tell me — what's the most ridiculous thing about ${petDisplay || "them"}?`,
     heartfelt: `Tell me about this moment. What makes it matter?`,
     adventure: `What's the story here? I want all of it.`,
     memorial: `Tell me about them. What should people know?`,
   };
   const fullGreetings: Record<string, string> = {
-    funny: `I've been through all your photos. ${project?.pet_name || "They"} is clearly a character. Give me the best story.`,
-    heartfelt: `I've looked at every photo. I can see the bond. Take your time — tell me about ${project?.pet_name || "them"}.`,
-    adventure: `I've seen every photo — ${project?.pet_name || "they"} looks like trouble in the best way. What's the greatest adventure?`,
-    memorial: `I've looked at every photo of ${project?.pet_name || "them"}. What a life. Take all the time you need.`,
+    funny: `I've been through all your photos. ${petDisplay || "They"} is clearly a character. Give me the best story.`,
+    heartfelt: `I've looked at every photo. I can see the bond. Take your time — tell me about ${petDisplay || "them"}.`,
+    adventure: `I've seen every photo — ${petDisplay || "they"} looks like trouble in the best way. What's the greatest adventure?`,
+    memorial: `I've looked at every photo of ${petDisplay || "them"}. What a life. Take all the time you need.`,
   };
 
   const appearanceProfilePromise = useRef<Promise<unknown> | null>(null);
@@ -722,7 +766,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       return [{ role: "rabbit", content: greeting }];
     });
     // Immediately compute and show chips for the first rabbit question
-    const initialReplies = getQuickReplies(greeting, project?.pet_name || "them", mood);
+    const initialReplies = getQuickReplies(greeting, petDisplay || "them", mood);
     setQuickReplies(initialReplies);
     setRabbitState("listening");
     scrollToBottom();
@@ -753,7 +797,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       return;
     }
 
-    // Credit check before generation — variable cost based on product type
+    // Pre-flight balance check — pure UX (server enforces + deducts during generation)
     const tokenCost = TOKEN_COSTS[productType] || 5;
     const currentBalance = await fetchBalance();
     if (currentBalance < tokenCost) {
@@ -782,7 +826,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       appearanceProfilePromise.current = null;
     }
 
-    // Set status to generating FIRST (before deducting credit)
+    // Move to generating — the generate-story edge function enforces and
+    // deducts credits server-side (402 insufficient_credits bounces us back)
     try {
       await updateStatus.mutateAsync({ id: activeProjectId, status: "generating" });
     } catch {
@@ -794,23 +839,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
       return;
     }
 
-    // Status updated successfully — NOW deduct tokens
-    const productLabel = productType === "single_illustration" ? "Single illustration"
-      : productType === "short_story" ? "Short story"
-      : "Picture book";
-    const success = await deduct(activeProjectId, `${productLabel} generation`, tokenCost);
-    if (!success) {
-      logEvent("system", "Credit deduction failed", { tokenCost });
-      // Roll back status
-      updateStatus.mutate({ id: activeProjectId, status: "interview" });
-      setChatMessages(prev => [...prev, {
-        role: "rabbit",
-        content: "Hmm, something went sideways with credits. Try again?",
-      }]);
-      scrollToBottom();
-      return;
-    }
-    logEvent("system", `${tokenCost} token${tokenCost !== 1 ? "s" : ""} deducted`, { tokenCost });
+    logEvent("system", `Generation started — ${tokenCost} token${tokenCost !== 1 ? "s" : ""} will be charged server-side`, { tokenCost });
     setChatMessages(prev => [...prev, {
       role: "rabbit",
       content: `I've got everything. Time to paint. This is going to be something.`,
@@ -841,7 +870,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     } else {
       setChatMessages(prev => [...prev, {
         role: "rabbit",
-        content: `I know ${project?.pet_name || "this"} inside and out now. Watch this.`,
+        content: `I know ${petDisplay || "this"} inside and out now. Watch this.`,
       }]);
       scrollToBottom();
       handleFinishInterview();
@@ -898,7 +927,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
     // Save rabbit memory
     try {
       const memory = {
-        petName: project?.pet_name || "your subject",
+        petName: petDisplay || "your subject",
         petType: project?.pet_type,
         mood: project?.mood,
         timestamp: Date.now(),
@@ -1654,7 +1683,7 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
         onDeletePhoto={activeProjectId ? (id, path) => deletePhoto.mutate({ id, projectId: activeProjectId, storagePath: path }) : undefined}
         canContinueToInterview={canContinueToInterview}
         onContinueToInterview={handleContinueToInterview}
-        petName={project?.pet_name || "your subject"}
+        petName={petDisplay || "your subject"}
         onMoodSelect={handleMoodSelect}
         canFinish={canFinish}
         allowQuickFinish={showSpeedChoice && userInterviewCount === 0}

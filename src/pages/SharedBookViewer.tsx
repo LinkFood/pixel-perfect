@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCharacter";
 import ConfettiBurst from "@/components/ConfettiBurst";
 import { supabase } from "@/integrations/supabase/client";
+import { bookTitle, displayPetName } from "@/lib/petName";
 
 type BookPage = {
   id: string;
@@ -71,6 +72,11 @@ const SharedBookViewer = () => {
     fetchBook();
   }, [shareToken]);
 
+  // Book title: prefer the cover page's text (the real title); pet_name may
+  // hold a whole sentence on older projects, so it's only a sanitized fallback
+  const coverText = book?.pages?.find(p => p.pageType === "cover")?.textContent;
+  const title = bookTitle(coverText, book?.petName);
+
   // Build gallery grid pages (groups of 6)
   const galleryGridPages: GalleryPhoto[][] = [];
   if (book) {
@@ -94,7 +100,7 @@ const SharedBookViewer = () => {
   const virtualPages: VirtualPage[] = book?.pages ? [
     ...book.pages.map(p => ({ type: "story" as const, page: p })),
     ...(book.galleryPhotos?.length > 0 ? [
-      { type: "gallery_title" as const, petName: book.petName },
+      { type: "gallery_title" as const, petName: displayPetName(book.petName) },
       ...galleryGridPages.map(photos => ({ type: "gallery_grid" as const, photos })),
     ] : []),
   ] : [];
@@ -168,7 +174,7 @@ const SharedBookViewer = () => {
   const handleShare = useCallback(async () => {
     const shareUrl = window.location.href;
     const shareData = {
-      title: `${book?.petName}'s Book`,
+      title,
       text: "Check out this picture book!",
       url: shareUrl,
     };
@@ -186,7 +192,7 @@ const SharedBookViewer = () => {
     } catch {
       // User cancelled share dialog — ignore
     }
-  }, [book?.petName]);
+  }, [title]);
 
   // Auto-flip timer
   const AUTO_FLIP_DURATION = 7000;
@@ -297,7 +303,7 @@ const SharedBookViewer = () => {
           {/* Book title */}
           <div className="text-center py-4">
             <h1 className="font-display text-2xl font-bold text-foreground">
-              {book?.petName}'s Book
+              {title}
             </h1>
             <p className="font-body text-sm mt-1 text-muted-foreground">
               Made with PhotoRabbit
@@ -437,6 +443,67 @@ type VirtualPageType = {
   photos: { photoUrl: string; caption: string | null }[];
 };
 
+// Caption may be null or the literal string "null" from failed captioning runs
+function cleanCaption(caption: string | null): string | null {
+  const t = caption?.trim();
+  if (!t || t.toLowerCase() === "null" || t.toLowerCase() === "undefined") return null;
+  return t;
+}
+
+/**
+ * "The Real ___" photo grid. Renders only photos that actually load —
+ * a slot whose image errors is removed and the grid re-flows to fit,
+ * so there are never empty camera-icon placeholders.
+ */
+function SharedGalleryGrid({ photos }: { photos: GalleryPhoto[] }) {
+  const [failedIdx, setFailedIdx] = useState<Set<number>>(new Set());
+  const visible = photos
+    .map((photo, i) => ({ photo, i }))
+    .filter(({ photo, i }) => photo.photoUrl && !failedIdx.has(i));
+
+  const gridClass =
+    visible.length <= 1 ? "grid-cols-1 grid-rows-1"
+    : visible.length === 2 ? "grid-cols-1 grid-rows-2"
+    : visible.length <= 4 ? "grid-cols-2 grid-rows-2"
+    : "grid-cols-2 grid-rows-3";
+
+  if (visible.length === 0) {
+    return (
+      <div className="aspect-square flex items-center justify-center bg-gradient-to-b from-accent to-white">
+        <Camera className="w-8 h-8 text-border/40" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="aspect-square p-3 bg-gradient-to-b from-accent to-white">
+      <div className={`grid ${gridClass} gap-2 h-full`}>
+        {visible.map(({ photo, i }) => {
+          const caption = cleanCaption(photo.caption);
+          return (
+            <div key={i} className="rounded-lg overflow-hidden shadow-sm flex flex-col border border-border">
+              <div className="flex-1 min-h-0">
+                <img
+                  src={photo.photoUrl}
+                  alt={caption || `Photo ${i + 1}`}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  onError={() => setFailedIdx(prev => new Set(prev).add(i))}
+                />
+              </div>
+              {caption && (
+                <p className="font-body text-[8px] text-center px-1 py-0.5 truncate text-muted-foreground">
+                  {caption}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function StoryPageImage({ src, alt }: { src: string; alt: string }) {
   const [loaded, setLoaded] = useState(false);
   return (
@@ -475,35 +542,7 @@ function renderSharedPage(vp: VirtualPageType | null) {
   }
 
   if (vp.type === "gallery_grid") {
-    return (
-      <div className="aspect-square p-3 bg-gradient-to-b from-accent to-white">
-        <div className="grid grid-cols-2 grid-rows-3 gap-2 h-full">
-          {vp.photos.map((photo, i) => (
-            <div key={i} className="rounded-lg overflow-hidden shadow-sm flex flex-col border border-border">
-              <div className="flex-1 min-h-0">
-                <img
-                  src={photo.photoUrl}
-                  alt={photo.caption || `Photo ${i + 1}`}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-              </div>
-              {photo.caption && (
-                <p className="font-body text-[8px] text-center px-1 py-0.5 truncate text-muted-foreground">
-                  {photo.caption}
-                </p>
-              )}
-            </div>
-          ))}
-          {Array.from({ length: Math.max(0, 6 - vp.photos.length) }).map((_, i) => (
-            <div key={`empty-${i}`} className="rounded-lg flex items-center justify-center border border-border/25 bg-background/50">
-              <Camera className="w-5 h-5 text-border/40" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <SharedGalleryGrid photos={vp.photos} />;
   }
 
   // Story page
