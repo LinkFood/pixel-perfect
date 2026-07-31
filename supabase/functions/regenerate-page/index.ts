@@ -80,7 +80,8 @@ serve(async (req) => {
             content: `Surrounding pages for context:\n${context}\n\nInterview transcript:\n${transcript}\n\nCurrent page ${page.page_number} (${page.page_type}):\n"${page.text_content}"\n\nPlease rewrite this page with fresh text and a new illustration prompt. Return valid JSON: {"text_content": "...", "illustration_prompt": "..."}`,
           },
         ],
-        temperature: 0.9,
+        reasoning_effort: "none",
+        service_tier: "priority",
         response_format: { type: "json_object" },
       }),
     });
