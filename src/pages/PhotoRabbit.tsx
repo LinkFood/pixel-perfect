@@ -158,6 +158,8 @@ const PhotoRabbitInner = ({ paramId }: InnerProps) => {
   const [mobileSandboxCollapsed, setMobileSandboxCollapsed] = useState(false);
   // Suppress spurious mood-picker auto-recovery when intent path already set a mood
   const suppressMoodPickerRef = useRef(false);
+  // Tracks the previously-rendered route project id so we can detect real navigation
+  const prevParamIdRef = useRef<string | undefined>(paramId);
 
   // Sync activeProjectId with URL params
   useEffect(() => {
