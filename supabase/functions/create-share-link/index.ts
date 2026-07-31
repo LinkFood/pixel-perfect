@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { projectId } = await req.json();
+    const { projectId, revoke } = await req.json();
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -37,6 +37,18 @@ serve(async (req) => {
 
     if (projErr || !project) throw new Error("Project not found");
     if (project.user_id !== user.id) throw new Error("Not authorized");
+
+    // Revoke: clear the token so existing links stop resolving.
+    if (revoke) {
+      const { error: revokeErr } = await supabase
+        .from("projects")
+        .update({ share_token: null })
+        .eq("id", projectId);
+      if (revokeErr) throw new Error("Failed to revoke share link");
+      return new Response(JSON.stringify({ shareToken: null, revoked: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // If share_token already exists, return it
     if (project.share_token) {

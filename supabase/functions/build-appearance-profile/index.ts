@@ -176,6 +176,31 @@ Return ONLY the JSON array, no other text. Example format:
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      if (response.status === 400) {
+        // The vision model rejected the photo set (unsupported image, safety, etc).
+        // Degrade to a minimal profile rather than blocking the entire pipeline —
+        // describe-photo already behaves this way.
+        console.warn(`AI rejected appearance profile for project ${projectId} (400), using fallback`);
+        const fallback = [{
+          name: project.pet_name,
+          profile: `${project.pet_name}, a ${project.pet_breed || ""} ${project.pet_type}`.replace(/\s+/g, " ").trim(),
+        }];
+        await supabase.from("projects").update({
+          character_profiles: fallback,
+          pet_appearance_profile: fallback[0].profile,
+        }).eq("id", projectId);
+        await supabase.from("build_log").insert({
+          project_id: projectId,
+          phase: "appearance",
+          level: "warning",
+          message: `I couldn't study the photos closely enough, so I'm working from the basics.`,
+          technical_message: "Vision model returned 400; used fallback appearance profile",
+          metadata: { fallback: true },
+        });
+        return new Response(JSON.stringify({ characterProfiles: fallback, fallback: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       throw new Error(`AI error: ${response.status}`);
     }
 
@@ -198,6 +223,15 @@ Return ONLY the JSON array, no other text. Example format:
       // Fallback: treat the whole response as a single profile (backward compat)
       console.warn("Could not parse character_profiles JSON, falling back to single profile");
       characterProfiles = [{ name: project.pet_name, profile: rawContent }];
+      // Surface the degradation instead of reporting a clean success.
+      await supabase.from("build_log").insert({
+        project_id: projectId,
+        phase: "appearance",
+        level: "warning",
+        message: "I had trouble telling the characters apart — treating them as one.",
+        technical_message: "character_profiles JSON parse failed; used raw text as single profile",
+        metadata: { degraded: true },
+      });
     }
 
     // Build combined profile for backward compatibility
