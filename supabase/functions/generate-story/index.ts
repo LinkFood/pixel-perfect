@@ -100,6 +100,16 @@ You MUST call the generate_pages function with all pages.`;
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // Populated once credits are actually taken, so the catch-all can hand them back.
+  // Without this, any downstream failure silently burned the user's credits.
+  let refund: {
+    // deno-lint-ignore no-explicit-any
+    client: any;
+    userId: string;
+    projectId: string;
+    cost: number;
+  } | null = null;
+
   try {
     const { projectId } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -227,6 +237,9 @@ serve(async (req) => {
         description: `Book generation (${effectiveProductType})`,
       });
       if (txErr) console.error("Failed to record credit transaction:", txErr);
+
+      // Arm the refund path now that money has actually moved.
+      refund = { client: supabase, userId: callerId, projectId, cost };
     } else {
       console.log(`Project ${projectId} already charged — skipping deduction (retry/regeneration)`);
     }
