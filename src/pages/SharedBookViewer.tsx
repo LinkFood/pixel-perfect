@@ -8,6 +8,7 @@ import RabbitCharacter, { type RabbitState } from "@/components/rabbit/RabbitCha
 import ConfettiBurst from "@/components/ConfettiBurst";
 import { supabase } from "@/integrations/supabase/client";
 import { bookTitle, displayPetName } from "@/lib/petName";
+import { getWrapTheme } from "@/lib/wrapStyles";
 
 type BookPage = {
   id: string;
