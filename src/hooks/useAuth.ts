@@ -81,7 +81,12 @@ export const useCredits = () => {
         .select("balance")
         .eq("user_id", user.id)
         .single();
-      if (error) { setBalance(0); return 0; }
+      if (error) {
+        // A transient network/DB error is NOT "zero credits". Leave the last known
+        // balance in place so we never show a false credit gate to a paying user.
+        console.error("Failed to fetch credit balance:", error);
+        return balance ?? 0;
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const bal = (data as any)?.balance ?? 0;
       setBalance(bal);
