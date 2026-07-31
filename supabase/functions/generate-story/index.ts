@@ -183,7 +183,7 @@ Generate all pages now using the generate_pages function.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.2",
+        model: "openai/gpt-5.6-sol",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -219,7 +219,8 @@ Generate all pages now using the generate_pages function.`;
           },
         }],
         tool_choice: { type: "function", function: { name: "generate_pages" } },
-        temperature: 0.7,
+        reasoning_effort: "none",
+        service_tier: "priority",
       }),
     });
 
