@@ -335,7 +335,7 @@ export const useUpdatePhoto = () => {
 
   return useMutation({
     mutationFn: async ({ id, projectId, caption, is_favorite }: { id: string; projectId: string; caption?: string; is_favorite?: boolean }) => {
-      const updates: Record<string, unknown> = {};
+      const updates: { caption?: string; is_favorite?: boolean } = {};
       if (caption !== undefined) updates.caption = caption;
       if (is_favorite !== undefined) updates.is_favorite = is_favorite;
 

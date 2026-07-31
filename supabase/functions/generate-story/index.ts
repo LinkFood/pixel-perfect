@@ -154,8 +154,8 @@ serve(async (req) => {
       phase: "story",
       level: "milestone",
       message: `Found ${interviewCount} interview messages and ${photoCount} photos. Writing the story...`,
-      technical_message: `Model: openai/gpt-5.2 | Mood: ${project.mood || "none"} | Appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`,
-      metadata: { model: "openai/gpt-5.2", interview_messages: interviewCount, photos: photoCount },
+      technical_message: `Model: openai/gpt-5.6-sol | Mood: ${project.mood || "none"} | Appearance profile: ${project.pet_appearance_profile ? "yes" : "no"}`,
+      metadata: { model: "openai/gpt-5.6-sol", interview_messages: interviewCount, photos: photoCount },
     });
 
     const systemPrompt = buildSystemPrompt(project.pet_name, project.pet_appearance_profile, effectiveProductType, project.mood, project.character_profiles as Array<{ name: string; profile: string }> | null);
@@ -183,7 +183,7 @@ Generate all pages now using the generate_pages function.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.2",
+        model: "openai/gpt-5.6-sol",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -219,7 +219,8 @@ Generate all pages now using the generate_pages function.`;
           },
         }],
         tool_choice: { type: "function", function: { name: "generate_pages" } },
-        temperature: 0.7,
+        reasoning_effort: "none",
+        service_tier: "priority",
       }),
     });
 
@@ -255,8 +256,8 @@ Generate all pages now using the generate_pages function.`;
       phase: "story",
       level: "milestone",
       message: `Story complete! ${pages.length} pages written in ${Math.round(elapsedMs / 1000)}s.${usage?.total_tokens ? ` (${usage.total_tokens} tokens)` : ""}`,
-      technical_message: `Generated ${pages.length} pages in ${elapsedMs}ms | Model: openai/gpt-5.2${usage ? ` | Tokens: ${JSON.stringify(usage)}` : ""}`,
-      metadata: { pages: pages.length, elapsed_ms: elapsedMs, model: "openai/gpt-5.2", usage },
+      technical_message: `Generated ${pages.length} pages in ${elapsedMs}ms | Model: openai/gpt-5.6-sol${usage ? ` | Tokens: ${JSON.stringify(usage)}` : ""}`,
+      metadata: { pages: pages.length, elapsed_ms: elapsedMs, model: "openai/gpt-5.6-sol", usage },
     });
 
     // Delete existing pages for this project (in case of regeneration)

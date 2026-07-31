@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PRIMARY_MODEL = "google/gemini-3-pro-image-preview";
+const PRIMARY_MODEL = "google/gemini-3-pro-image";
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -76,7 +76,7 @@ async function tryGenerate(
   model: string,
   content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>,
   maxAttempts: number,
-  temperature = 0.8
+  temperature = 1
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ base64: string | null; contentType: string; error: string | null; retryable: boolean; usage: any }> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -270,7 +270,7 @@ STYLE RULES:
       ? "\n\nIMPORTANT: Create a DIFFERENT composition and camera angle from other versions of this scene. Try a fresh perspective — closer, further, different angle, or different moment in the action."
       : "";
     const finalText = textPrompt + variantSuffix;
-    const temperature = variant ? 0.95 : 0.8;
+    const temperature = 1;
 
     // Build multimodal content: reference photos FIRST, then text prompt
     const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
